@@ -2038,7 +2038,60 @@ class TestDistribuicao:
         assert "pip install repository-hygiene==" in content
         assert "git+https://github.com" not in content
 
+    def test_workflow_template_captura_exit_code_1(self, tmp_path):
+        from auditoria_higiene.init import cmd_init
+
+        cmd_init(str(tmp_path))
+        wf_path = tmp_path / ".github" / "workflows" / "repository-hygiene.yml"
+        content = wf_path.read_text()
+        assert "|| rc=$?" in content
+        assert "exit_code=$rc" in content
+
+    def test_workflow_template_publica_relatorio_sem_if(self, tmp_path):
+        from auditoria_higiene.init import cmd_init
+
+        cmd_init(str(tmp_path))
+        wf_path = tmp_path / ".github" / "workflows" / "repository-hygiene.yml"
+        content = wf_path.read_text()
+        publish_idx = content.index("Publish report to Summary")
+        snippet = content[publish_idx : publish_idx + 200]
+        assert "if:" not in snippet
+
     def test_readme_sem_nao_publicado(self):
         with open("README.md", encoding="utf-8") as readme_file:
             readme = readme_file.read()
         assert "não está publicado" not in readme
+
+    def test_readme_apresenta_init_antes_auditoria(self):
+        with open("README.md", encoding="utf-8") as f:
+            readme = f.read()
+        pos_init = readme.index("### Inicializar projeto")
+        pos_audit = readme.index("### Auditoria local")
+        assert pos_init < pos_audit, "`--init` deve aparecer antes da auditoria local"
+
+    def test_readme_descreve_formatos_explicitos(self):
+        with open("README.md", encoding="utf-8") as f:
+            readme = f.read()
+        assert "--format text" in readme
+        assert "--format json" in readme
+        assert "--format sarif" in readme
+        assert "--output" in readme
+
+    def test_readme_workflow_publica_relatorio_apos_erro(self):
+        with open("README.md", encoding="utf-8") as f:
+            readme = f.read()
+        assert "executa a auditoria mesmo quando ela retorna erro" in readme
+        assert "publica o relatório" in readme
+        assert "issue" in readme
+
+    def test_readme_codigo_saida_2_documentado(self):
+        with open("README.md", encoding="utf-8") as f:
+            readme = f.read()
+        assert "2" in readme
+        assert "Configuração ou execução inválida" in readme
+
+    def test_readme_exemplo_config_inclui_permissoes_write_permitidas(self):
+        with open("README.md", encoding="utf-8") as f:
+            readme = f.read()
+        assert "permissoes_write_permitidas" in readme
+        assert "[issues]" in readme
