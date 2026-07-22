@@ -52,7 +52,7 @@ def _processar_resultado(resultado, formato="text"):
 
 def main():
     parser = argparse.ArgumentParser(
-        prog="auditoria-higiene",
+        prog="repository-hygiene",
         description="Auditor de higiene para repositórios Git",
     )
     parser.add_argument(
@@ -75,7 +75,7 @@ def main():
     parser.add_argument(
         "--version",
         action="version",
-        version=f"auditoria-higiene {__version__}",
+        version=f"repository-hygiene {__version__}",
     )
     parser.add_argument(
         "--init",

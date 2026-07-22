@@ -12,9 +12,9 @@ def cmd_init(directory, force=False, install_hook=False):
         sys.exit(2)
 
     _gerar_arquivo(raiz, "auditoria.yaml", "templates/auditoria.yaml", force)
-    _gerar_arquivo(raiz, ".github/workflows/auditoria-higiene.yml", "templates/workflow.yml", force)
+    _gerar_arquivo(raiz, ".github/workflows/repository-hygiene.yml", "templates/workflow.yml", force)
     print(f"Arquivos gerados em {raiz}")
-    print("Execute 'auditoria-higiene .' para auditar o repositório.")
+    print("Execute 'repository-hygiene .' para auditar o repositório.")
 
     if install_hook:
         _instalar_hook(raiz, force)
