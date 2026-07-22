@@ -292,6 +292,14 @@ class TestStatusExecucao:
 
 
 class TestRelatorios:
+    def test_relatorio_rejeita_saida_fora_da_raiz(self, tmp_path):
+        from auditoria_higiene.reporters import escrever_relatorio
+
+        with pytest.raises(OSError, match="fora do diretório permitido"):
+            escrever_relatorio(
+                "conteudo", str(tmp_path.parent / "report.json"), str(tmp_path)
+            )
+
     def test_relatorio_texto_agrupa_por_severidade(self, tmp_path):
         from auditoria_higiene.core import executar_auditoria
         from auditoria_higiene.reporters import gerar_relatorio_texto
