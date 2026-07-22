@@ -16,6 +16,8 @@ regras:
   artefatos_fora_gitignore:
     habilitada: true
     severidade: error
+    # Opcional: limita alertas a padrões de artefatos gerados.
+    # padroes_artefatos: [".ruff_cache/", ".pytest_cache/", "dist/"]
   gitkeep_sem_conteudo:
     habilitada: true
     severidade: warning
@@ -34,6 +36,8 @@ regras:
   workflows_inseguros:
     habilitada: true
     severidade: warning
+    # Permissões write necessárias ao workflow podem ser explicitamente permitidas.
+    permissoes_write_permitidas: [issues]
 
 excecoes:
   segredos_rastreados:

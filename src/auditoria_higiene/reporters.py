@@ -21,7 +21,9 @@ def gerar_resumo(resultado, report_path):
 def escrever_relatorio(conteudo, caminho, criar_pai=True):
     diretorio = os.path.dirname(caminho)
     if criar_pai:
-        os.makedirs(diretorio, exist_ok=True)  # NOSONAR validated by cli._resolver_saida
+        os.makedirs(
+            diretorio, exist_ok=True
+        )  # NOSONAR validated by cli._resolver_saida
     elif not os.path.isdir(diretorio):
         raise OSError(f"Diretório de saída não encontrado: {diretorio}")
     fd, tmp = tempfile.mkstemp(prefix=".auditoria-", dir=diretorio, text=True)
@@ -66,6 +68,8 @@ def _adicionar_secao(linhas, titulo, itens):
     for r in itens:
         linhas.append(f"  [{r['regra']}] {r['caminho']}")
         linhas.append(f"    {r['mensagem']}")
+        if "confianca" in r:
+            linhas.append(f"    Confianca: {r['confianca']}")
         if "evidencias" in r:
             linhas.append(f"    Evidencias: {r['evidencias']}")
         if "recomendacao" in r:
