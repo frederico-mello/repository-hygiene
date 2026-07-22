@@ -1,0 +1,38 @@
+name: Repository Hygiene Audit
+
+on:
+  schedule:
+    - cron: "0 6 * * 1"
+  push:
+    paths:
+      - auditoria.yaml
+      - .github/**
+      - .opencode/**
+      - openspec/**
+      - docs/**
+      - README.md
+      - .gitignore
+      - Makefile
+  pull_request:
+    paths:
+      - auditoria.yaml
+      - .github/**
+      - .opencode/**
+      - openspec/**
+      - docs/**
+      - README.md
+      - .gitignore
+      - Makefile
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: read
+
+jobs:
+  audit:
+    uses: frederico-mello/repository-hygiene/.github/workflows/audit-reusable.yml@v0.1.0
+    with:
+      python-version: "3.10"
+    secrets: inherit
