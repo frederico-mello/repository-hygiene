@@ -5,19 +5,49 @@ import sys
 import os
 
 from auditoria_higiene import __version__
-from auditoria_higiene.core import carregar_configuracao, validar_configuracao, executar_auditoria
+from auditoria_higiene.core import carregar_configuracao, validar_configuracao, executar_auditoria, caminho_seguro
 from auditoria_higiene.sanitizer import sanitizar_resultado
 from auditoria_higiene.reporters import gerar_relatorio_texto, gerar_relatorio_json, gerar_relatorio_sarif
 from auditoria_higiene.init import cmd_init
+from auditoria_higiene.snapshot import executar_pre_commit as executar_pre_commit_snapshot
 
 
-def _caminho_seguro(raiz, *partes):
-    caminho = os.path.normpath(os.path.join(raiz, *partes))
-    raiz_abs = os.path.realpath(raiz)
-    caminho_abs = os.path.realpath(caminho)
-    if not caminho_abs.startswith(raiz_abs + os.sep) and caminho_abs != raiz_abs:
-        raise ValueError(f"Path traversal detectado: {caminho}")
-    return caminho_abs
+def _resolver_config(directory, config_path):
+    try:
+        config_path_resolved = caminho_seguro(directory, config_path)
+    except ValueError:
+        print(f"Erro: caminho de configuração inválido: {config_path}", file=sys.stderr)
+        sys.exit(2)
+    if not os.path.exists(config_path_resolved):
+        print(f"Erro: arquivo de configuração não encontrado em {config_path_resolved}", file=sys.stderr)
+        sys.exit(2)
+    return config_path_resolved
+
+
+def _carregar_config(config_path_resolved):
+    try:
+        config = carregar_configuracao(config_path_resolved)
+        validar_configuracao(config)
+        return config
+    except ValueError as e:
+        print(f"Erro de configuração: {e}", file=sys.stderr)
+        sys.exit(2)
+    except Exception as e:
+        print(f"Erro ao carregar configuração: {e}", file=sys.stderr)
+        sys.exit(2)
+
+
+def _processar_resultado(resultado, formato="text"):
+    resultado_sanitizado = sanitizar_resultado(resultado)
+    if formato == "json":
+        print(gerar_relatorio_json(resultado_sanitizado))
+    elif formato == "sarif":
+        print(gerar_relatorio_sarif(resultado_sanitizado))
+    else:
+        print(gerar_relatorio_texto(resultado_sanitizado))
+    if resultado["status"] == "falha":
+        sys.exit(1)
+    sys.exit(0)
 
 
 def main():
@@ -57,32 +87,29 @@ def main():
         action="store_true",
         help="Sobrescrever arquivos existentes sem confirmação (usado com --init)",
     )
+    parser.add_argument(
+        "--install-hook",
+        action="store_true",
+        help="Instalar hook pre-commit nativo (usado com --init)",
+    )
+    parser.add_argument(
+        "--pre-commit",
+        action="store_true",
+        help="Modo pre-commit: audita apenas o conteúdo staged",
+    )
 
     args = parser.parse_args()
 
     if args.init:
-        cmd_init(args.directory, force=args.force)
+        cmd_init(args.directory, force=args.force, install_hook=args.install_hook)
         return
 
-    try:
-        config_path = _caminho_seguro(args.directory, args.config)
-    except ValueError:
-        print(f"Erro: caminho de configuração inválido: {args.config}", file=sys.stderr)
-        sys.exit(2)
+    if args.pre_commit:
+        _executar_pre_commit(args.directory, args.config)
+        return
 
-    if not os.path.exists(config_path):
-        print(f"Erro: arquivo de configuração não encontrado em {config_path}", file=sys.stderr)
-        sys.exit(2)
-
-    try:
-        config = carregar_configuracao(config_path)
-        validar_configuracao(config)
-    except ValueError as e:
-        print(f"Erro de configuração: {e}", file=sys.stderr)
-        sys.exit(2)
-    except Exception as e:
-        print(f"Erro ao carregar configuração: {e}", file=sys.stderr)
-        sys.exit(2)
+    config_path = _resolver_config(args.directory, args.config)
+    config = _carregar_config(config_path)
 
     try:
         resultado = executar_auditoria(args.directory, config)
@@ -90,18 +117,20 @@ def main():
         print(f"Erro durante auditoria: {e}", file=sys.stderr)
         sys.exit(2)
 
-    resultado_sanitizado = sanitizar_resultado(resultado)
+    _processar_resultado(resultado, args.format)
 
-    if args.format == "json":
-        print(gerar_relatorio_json(resultado_sanitizado))
-    elif args.format == "sarif":
-        print(gerar_relatorio_sarif(resultado_sanitizado))
-    else:
-        print(gerar_relatorio_texto(resultado_sanitizado))
 
-    if resultado["status"] == "falha":
-        sys.exit(1)
-    sys.exit(0)
+def _executar_pre_commit(directory, config_path):
+    config_path_resolved = _resolver_config(directory, config_path)
+    config = _carregar_config(config_path_resolved)
+
+    try:
+        resultado = executar_pre_commit_snapshot(directory, config)
+    except Exception as e:
+        print(f"Erro durante auditoria pre-commit: {e}", file=sys.stderr)
+        sys.exit(2)
+
+    _processar_resultado(resultado)
 
 
 if __name__ == "__main__":
