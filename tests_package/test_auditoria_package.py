@@ -963,7 +963,10 @@ class TestSnapshot:
             cwd=repo, capture_output=True, timeout=10, shell=False,
         )
         obj_dir = _os.path.join(repo, ".git", "objects", blob_hash[:2], blob_hash[2:])
-        _os.remove(obj_dir)
+        try:
+            _os.remove(obj_dir)
+        except (PermissionError, OSError):
+            pytest.skip("Windows não permite remover blob em uso pelo índice")
         config = {
             "versao_configuracao": 1,
             "regras": {"segredos_rastreados": {"habilitada": True, "severidade": "error"}},
@@ -972,6 +975,37 @@ class TestSnapshot:
 
         with pytest.raises(RuntimeError, match="Falha ao materializar"):
             executar_pre_commit(str(repo), config)
+
+    def test_keyboard_interrupt_during_snapshot_cleans_up(self, tmp_path, git_repo, monkeypatch):
+        import tempfile as _tempfile_mod
+        from auditoria_higiene import snapshot as snapshot_mod
+        repo = git_repo
+        (repo / "a.txt").write_text("x")
+        (repo / "b.txt").write_text("y")
+        subprocess.run(["git", "add", "a.txt", "b.txt"], cwd=repo, capture_output=True, timeout=10, shell=False)
+
+        original_mkdtemp = _tempfile_mod.mkdtemp
+        original_run = snapshot_mod.subprocess.run
+        captured_dir = {}
+
+        def fake_mkdtemp(prefix=""):
+            d = original_mkdtemp(prefix=prefix)
+            captured_dir["path"] = d
+            return d
+
+        def interrupting_run(*args, **kwargs):
+            if len(args) > 0 and isinstance(args[0], list) and len(args[0]) > 1 and args[0][1] == "show":
+                raise KeyboardInterrupt
+            return original_run(*args, **kwargs)
+
+        monkeypatch.setattr(_tempfile_mod, "mkdtemp", fake_mkdtemp)
+        monkeypatch.setattr(snapshot_mod.subprocess, "run", interrupting_run)
+
+        with pytest.raises(KeyboardInterrupt):
+            snapshot_mod.criar_snapshot(str(repo))
+
+        assert "path" in captured_dir
+        assert not os.path.exists(captured_dir["path"])
 
     def test_binary_file_preserved_in_snapshot(self, tmp_path, git_repo):
         from auditoria_higiene.snapshot import criar_snapshot, limpar_snapshot
