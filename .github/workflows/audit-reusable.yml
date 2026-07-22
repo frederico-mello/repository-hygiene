@@ -1,0 +1,107 @@
+name: Repository Hygiene Audit (Reusable)
+
+on:
+  workflow_call:
+    inputs:
+      python-version:
+        required: false
+        type: string
+        default: "3.10"
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python-version }}
+
+      - name: Install repository-hygiene
+        run: |
+          python -m pip install --upgrade pip
+          pip install repository-hygiene==0.1.0
+
+      - name: Run audit
+        id: audit
+        run: |
+          repository-hygiene audit . --format text > audit-report.txt 2>&1
+          echo "exit_code=$?" >> $GITHUB_OUTPUT
+
+      - name: Publish report to Summary
+        run: |
+          echo '## Repository Hygiene Audit' >> $GITHUB_STEP_SUMMARY
+          echo '' >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          cat audit-report.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+      - name: Create or update issue
+        if: github.event_name != 'pull_request' && steps.audit.outputs.exit_code != '0'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const marker = '<!-- repository-hygiene-audit -->';
+            const report = require('fs').readFileSync('audit-report.txt', 'utf-8');
+            const body = marker + '\n\n## Audit Report\n\n```\n' + report + '\n```\n\n' + marker;
+
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'maintenance',
+            });
+
+            const existing = issues.find(i => i.body && i.body.includes(marker));
+
+            if (existing) {
+              const newBody = existing.body.replace(
+                /<!-- repository-hygiene-audit -->[\s\S]*<!-- repository-hygiene-audit -->/,
+                body
+              );
+              await github.rest.issues.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existing.number,
+                body: newBody,
+              });
+            } else {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: 'Repository Hygiene Audit',
+                body: body,
+                labels: ['maintenance'],
+              });
+            }
+
+      - name: Close issue if clean
+        if: github.event_name != 'pull_request' && steps.audit.outputs.exit_code == '0'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const marker = '<!-- repository-hygiene-audit -->';
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'maintenance',
+            });
+            const existing = issues.find(i => i.body && i.body.includes(marker));
+            if (existing) {
+              await github.rest.issues.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existing.number,
+                state: 'closed',
+                state_reason: 'completed',
+              });
+            }
