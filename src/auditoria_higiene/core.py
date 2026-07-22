@@ -330,7 +330,7 @@ def _referencia_existe(raiz, caminho_rel, ref):
 def _verificar_artefatos(raiz, caminhos_excluidos, resultados, severidade="error"):
     try:
         result = subprocess.run(
-            ["git", "ls-files", "--others", "--exclude-standard"],
+            ["git", "ls-files", "--others", "--exclude-standard", "--directory", "-z"],
             capture_output=True,
             cwd=raiz,
             timeout=30,
@@ -339,15 +339,15 @@ def _verificar_artefatos(raiz, caminhos_excluidos, resultados, severidade="error
         if result.returncode == 0:
             stdout = result.stdout
             if isinstance(stdout, bytes):
-                stdout = stdout.decode(errors="replace")
-            caminhos = stdout.splitlines()
+                stdout = stdout.decode(errors="surrogateescape")
+            caminhos = stdout.split("\0")
         else:
             caminhos = _artefatos_fallback(raiz, caminhos_excluidos)
     except (subprocess.SubprocessError, FileNotFoundError):
         caminhos = _artefatos_fallback(raiz, caminhos_excluidos)
 
     for caminho_rel in caminhos:
-        caminho_rel = caminho_rel.strip().replace("\\", "/")
+        caminho_rel = caminho_rel.replace("\\", "/")
         if not caminho_rel or _esta_excluido(caminho_rel, caminhos_excluidos):
             continue
         if caminho_rel == ".gitignore":
