@@ -8,28 +8,34 @@ from auditoria_higiene.core import executar_auditoria, validar_configuracao
 
 
 def criar_snapshot(raiz):
+    if not os.path.isdir(raiz):
+        raise RuntimeError(f"Diretório inválido: {raiz}")
     snapshot_dir = tempfile.mkdtemp(prefix="auditoria-snapshot-")
     snapshot_real = os.path.realpath(snapshot_dir)
     try:
-        result = subprocess.run(
-            ["git", "ls-files", "--cached", "-z"],
-            capture_output=True, cwd=raiz, timeout=30, shell=False,
-        )
-        if result.returncode != 0:
-            raise RuntimeError("Falha ao listar arquivos do índice Git")
+        try:
+            result = subprocess.run(
+                ["git", "ls-files", "--cached", "-z"],
+                capture_output=True, cwd=raiz, timeout=30, shell=False,
+                check=True,
+            )
+        except subprocess.CalledProcessError as exc:
+            raise RuntimeError(f"Falha ao listar arquivos do índice Git: {exc.stderr.decode(errors='replace').strip()}")
         arquivos = [
             caminho.decode("utf-8") if isinstance(caminho, bytes) else caminho
             for caminho in result.stdout.split(b"\x00")
             if caminho
         ]
         for caminho_rel in arquivos:
+            if caminho_rel.startswith("-"):
+                raise RuntimeError(f"Caminho inválido no índice Git: {caminho_rel}")
             caminho_dest = os.path.realpath(os.path.join(snapshot_dir, caminho_rel))
-            if not caminho_dest.startswith(snapshot_real + os.sep) and caminho_dest != snapshot_real:
+            if caminho_dest != snapshot_real and not caminho_dest.startswith(snapshot_real + os.sep):
                 raise RuntimeError(f"Caminho inválido no índice Git: {caminho_rel}")
             os.makedirs(os.path.dirname(caminho_dest), exist_ok=True)
             try:
                 result_show = subprocess.run(
-                    ["git", "show", f":{caminho_rel}"],
+                    ["git", "show", f":0:{caminho_rel}"],
                     capture_output=True, cwd=raiz, timeout=30,
                     check=True, shell=False,
                 )
@@ -37,7 +43,7 @@ def criar_snapshot(raiz):
                 raise RuntimeError(f"Falha ao materializar arquivo do índice: {caminho_rel}")
             with open(caminho_dest, "wb") as f:
                 f.write(result_show.stdout)
-    except KeyboardInterrupt:
+    except BaseException:
         shutil.rmtree(snapshot_dir, ignore_errors=True)
         raise
     return snapshot_dir

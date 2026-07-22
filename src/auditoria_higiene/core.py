@@ -125,6 +125,7 @@ def _arquivos_rastreados(raiz):
             text=True,
             cwd=raiz,
             timeout=30,
+            shell=False,
         )
         if result.returncode != 0:
             return _todos_arquivos(raiz)
@@ -289,6 +290,7 @@ def _referencia_existe(raiz, caminho_rel, ref):
                 text=True,
                 cwd=raiz,
                 timeout=30,
+                shell=False,
             )
             if result.returncode == 0:
                 tracked = {
@@ -340,6 +342,7 @@ def _em_git(raiz, caminho_rel):
             text=True,
             cwd=raiz,
             timeout=10,
+            shell=False,
         )
         return result.returncode == 0
     except (subprocess.SubprocessError, FileNotFoundError):
@@ -564,6 +567,7 @@ def _avaliar_entrada_openspec(raiz, entry, entry_path, resultados, severidade):
             text=True,
             cwd=raiz,
             timeout=10,
+            shell=False,
         )
         if result.returncode != 0 or not result.stdout.strip():
             return
