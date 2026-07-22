@@ -43,6 +43,12 @@ The auditor SHALL preserve complete terminal reports for explicit `--format text
 - **WHEN** the user runs the audit with an explicit format and `--output <path>`
 - **THEN** stdout SHALL contain the complete selected report
 - **AND** `<path>` SHALL contain the same selected format
+- **AND** it SHALL return exit code `0` for a clean audit or `1` when the audit has error findings
+
+#### Scenario: Explicit format cannot be written
+- **WHEN** the user runs the audit with an explicit format and an unusable `--output <path>`
+- **THEN** the command SHALL report a persistence error on stderr
+- **AND** it SHALL return exit code `2`
 
 ### Requirement: Custom output path supports agent JSON
 
@@ -82,7 +88,7 @@ The persisted JSON report SHALL include a numeric `schema_version`, auditor vers
 
 ### Requirement: Report persistence does not corrupt results or exit semantics
 
-The auditor SHALL persist reports without leaving a truncated output file and SHALL preserve audit exit semantics when persistence succeeds.
+The auditor SHALL persist reports without leaving a truncated output file and SHALL preserve audit exit semantics when persistence succeeds. Missing output parents, invalid output paths, and write failures SHALL all use exit code `2` as execution errors.
 
 #### Scenario: Successful persistence after clean audit
 - **WHEN** a clean audit writes its report successfully
