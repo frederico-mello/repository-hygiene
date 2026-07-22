@@ -1,0 +1,4 @@
+schema: spec-driven
+created: 2026-07-22
+goal: Make audit results easy for LLM agents to consume without losing
+  human-friendly terminal feedback.
