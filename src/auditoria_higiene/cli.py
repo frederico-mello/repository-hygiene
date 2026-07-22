@@ -126,9 +126,6 @@ def _executar_pre_commit(directory, config_path):
 
     try:
         resultado = executar_pre_commit_snapshot(directory, config)
-    except RuntimeError as e:
-        print(f"Erro durante auditoria pre-commit: {e}", file=sys.stderr)
-        sys.exit(2)
     except Exception as e:
         print(f"Erro durante auditoria pre-commit: {e}", file=sys.stderr)
         sys.exit(2)
