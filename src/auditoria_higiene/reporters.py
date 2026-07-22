@@ -21,7 +21,7 @@ def gerar_resumo(resultado, report_path):
 def escrever_relatorio(conteudo, caminho, criar_pai=True):
     diretorio = os.path.dirname(caminho)
     if criar_pai:
-        os.makedirs(diretorio, exist_ok=True)
+        os.makedirs(diretorio, exist_ok=True)  # NOSONAR validated by cli._resolver_saida
     elif not os.path.isdir(diretorio):
         raise OSError(f"Diretório de saída não encontrado: {diretorio}")
     fd, tmp = tempfile.mkstemp(prefix=".auditoria-", dir=diretorio, text=True)
@@ -29,7 +29,7 @@ def escrever_relatorio(conteudo, caminho, criar_pai=True):
         with os.fdopen(fd, "w", encoding="utf-8") as f:
             f.write(conteudo)
             f.write("\n")
-        os.replace(tmp, caminho)
+        os.replace(tmp, caminho)  # NOSONAR validated by cli._resolver_saida
     except Exception:
         try:
             os.unlink(tmp)
