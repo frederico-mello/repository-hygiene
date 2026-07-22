@@ -62,6 +62,7 @@ def _processar_resultado(
         report_path = output or os.path.join(
             directory, ".repository-hygiene", "auditoria.json"
         )
+        report_path = _resolver_saida(directory, report_path)
         try:
             if output is None:
                 os.makedirs(os.path.dirname(report_path), exist_ok=True)
@@ -104,6 +105,14 @@ def _gravar_se_solicitado(conteudo, output):
         escrever_relatorio(conteudo, output)
     except OSError as e:
         print(f"Erro ao persistir relatório: {e}", file=sys.stderr)
+        sys.exit(2)
+
+
+def _resolver_saida(directory, output):
+    try:
+        return caminho_seguro(directory, output)
+    except ValueError:
+        print(f"Erro: caminho de saída inválido: {output}", file=sys.stderr)
         sys.exit(2)
 
 
@@ -181,6 +190,8 @@ def main():
     output = args.output
     if output and not os.path.isabs(output):
         output = os.path.join(args.directory, output)
+    if output:
+        output = _resolver_saida(args.directory, output)
     _processar_resultado(resultado, args.format, args.directory, output)
 
 
@@ -196,6 +207,8 @@ def _executar_pre_commit(directory, config_path, formato=None, output=None):
 
     if output and not os.path.isabs(output):
         output = os.path.join(directory, output)
+    if output:
+        output = _resolver_saida(directory, output)
     _processar_resultado(resultado, formato or "text", directory, output, resumo=False)
 
 

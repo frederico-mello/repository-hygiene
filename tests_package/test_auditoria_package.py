@@ -905,6 +905,32 @@ class TestCLI:
         assert result.returncode == 1
         assert json.loads(result.stdout) == json.loads(output.read_text())
 
+    def test_cli_rejeita_saida_fora_do_diretorio_auditado(self, tmp_path):
+        config = {
+            "versao_configuracao": 1,
+            "regras": {},
+            "excecoes": {},
+        }
+        with open(tmp_path / "auditoria.yaml", "w", encoding="utf-8") as f:
+            yaml.dump(config, f)
+
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "auditoria_higiene.cli",
+                str(tmp_path),
+                "--output",
+                "../auditoria.json",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+
+        assert result.returncode == 2
+        assert "caminho de saída inválido" in result.stderr
+
     def test_cli_pre_commit_nao_gera_relatorio_padrao(self, tmp_path, git_repo):
         repo = git_repo
         config = {
