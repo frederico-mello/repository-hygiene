@@ -1,6 +1,6 @@
 ## Context
 
-The README currently documents the audit command and its formats, but the first-use setup and file-output workflow are implicit. The change is documentation-only and must preserve the existing command behavior and examples.
+The README.md currently documents the audit command and its formats, but the first-use setup and file-output workflow are implicit. The change preserves existing command behavior and examples while making the repository audit workflow reliable when findings are reported.
 
 ## Goals / Non-Goals
 
@@ -14,7 +14,7 @@ The README currently documents the audit command and its formats, but the first-
 
 - Adding a report-output option to the CLI.
 - Changing report contents, formats, or exit-code behavior.
-- Adding new configuration rules or workflow behavior.
+- Adding new configuration rules or unrelated workflow behavior.
 
 ## Decisions
 
@@ -22,6 +22,7 @@ The README currently documents the audit command and its formats, but the first-
 - Use shell redirection (`>`) in examples because the CLI already writes reports to standard output and no runtime change is required.
 - Show `install` before `audit` in the first-use flow because the default audit depends on `auditoria.yaml`.
 - Keep text, JSON, and SARIF examples explicit so users can choose an artifact suitable for humans, automation, or code-scanning integrations.
+- Capture audit exit codes in reusable workflows so reports are published before event-specific failure handling.
 
 ## Risks / Trade-offs
 
