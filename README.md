@@ -5,7 +5,7 @@ Auditor de higiene para repositórios Git. Verifica segredos, links quebrados, r
 ## Instalação
 
 ```bash
-pip install auditoria-higiene
+uv tool install auditoria-higiene
 ```
 
 ## Uso
@@ -180,8 +180,9 @@ Este repositório (`principal-tarefas-aleatorias`) foi o primeiro a usar o audit
 ## Desenvolvimento
 
 ```bash
-pip install -e .
-pytest tests_package/
+uv venv
+uv pip install -e . pytest
+uv run pytest tests_package/
 ```
 
 ## Licença
