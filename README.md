@@ -1,4 +1,4 @@
-# auditoria-higiene
+# repository-hygiene
 
 Auditor de higiene para repositórios Git. Verifica segredos, links quebrados, referências inexistentes, artefatos fora do `.gitignore`, segurança de workflows GitHub Actions e mais.
 
@@ -19,19 +19,19 @@ uv tool install --editable .
 ### Auditoria local
 
 ```bash
-auditoria-higiene .                    # texto (padrão)
-auditoria-higiene . --format json      # JSON
-auditoria-higiene . --format sarif     # SARIF
-auditoria-higiene --config caminho/auditoria.yaml .
+repository-hygiene .                    # texto (padrão)
+repository-hygiene . --format json      # JSON
+repository-hygiene . --format sarif     # SARIF
+repository-hygiene --config caminho/auditoria.yaml .
 ```
 
 ### Inicializar projeto
 
 ```bash
-auditoria-higiene --init .             # cria auditoria.yaml + workflow
-auditoria-higiene --init --force .     # sobrescreve existentes
-auditoria-higiene --init --install-hook .   # cria arquivos + instala hook pre-commit
-auditoria-higiene --init --install-hook --force .  # força substituição do hook existente
+repository-hygiene --init .             # cria auditoria.yaml + workflow
+repository-hygiene --init --force .     # sobrescreve existentes
+repository-hygiene --init --install-hook .   # cria arquivos + instala hook pre-commit
+repository-hygiene --init --install-hook --force .  # força substituição do hook existente
 ```
 
 ### Hook pre-commit nativo
@@ -39,10 +39,10 @@ auditoria-higiene --init --install-hook --force .  # força substituição do ho
 O auditor pode ser instalado como hook nativo do Git para validar o conteúdo **staged** antes de cada commit:
 
 ```bash
-auditoria-higiene --init --install-hook .
+repository-hygiene --init --install-hook .
 ```
 
-O hook executa `auditoria-higiene --pre-commit .` e bloqueia o commit se encontrar erros de severidade `error`. A auditoria opera apenas sobre o índice staged — alterações não staged não afetam o resultado.
+O hook executa `repository-hygiene --pre-commit .` e bloqueia o commit se encontrar erros de severidade `error`. A auditoria opera apenas sobre o índice staged — alterações não staged não afetam o resultado.
 
 Para isso, o auditor cria um snapshot temporário a partir do índice Git, executa todas as regras nesse snapshot e o remove ao terminar. Arquivos staged novos, modificados ou removidos são avaliados conforme o conteúdo que será commitado, sem alterar a árvore de trabalho.
 
@@ -141,7 +141,7 @@ excecoes:
 
 ## GitHub Actions
 
-O comando `--init` gera um workflow em `.github/workflows/auditoria-higiene.yml` que:
+O comando `--init` gera um workflow em `.github/workflows/repository-hygiene.yml` que:
 
 - Executa auditoria semanalmente e em push/PR nos caminhos relevantes
 - Publica relatório no resumo da execução
@@ -179,7 +179,7 @@ O pacote segue SemVer. A configuração declara `versao_configuracao` para compa
 
 Este repositório (`principal-tarefas-aleatorias`) foi o primeiro a usar o auditor. A migração para o pacote:
 
-1. `scripts/auditoria.py` agora é um wrapper que delega para `auditoria-higiene`
+1. `scripts/auditoria.py` agora é um wrapper que delega para `repository-hygiene`
 2. `auditoria.yaml` inclui `versao_configuracao: 1` e regra `workflows_inseguros`
 3. Workflow local foi atualizado para instalar o pacote em vez de usar o script
 
