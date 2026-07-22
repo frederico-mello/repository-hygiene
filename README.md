@@ -27,6 +27,29 @@ repository-hygiene . --format sarif     # SARIF
 repository-hygiene --config caminho/auditoria.yaml .
 ```
 
+Por padrão, a auditoria exibe um resumo no terminal e grava relatório JSON sanitizado em `.repository-hygiene/auditoria.json`. Para manter o relatório completo no terminal, informe explicitamente o formato:
+
+```bash
+repository-hygiene . --format text
+repository-hygiene . --format json
+repository-hygiene . --format sarif
+```
+
+Use `--output` para escolher outro caminho. Sem `--format`, o arquivo será JSON; com formato explícito, o arquivo usará o formato selecionado:
+
+```bash
+repository-hygiene . --output relatorios/auditoria.json
+repository-hygiene . --format sarif --output relatorios/auditoria.sarif
+```
+
+O diretório padrão é artefato local gerado e não deve ser versionado. Para agentes LLM, adicione opcionalmente ao `AGENTS.md`:
+
+```md
+## Repository Hygiene
+
+Após executar `repository-hygiene`, leia `.repository-hygiene/auditoria.json` como fonte completa da auditoria. Priorize achados `error`, não exponha valores sensíveis e execute a auditoria novamente após corrigir arquivos.
+```
+
 ### Inicializar projeto
 
 ```bash

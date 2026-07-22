@@ -1,6 +1,41 @@
 """Renderizadores de relatório: texto, JSON e SARIF."""
 
 import json
+import os
+import tempfile
+from datetime import datetime, timezone
+
+
+def gerar_resumo(resultado, report_path):
+    erros = len([r for r in resultado["resultados"] if r["severidade"] == "error"])
+    avisos = len([r for r in resultado["resultados"] if r["severidade"] == "warning"])
+    status = resultado["status"]
+    linhas = []
+    linhas.append(f"Status: {status}")
+    linhas.append(f"Erros: {erros}")
+    linhas.append(f"Avisos: {avisos}")
+    linhas.append(f"Relatório: {report_path}")
+    return "\n".join(linhas)
+
+
+def escrever_relatorio(conteudo, caminho, criar_pai=True):
+    diretorio = os.path.dirname(caminho)
+    if criar_pai:
+        os.makedirs(diretorio, exist_ok=True)
+    elif not os.path.isdir(diretorio):
+        raise OSError(f"Diretório de saída não encontrado: {diretorio}")
+    fd, tmp = tempfile.mkstemp(prefix=".auditoria-", dir=diretorio, text=True)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(conteudo)
+            f.write("\n")
+        os.replace(tmp, caminho)
+    except Exception:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
 
 
 def gerar_relatorio_texto(resultado):
@@ -42,6 +77,18 @@ def gerar_relatorio_json(resultado):
     return json.dumps(resultado, ensure_ascii=False, indent=2)
 
 
+def gerar_relatorio_json_agente(resultado, auditor_version, diretorio):
+    return gerar_relatorio_json(
+        {
+            "schema_version": 1,
+            "auditor_version": auditor_version,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "audited_directory": os.path.realpath(diretorio),
+            **resultado,
+        }
+    )
+
+
 def gerar_relatorio_sarif(resultado):
     sarif = {
         "$schema": "https://raw.githubusercontent.com/oasis-tcs/openc2-schema/main/sarif/sarif-2-1.json",
@@ -60,7 +107,9 @@ def _run_sarif(resultado):
                 "id": nome,
                 "name": nome,
                 "shortDescription": {"text": f"Regra de auditoria: {nome}"},
-                "defaultConfiguration": {"level": "error" if r["severidade"] == "error" else "warning"},
+                "defaultConfiguration": {
+                    "level": "error" if r["severidade"] == "error" else "warning"
+                },
             }
     results = []
     for r in resultado["resultados"]:
@@ -70,11 +119,13 @@ def _run_sarif(resultado):
             "message": {"text": r["mensagem"]},
         }
         if "caminho" in r:
-            result["locations"] = [{
-                "physicalLocation": {
-                    "artifactLocation": {"uri": r["caminho"]},
+            result["locations"] = [
+                {
+                    "physicalLocation": {
+                        "artifactLocation": {"uri": r["caminho"]},
+                    }
                 }
-            }]
+            ]
         if "evidencias" in r:
             result["message"]["text"] += f" | {r['evidencias']}"
         if "recomendacao" in r:
