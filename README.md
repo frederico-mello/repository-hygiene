@@ -38,6 +38,8 @@ auditoria-higiene --init --install-hook .
 
 O hook executa `auditoria-higiene --pre-commit .` e bloqueia o commit se encontrar erros de severidade `error`. A auditoria opera apenas sobre o índice staged — alterações não staged não afetam o resultado.
 
+Para isso, o auditor cria um snapshot temporário a partir do índice Git, executa todas as regras nesse snapshot e o remove ao terminar. Arquivos staged novos, modificados ou removidos são avaliados conforme o conteúdo que será commitado, sem alterar a árvore de trabalho.
+
 | Código | Comportamento no hook |
 |--------|-----------------------|
 | 0      | Commit permitido      |
@@ -53,6 +55,8 @@ git commit --no-verify
 ```
 
 > O hook é uma barreira local. O workflow do GitHub Actions continua sendo a auditoria completa e independente do repositório — mesmo que o hook não esteja instalado ou seja ignorado.
+
+O hook não substitui hooks existentes: sem `--force`, a instalação é ignorada quando `.git/hooks/pre-commit` já existe. Com `--force`, o arquivo existente é substituído.
 
 ### Códigos de saída
 
@@ -146,6 +150,17 @@ permissions:
   issues: write
   pull-requests: read
 ```
+
+O workflow instala a versão `0.1.0` do pacote, executa a auditoria mesmo quando ela retorna erro, publica o relatório em `$GITHUB_STEP_SUMMARY` e usa uma issue marcada com `maintenance` para consolidar falhas. Em eventos `pull_request`, a issue não é criada nem atualizada.
+
+O workflow dispara em mudanças de `auditoria.yaml`, `.github/**`, `.opencode/**`, `openspec/**`, `docs/**`, `README.md`, `.gitignore` e `Makefile`, além da execução semanal e manual (`workflow_dispatch`). Actions de terceiros são fixadas em versões principais (`@v4`, `@v5` e `@v7`); a regra `workflows_inseguros` sinaliza permissões excessivas e referências de actions sem versão.
+
+### Segurança e isolamento
+
+- Caminhos de configuração, arquivos gerados e arquivos materializados do índice são validados contra a raiz do repositório.
+- O modo pre-commit rejeita caminhos inválidos no índice e não executa comandos de shell para materializar arquivos.
+- Referências a arquivos rastreados são consultadas com cache durante uma auditoria, evitando chamadas repetidas ao Git sem mudar o resultado.
+- Relatórios JSON e SARIF passam por sanitização antes de serem exibidos.
 
 ## Versionamento
 
