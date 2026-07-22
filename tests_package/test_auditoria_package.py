@@ -1063,5 +1063,6 @@ class TestDistribuicao:
         assert "git+https://github.com" not in content
 
     def test_readme_sem_nao_publicado(self):
-        readme = open("README.md", encoding="utf-8").read()
+        with open("README.md", encoding="utf-8") as readme_file:
+            readme = readme_file.read()
         assert "não está publicado" not in readme
