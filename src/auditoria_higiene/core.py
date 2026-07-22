@@ -614,7 +614,7 @@ def _modulos_importados(conteudo):
 
 def _verificar_documentacao(raiz, caminhos_excluidos, resultados, severidade="warning"):
     padrao_ref = re.compile(
-        r"`([\w./-]+\.(?:py|md|yaml|yml|txt|json|csv|html|css|js))`"
+        r"[\"'`]([\w./-]+\.(?:py|md|yaml|yml|txt|json|csv|html|css|js))[\"'`]"
     )
     for caminho_rel in _arquivos_rastreados(raiz):
         if _esta_excluido(caminho_rel, caminhos_excluidos):
