@@ -276,6 +276,33 @@ def _em_diretorio_ruidoso_referencias(caminho_rel):
     ))
 
 
+_TRACKED_CACHE = {}
+
+
+def _tracked_set(raiz):
+    if raiz in _TRACKED_CACHE:
+        return _TRACKED_CACHE[raiz]
+    tracked = set()
+    try:
+        result = subprocess.run(
+            ["git", "ls-files"],
+            capture_output=True,
+            text=True,
+            cwd=raiz,
+            timeout=30,
+        )
+        if result.returncode == 0:
+            tracked = {
+                linha.strip().replace("\\", "/")
+                for linha in result.stdout.splitlines()
+                if linha.strip()
+            }
+    except (subprocess.SubprocessError, FileNotFoundError):
+        pass
+    _TRACKED_CACHE[raiz] = tracked
+    return tracked
+
+
 def _referencia_existe(raiz, caminho_rel, ref):
     candidatos = []
     candidatos.append(os.path.normpath(ref))
@@ -283,25 +310,9 @@ def _referencia_existe(raiz, caminho_rel, ref):
         candidatos.append(os.path.normpath(os.path.join(os.path.dirname(caminho_rel), ref)))
     base = os.path.basename(ref)
     if base:
-        try:
-            result = subprocess.run(
-                ["git", "ls-files"],
-                capture_output=True,
-                text=True,
-                cwd=raiz,
-                timeout=30,
-                shell=False,
-            )
-            if result.returncode == 0:
-                tracked = {
-                    linha.strip().replace("\\", "/")
-                    for linha in result.stdout.splitlines()
-                    if linha.strip()
-                }
-                if any(p.endswith("/" + base) or p == base for p in tracked):
-                    return True
-        except (subprocess.SubprocessError, FileNotFoundError):
-            pass
+        tracked = _tracked_set(raiz)
+        if tracked and any(p.endswith("/" + base) or p == base for p in tracked):
+            return True
     for cand in candidatos:
         try:
             if os.path.exists(caminho_seguro(raiz, cand)):
