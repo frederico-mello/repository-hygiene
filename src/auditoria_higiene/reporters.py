@@ -22,9 +22,7 @@ def escrever_relatorio(conteudo, caminho, raiz_permitida, criar_pai=True):
     _validar_caminho_saida(caminho, raiz_permitida)
     diretorio = os.path.dirname(caminho)
     if criar_pai:
-        os.makedirs(
-            diretorio, exist_ok=True
-        )  # NOSONAR validated by cli._resolver_saida
+        os.makedirs(diretorio, exist_ok=True)  # NOSONAR
     elif not os.path.isdir(diretorio):
         raise OSError(f"Diretório de saída não encontrado: {diretorio}")
     fd, tmp = tempfile.mkstemp(prefix=".auditoria-", dir=diretorio, text=True)
