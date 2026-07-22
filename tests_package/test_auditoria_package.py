@@ -928,8 +928,9 @@ class TestSnapshot:
         subprocess.run(["git", "add", "f.txt"], cwd=repo, capture_output=True, timeout=10, shell=False)
         config_invalida = {"versao_configuracao": 99, "regras": {}, "excecoes": {}}
 
+        repo_path = str(repo)
         with pytest.raises(ValueError, match="99"):
-            executar_pre_commit(str(repo), config_invalida)
+            executar_pre_commit(repo_path, config_invalida)
 
     def test_snapshot_failure_raises_runtime_error(self, tmp_path):
         from auditoria_higiene.snapshot import executar_pre_commit
@@ -941,8 +942,9 @@ class TestSnapshot:
             "excecoes": {"segredos_rastreados": []},
         }
 
+        repo_path = str(repo)
         with pytest.raises(RuntimeError, match="Falha ao listar"):
-            executar_pre_commit(str(repo), config)
+            executar_pre_commit(repo_path, config)
 
     def test_git_show_failure_cleans_up_and_raises(self, tmp_path):
         from auditoria_higiene.snapshot import executar_pre_commit
@@ -965,7 +967,7 @@ class TestSnapshot:
         obj_dir = _os.path.join(repo, ".git", "objects", blob_hash[:2], blob_hash[2:])
         try:
             _os.remove(obj_dir)
-        except (PermissionError, OSError):
+        except OSError:
             pytest.skip("Windows não permite remover blob em uso pelo índice")
         config = {
             "versao_configuracao": 1,
@@ -973,8 +975,9 @@ class TestSnapshot:
             "excecoes": {"segredos_rastreados": []},
         }
 
+        repo_path = str(repo)
         with pytest.raises(RuntimeError, match="Falha ao materializar"):
-            executar_pre_commit(str(repo), config)
+            executar_pre_commit(repo_path, config)
 
     def test_keyboard_interrupt_during_snapshot_cleans_up(self, tmp_path, git_repo, monkeypatch):
         import tempfile as _tempfile_mod
@@ -1001,8 +1004,9 @@ class TestSnapshot:
         monkeypatch.setattr(_tempfile_mod, "mkdtemp", fake_mkdtemp)
         monkeypatch.setattr(snapshot_mod.subprocess, "run", interrupting_run)
 
+        repo_path = str(repo)
         with pytest.raises(KeyboardInterrupt):
-            snapshot_mod.criar_snapshot(str(repo))
+            snapshot_mod.criar_snapshot(repo_path)
 
         assert "path" in captured_dir
         assert not os.path.exists(captured_dir["path"])
@@ -1036,5 +1040,6 @@ class TestSnapshot:
 
         monkeypatch.setattr(snapshot_mod.subprocess, "run", fake_run)
 
+        repo_path = str(repo)
         with pytest.raises(RuntimeError, match="Caminho inválido"):
-            snapshot_mod.criar_snapshot(str(repo))
+            snapshot_mod.criar_snapshot(repo_path)
