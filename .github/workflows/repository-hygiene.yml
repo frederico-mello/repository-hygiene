@@ -44,14 +44,18 @@ jobs:
 
       - name: Install repository-hygiene
         run: |
-          python -m pip install --upgrade pip
-          pip install repository-hygiene==0.2.0
+          python -m pip install --upgrade --only-binary :all: pip==25.1.1
+          pip install --only-binary :all: repository-hygiene==0.2.0
 
       - name: Run auditoria
         id: auditoria
         run: |
-          repository-hygiene . --format text > auditoria-report.txt 2>&1
-          echo "exit_code=$?" >> $GITHUB_OUTPUT
+          if repository-hygiene . --format text > auditoria-report.txt 2>&1; then
+            exit_code=0
+          else
+            exit_code=$?
+          fi
+          echo "exit_code=$exit_code" >> $GITHUB_OUTPUT
 
       - name: Publish report to Summary
         run: |
