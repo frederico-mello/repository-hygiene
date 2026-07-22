@@ -1,3 +1,5 @@
+# Publish PyPI v0.2.0
+
 ## Purpose
 
 This capability covers the PyPI publication of `repository-hygiene` version `0.2.0`, including version metadata, install instructions, workflow template, migration documentation, and tagging.
