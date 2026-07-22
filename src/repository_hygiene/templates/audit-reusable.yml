@@ -33,7 +33,7 @@ jobs:
       - name: Run audit
         id: audit
         run: |
-          repository-hygiene audit . --format text > audit-report.txt 2>&1
+          repository-hygiene audit . --mode ci --format text > audit-report.txt 2>&1
           echo "exit_code=$?" >> $GITHUB_OUTPUT
 
       - name: Publish report to Summary
