@@ -10,7 +10,18 @@ pip install repository-hygiene
 
 ## Usage
 
+### Initialize a project
+
+Before the first audit, create the default configuration:
+
+```bash
+repository-hygiene install .                  # creates auditoria.yaml + workflow
+repository-hygiene install --force .          # overwrites existing files
+```
+
 ### Audit a repository
+
+Audit output is written to standard output. Use shell redirection to save reports to files.
 
 ```bash
 repository-hygiene audit .                    # text (default)
@@ -19,12 +30,15 @@ repository-hygiene audit . --format sarif     # SARIF
 repository-hygiene audit --config path/to/auditoria.yaml .
 ```
 
-### Initialize a project
+### Saving reports to files
 
 ```bash
-repository-hygiene install .                  # creates auditoria.yaml + workflow
-repository-hygiene install --force .          # overwrites existing files
+repository-hygiene audit . > auditoria.txt
+repository-hygiene audit . --format json > auditoria.json
+repository-hygiene audit . --format sarif > auditoria.sarif
 ```
+
+The audit command always writes to standard output. Redirecting to a file captures the full report. Exit codes are preserved — a report is generated even when issues are found.
 
 ### Update
 
@@ -38,7 +52,7 @@ repository-hygiene update --version 0.1.0     # update to specific version
 | Code | Meaning |
 |------|---------|
 | 0    | Clean audit (no errors) |
-| 1    | Error(s) found |
+| 1    | Error(s) found — report is still generated |
 | 2    | Invalid configuration or execution |
 
 ## Configuration
