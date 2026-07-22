@@ -71,6 +71,7 @@ def _processar_resultado(
                     resultado_sanitizado, __version__, directory
                 ),
                 report_path,
+                directory,
             )
         except OSError as e:
             print(f"Erro ao persistir relatório: {e}", file=sys.stderr)
@@ -83,26 +84,26 @@ def _processar_resultado(
             )
     elif formato == "json":
         conteudo = gerar_relatorio_json(resultado_sanitizado)
-        _gravar_se_solicitado(conteudo, output)
+        _gravar_se_solicitado(conteudo, output, directory)
         print(conteudo)
     elif formato == "sarif":
         conteudo = gerar_relatorio_sarif(resultado_sanitizado)
-        _gravar_se_solicitado(conteudo, output)
+        _gravar_se_solicitado(conteudo, output, directory)
         print(conteudo)
     else:
         conteudo = gerar_relatorio_texto(resultado_sanitizado)
-        _gravar_se_solicitado(conteudo, output)
+        _gravar_se_solicitado(conteudo, output, directory)
         print(conteudo)
     if resultado["status"] == "falha":
         sys.exit(1)
     sys.exit(0)
 
 
-def _gravar_se_solicitado(conteudo, output):
+def _gravar_se_solicitado(conteudo, output, directory):
     if not output:
         return
     try:
-        escrever_relatorio(conteudo, output)
+        escrever_relatorio(conteudo, output, directory)
     except OSError as e:
         print(f"Erro ao persistir relatório: {e}", file=sys.stderr)
         sys.exit(2)
