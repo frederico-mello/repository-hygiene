@@ -1,0 +1,10 @@
+#!/usr/bin/env python3
+"""Hook pre-commit nativo do auditoria-higiene."""
+import subprocess
+import sys
+
+if __name__ == "__main__":
+    result = subprocess.run(
+        [sys.executable, "-m", "auditoria_higiene.cli", "--pre-commit", "."],
+    )
+    sys.exit(result.returncode)
