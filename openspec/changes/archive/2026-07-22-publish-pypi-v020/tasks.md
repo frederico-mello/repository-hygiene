@@ -21,6 +21,6 @@
 
 ## 5. Publish
 
-- [ ] 5.1 Build distribution package
-- [ ] 5.2 Publish to PyPI
-- [ ] 5.3 Create and push tag v0.2.0
+- [x] 5.1 Build distribution package
+- [x] 5.2 Publish to PyPI
+- [x] 5.3 Create and push tag v0.2.0
