@@ -5,10 +5,12 @@ Auditor de higiene para repositórios Git. Verifica segredos, links quebrados, r
 ## Instalação
 
 ```bash
-uv tool install git+https://github.com/[REDACTED NAME]/repository-hygiene.git@v0.1.0
+pip install repository-hygiene
+# ou
+uv tool install repository-hygiene
 ```
 
-O pacote ainda não está publicado no PyPI. Para usar a versão local clonada:
+Para usar a versão local clonada:
 
 ```bash
 uv tool install --editable .
@@ -157,7 +159,7 @@ permissions:
   pull-requests: read
 ```
 
-O workflow instala a versão `0.1.0` do pacote, executa a auditoria mesmo quando ela retorna erro, publica o relatório em `$GITHUB_STEP_SUMMARY` e usa uma issue marcada com `maintenance` para consolidar falhas. Em eventos `pull_request`, a issue não é criada nem atualizada.
+O workflow instala a versão `0.2.0` do pacote, executa a auditoria mesmo quando ela retorna erro, publica o relatório em `$GITHUB_STEP_SUMMARY` e usa uma issue marcada com `maintenance` para consolidar falhas. Em eventos `pull_request`, a issue não é criada nem atualizada.
 
 O workflow dispara em mudanças de `auditoria.yaml`, `.github/**`, `.opencode/**`, `openspec/**`, `docs/**`, `README.md`, `.gitignore` e `Makefile`, além da execução semanal e manual (`workflow_dispatch`). Actions de terceiros são fixadas em versões principais (`@v4`, `@v5` e `@v7`); a regra `workflows_inseguros` sinaliza permissões excessivas e referências de actions sem versão.
 
@@ -168,11 +170,23 @@ O workflow dispara em mudanças de `auditoria.yaml`, `.github/**`, `.opencode/**
 - Referências a arquivos rastreados são consultadas com cache durante uma auditoria, evitando chamadas repetidas ao Git sem mudar o resultado.
 - Relatórios JSON e SARIF passam por sanitização antes de serem exibidos.
 
+## Migração da v0.1.0
+
+A versão `0.2.0` altera a interface de linha de comando. Comandos da `0.1.0` não funcionam mais:
+
+| Comando v0.1.0 | Equivalente v0.2.0 |
+|----------------|-------------------|
+| `repository-hygiene audit .` | `repository-hygiene .` |
+| `repository-hygiene install .` | `repository-hygiene --init .` |
+| `repository-hygiene install --force .` | `repository-hygiene --init --force .` |
+| `repository-hygiene update` | Removido (sem substituto) |
+
 ## Versionamento
 
 O pacote segue SemVer. A configuração declara `versao_configuracao` para compatibilidade futura.
 
-- `v0.1.x` — versão inicial
+- `v0.1.x` — versão inicial (CLI com subcomandos `audit`, `install`, `update`)
+- `v0.2.x` — CLI atual (auditoria direta, `--init`, `--install-hook`)
 - Tags do workflow seguem as tags do pacote
 
 ## Migração deste repositório

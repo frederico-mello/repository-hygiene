@@ -1043,3 +1043,25 @@ class TestSnapshot:
         repo_path = str(repo)
         with pytest.raises(RuntimeError, match="Caminho inválido"):
             snapshot_mod.criar_snapshot(repo_path)
+
+
+class TestDistribuicao:
+    def test_version_consistente(self):
+        from auditoria_higiene import __version__
+        import tomllib
+        with open("pyproject.toml", "rb") as f:
+            pyproject = tomllib.load(f)
+        assert __version__ == pyproject["project"]["version"], \
+            f"__init__.py version {__version__} != pyproject.toml version {pyproject['project']['version']}"
+
+    def test_workflow_template_usa_pypi(self, tmp_path):
+        from auditoria_higiene.init import cmd_init
+        cmd_init(str(tmp_path))
+        wf_path = tmp_path / ".github" / "workflows" / "repository-hygiene.yml"
+        content = wf_path.read_text()
+        assert "pip install repository-hygiene==" in content
+        assert "git+https://github.com" not in content
+
+    def test_readme_sem_nao_publicado(self):
+        readme = open("README.md", encoding="utf-8").read()
+        assert "não está publicado" not in readme
