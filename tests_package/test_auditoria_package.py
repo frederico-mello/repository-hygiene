@@ -383,6 +383,48 @@ class TestArtefatos:
         assert caminhos == ["artefato.txt"]
         assert len(calls) == 1
 
+    def test_artefatos_git_lista_diretorio_ignorado_sem_conteudo(self, tmp_path, git_repo, monkeypatch):
+        from auditoria_higiene.core import executar_auditoria
+        repo = git_repo
+        (repo / ".gitignore").write_text("node_modules/\n")
+        (repo / "node_modules").mkdir()
+        (repo / "node_modules" / "dep.js").write_text("module.exports = {}\n")
+        (repo / "artefato.txt").write_text("nao ignorado")
+        commands = []
+        original_run = subprocess.run
+
+        def recording_run(args, **kwargs):
+            commands.append(args)
+            return original_run(args, **kwargs)
+
+        monkeypatch.setattr(subprocess, "run", recording_run)
+        config = {
+            "versao_configuracao": 1,
+            "regras": {"artefatos_fora_gitignore": {"habilitada": True, "severidade": "error"}},
+            "excecoes": {"artefatos_fora_gitignore": []},
+        }
+        resultado = executar_auditoria(str(repo), config)
+        assert [r["caminho"] for r in resultado["resultados"]] == ["artefato.txt"]
+        assert ["git", "ls-files", "--others", "--exclude-standard", "--directory", "-z"] in commands
+
+    def test_artefatos_preserva_caminho_com_bytes_invalidos(self, tmp_path, monkeypatch):
+        from auditoria_higiene.core import executar_auditoria
+        (tmp_path / ".gitignore").write_text("")
+        config = {
+            "versao_configuracao": 1,
+            "regras": {"artefatos_fora_gitignore": {"habilitada": True, "severidade": "error"}},
+            "excecoes": {"artefatos_fora_gitignore": []},
+        }
+
+        def git_output(args, **kwargs):
+            if args[:3] == ["git", "ls-files", "--others"]:
+                return subprocess.CompletedProcess(args, 0, b"arquivo-\xff.txt\0", b"")
+            return subprocess.CompletedProcess(args, 1, b"", b"")
+
+        monkeypatch.setattr(subprocess, "run", git_output)
+        resultado = executar_auditoria(str(tmp_path), config)
+        assert resultado["resultados"][0]["caminho"].encode("utf-8", "surrogateescape") == b"arquivo-\xff.txt"
+
     def test_inventario_nao_fica_stale_entre_auditorias(self, tmp_path, git_repo):
         from auditoria_higiene.core import executar_auditoria
         repo = git_repo
