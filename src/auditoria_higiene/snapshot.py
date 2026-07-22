@@ -9,16 +9,23 @@ from auditoria_higiene.core import executar_auditoria, validar_configuracao
 
 def criar_snapshot(raiz):
     snapshot_dir = tempfile.mkdtemp(prefix="auditoria-snapshot-")
+    snapshot_real = os.path.realpath(snapshot_dir)
     try:
         result = subprocess.run(
-            ["git", "ls-files", "--cached"],
-            capture_output=True, text=True, cwd=raiz, timeout=30, shell=False,
+            ["git", "ls-files", "--cached", "-z"],
+            capture_output=True, cwd=raiz, timeout=30, shell=False,
         )
         if result.returncode != 0:
             raise RuntimeError("Falha ao listar arquivos do índice Git")
-        arquivos = [linha.strip() for linha in result.stdout.splitlines() if linha.strip()]
+        arquivos = [
+            caminho.decode("utf-8") if isinstance(caminho, bytes) else caminho
+            for caminho in result.stdout.split(b"\x00")
+            if caminho
+        ]
         for caminho_rel in arquivos:
-            caminho_dest = os.path.join(snapshot_dir, caminho_rel)
+            caminho_dest = os.path.realpath(os.path.join(snapshot_dir, caminho_rel))
+            if not caminho_dest.startswith(snapshot_real + os.sep) and caminho_dest != snapshot_real:
+                raise RuntimeError(f"Caminho inválido no índice Git: {caminho_rel}")
             os.makedirs(os.path.dirname(caminho_dest), exist_ok=True)
             try:
                 result_show = subprocess.run(

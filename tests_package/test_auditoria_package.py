@@ -1020,3 +1020,21 @@ class TestSnapshot:
                 assert f.read() == binario
         finally:
             limpar_snapshot(snapshot_path)
+
+    def test_path_traversal_in_staged_path_rejected(self, tmp_path, git_repo, monkeypatch):
+        from auditoria_higiene import snapshot as snapshot_mod
+        repo = git_repo
+        (repo / "legit.txt").write_text("ok")
+        subprocess.run(["git", "add", "legit.txt"], cwd=repo, capture_output=True, timeout=10, shell=False)
+
+        original_run = snapshot_mod.subprocess.run
+
+        def fake_run(args, **kwargs):
+            if isinstance(args, list) and len(args) >= 2 and args[0] == "git" and args[1] == "ls-files":
+                return subprocess.CompletedProcess(args, 0, b"legit.txt\x00../../evil.txt\x00", b"")
+            return original_run(args, **kwargs)
+
+        monkeypatch.setattr(snapshot_mod.subprocess, "run", fake_run)
+
+        with pytest.raises(RuntimeError, match="Caminho inválido"):
+            snapshot_mod.criar_snapshot(str(repo))
