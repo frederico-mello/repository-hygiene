@@ -42,7 +42,7 @@ repository-hygiene . --output relatorios/auditoria.json
 repository-hygiene . --format sarif --output relatorios/auditoria.sarif
 ```
 
-O diretório padrão é artefato local gerado e não deve ser versionado. Para agentes LLM, adicione opcionalmente ao `AGENTS.md`:
+O diretório padrão é artefato local gerado e não deve ser versionado. Para agentes LLM, adicione opcionalmente às instruções do agente:
 
 ```md
 ## Repository Hygiene
@@ -211,14 +211,6 @@ O pacote segue SemVer. A configuração declara `versao_configuracao` para compa
 - `v0.1.x` — versão inicial (CLI com subcomandos `audit`, `install`, `update`)
 - `v0.2.x` — CLI atual (auditoria direta, `--init`, `--install-hook`)
 - Tags do workflow seguem as tags do pacote
-
-## Migração deste repositório
-
-Este repositório (`principal-tarefas-aleatorias`) foi o primeiro a usar o auditor. A migração para o pacote:
-
-1. `scripts/auditoria.py` agora é um wrapper que delega para `repository-hygiene`
-2. `auditoria.yaml` inclui `versao_configuracao: 1` e regra `workflows_inseguros`
-3. Workflow local foi atualizado para instalar o pacote em vez de usar o script
 
 ## Desenvolvimento
 

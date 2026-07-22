@@ -1,0 +1,55 @@
+# Configuração do auditor de higiene do repositório
+# Regras, severidades e exceções para verificações automáticas
+
+versao_configuracao: 1
+
+regras:
+  segredos_rastreados:
+    habilitada: true
+    severidade: error
+  links_internos_quebrados:
+    habilitada: true
+    severidade: error
+  referencias_inexistentes:
+    habilitada: true
+    severidade: error
+  artefatos_fora_gitignore:
+    habilitada: true
+    severidade: error
+  gitkeep_sem_conteudo:
+    habilitada: true
+    severidade: warning
+  arquivos_sem_referencia:
+    habilitada: true
+    severidade: warning
+  documentacao_desatualizada:
+    habilitada: true
+    severidade: warning
+  configuracao_sem_integracao:
+    habilitada: true
+    severidade: warning
+  openspec_parada:
+    habilitada: true
+    severidade: warning
+  workflows_inseguros:
+    habilitada: true
+    severidade: warning
+    permissoes_write_permitidas: [issues]
+
+excecoes:
+  segredos_rastreados:
+    - .secrets.baseline
+    - .env.example
+  links_internos_quebrados: []
+  referencias_inexistentes:
+    - auditoria-report.txt
+  artefatos_fora_gitignore:
+    - .git
+  gitkeep_sem_conteudo: []
+  arquivos_sem_referencia:
+    - .gitignore
+    - Makefile
+  documentacao_desatualizada: []
+  configuracao_sem_integracao: []
+  openspec_parada: []
+  workflows_inseguros: []
