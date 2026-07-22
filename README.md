@@ -18,6 +18,90 @@ uv tool install --editable .
 
 ## Uso
 
+### Inicializar projeto
+
+Para um repositório ainda não configurado, o fluxo recomendado começa com a inicialização:
+
+```bash
+repository-hygiene --init .             # cria auditoria.yaml + workflow
+repository-hygiene --init --force .     # sobrescreve existentes
+repository-hygiene --init --install-hook .   # cria arquivos + instala hook pre-commit
+repository-hygiene --init --install-hook --force .  # força substituição do hook existente
+```
+
+Após a inicialização, revise o arquivo `auditoria.yaml` gerado e ajuste regras, severidades e exceções conforme necessário. Em seguida, execute a auditoria.
+
+### Configuração
+
+Arquivo `auditoria.yaml` na raiz do projeto:
+
+```yaml
+versao_configuracao: 1
+
+regras:
+  segredos_rastreados:
+    habilitada: true
+    severidade: error
+  links_internos_quebrados:
+    habilitada: true
+    severidade: error
+  referencias_inexistentes:
+    habilitada: true
+    severidade: error
+  artefatos_fora_gitignore:
+    habilitada: true
+    severidade: error
+    # Opcional: limita alertas a padrões de artefatos gerados.
+    # padroes_artefatos: [".ruff_cache/", ".pytest_cache/", "dist/"]
+  gitkeep_sem_conteudo:
+    habilitada: true
+    severidade: warning
+  arquivos_sem_referencia:
+    habilitada: true
+    severidade: warning
+  documentacao_desatualizada:
+    habilitada: true
+    severidade: warning
+  configuracao_sem_integracao:
+    habilitada: true
+    severidade: warning
+  openspec_parada:
+    habilitada: true
+    severidade: warning
+  workflows_inseguros:
+    habilitada: true
+    severidade: warning
+    # Permissões write necessárias ao workflow podem ser explicitamente permitidas.
+    permissoes_write_permitidas: [issues]
+
+excecoes:
+  segredos_rastreados:
+    - .secrets.baseline
+    - .env.example
+  referencias_inexistentes:
+    - auditoria-report.txt
+  artefatos_fora_gitignore:
+    - .git
+  arquivos_sem_referencia:
+    - .gitignore
+    - Makefile
+```
+
+### Regras
+
+| Regra | Severidade padrão | Descrição |
+|-------|-------------------|-----------|
+| `segredos_rastreados` | error | Detecta senhas, tokens e credenciais em arquivos rastreados |
+| `links_internos_quebrados` | error | Links markdown para arquivos inexistentes |
+| `referencias_inexistentes` | error | Referências a arquivos que não existem no repositório |
+| `artefatos_fora_gitignore` | error | Arquivos gerados não cobertos pelo `.gitignore` |
+| `gitkeep_sem_conteudo` | warning | Diretórios com apenas `.gitkeep` |
+| `arquivos_sem_referencia` | warning | Arquivos não mencionados em nenhum outro |
+| `documentacao_desatualizada` | warning | Documentação referenciando arquivos inexistentes |
+| `configuracao_sem_integracao` | warning | Config sem workflow, comando ou doc |
+| `openspec_parada` | warning | Mudanças OpenSpec paradas há 30+ dias |
+| `workflows_inseguros` | warning | Permissões excessivas, actions sem versão fixa |
+
 ### Auditoria local
 
 ```bash
@@ -50,14 +134,13 @@ O diretório padrão é artefato local gerado e não deve ser versionado. Para a
 Após executar `repository-hygiene`, leia `.repository-hygiene/auditoria.json` como fonte completa da auditoria. Priorize achados `error`, não exponha valores sensíveis e execute a auditoria novamente após corrigir arquivos.
 ```
 
-### Inicializar projeto
+### Códigos de saída
 
-```bash
-repository-hygiene --init .             # cria auditoria.yaml + workflow
-repository-hygiene --init --force .     # sobrescreve existentes
-repository-hygiene --init --install-hook .   # cria arquivos + instala hook pre-commit
-repository-hygiene --init --install-hook --force .  # força substituição do hook existente
-```
+| Código | Significado |
+|--------|-------------|
+| 0      | Auditoria limpa (sem erros) |
+| 1      | Erro(s) encontrado(s) |
+| 2      | Configuração ou execução inválida |
 
 ### Hook pre-commit nativo
 
@@ -88,81 +171,6 @@ git commit --no-verify
 > O hook é uma barreira local. O workflow do GitHub Actions continua sendo a auditoria completa e independente do repositório — mesmo que o hook não esteja instalado ou seja ignorado.
 
 O hook não substitui hooks existentes: sem `--force`, a instalação é ignorada quando `.git/hooks/pre-commit` já existe. Com `--force`, o arquivo existente é substituído.
-
-### Códigos de saída
-
-| Código | Significado |
-|--------|-------------|
-| 0      | Auditoria limpa (sem erros) |
-| 1      | Erro(s) encontrado(s) |
-| 2      | Configuração ou execução inválida |
-
-## Configuração
-
-Arquivo `auditoria.yaml` na raiz do projeto:
-
-```yaml
-versao_configuracao: 1
-
-regras:
-  segredos_rastreados:
-    habilitada: true
-    severidade: error
-  links_internos_quebrados:
-    habilitada: true
-    severidade: error
-  referencias_inexistentes:
-    habilitada: true
-    severidade: error
-  artefatos_fora_gitignore:
-    habilitada: true
-    severidade: error
-  gitkeep_sem_conteudo:
-    habilitada: true
-    severidade: warning
-  arquivos_sem_referencia:
-    habilitada: true
-    severidade: warning
-  documentacao_desatualizada:
-    habilitada: true
-    severidade: warning
-  configuracao_sem_integracao:
-    habilitada: true
-    severidade: warning
-  openspec_parada:
-    habilitada: true
-    severidade: warning
-  workflows_inseguros:
-    habilitada: true
-    severidade: warning
-
-excecoes:
-  segredos_rastreados:
-    - .secrets.baseline
-    - .env.example
-  referencias_inexistentes:
-    - auditoria-report.txt
-  artefatos_fora_gitignore:
-    - .git
-  arquivos_sem_referencia:
-    - .gitignore
-    - Makefile
-```
-
-## Regras
-
-| Regra | Severidade padrão | Descrição |
-|-------|-------------------|-----------|
-| `segredos_rastreados` | error | Detecta senhas, tokens e credenciais em arquivos rastreados |
-| `links_internos_quebrados` | error | Links markdown para arquivos inexistentes |
-| `referencias_inexistentes` | error | Referências a arquivos que não existem no repositório |
-| `artefatos_fora_gitignore` | error | Arquivos gerados não cobertos pelo `.gitignore` |
-| `gitkeep_sem_conteudo` | warning | Diretórios com apenas `.gitkeep` |
-| `arquivos_sem_referencia` | warning | Arquivos não mencionados em nenhum outro |
-| `documentacao_desatualizada` | warning | Documentação referenciando arquivos inexistentes |
-| `configuracao_sem_integracao` | warning | Config sem workflow, comando ou doc |
-| `openspec_parada` | warning | Mudanças OpenSpec paradas há 30+ dias |
-| `workflows_inseguros` | warning | Permissões excessivas, actions sem versão fixa |
 
 ## GitHub Actions
 
