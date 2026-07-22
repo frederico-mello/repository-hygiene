@@ -24,7 +24,35 @@ auditoria-higiene --config caminho/auditoria.yaml .
 ```bash
 auditoria-higiene --init .             # cria auditoria.yaml + workflow
 auditoria-higiene --init --force .     # sobrescreve existentes
+auditoria-higiene --init --install-hook .   # cria arquivos + instala hook pre-commit
+auditoria-higiene --init --install-hook --force .  # força substituição do hook existente
 ```
+
+### Hook pre-commit nativo
+
+O auditor pode ser instalado como hook nativo do Git para validar o conteúdo **staged** antes de cada commit:
+
+```bash
+auditoria-higiene --init --install-hook .
+```
+
+O hook executa `auditoria-higiene --pre-commit .` e bloqueia o commit se encontrar erros de severidade `error`. A auditoria opera apenas sobre o índice staged — alterações não staged não afetam o resultado.
+
+| Código | Comportamento no hook |
+|--------|-----------------------|
+| 0      | Commit permitido      |
+| 1      | Commit bloqueado (erros encontrados) |
+| 2      | Commit bloqueado (falha de configuração ou execução) |
+
+Avisos (`warning`) são exibidos mas não bloqueiam o commit.
+
+Para ignorar o hook em situações pontuais:
+
+```bash
+git commit --no-verify
+```
+
+> O hook é uma barreira local. O workflow do GitHub Actions continua sendo a auditoria completa e independente do repositório — mesmo que o hook não esteja instalado ou seja ignorado.
 
 ### Códigos de saída
 
