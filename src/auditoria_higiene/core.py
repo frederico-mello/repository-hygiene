@@ -354,6 +354,8 @@ def _verificar_artefatos(raiz, caminhos_excluidos, resultados, severidade="error
             continue
         if caminho_rel == ".git" or caminho_rel.startswith(".git/"):
             continue
+        if caminho_rel == ".repository-hygiene" or caminho_rel.startswith(".repository-hygiene/"):
+            continue
         resultados.append({
             "regra": "artefatos_fora_gitignore",
             "caminho": caminho_rel,
@@ -399,7 +401,6 @@ def _em_git(raiz, caminho_rel):
 
 
 def _em_gitignore(caminho, gitignore_lines):
-    import fnmatch
     for line in gitignore_lines:
         line = line.strip()
         if not line or line.startswith("#"):

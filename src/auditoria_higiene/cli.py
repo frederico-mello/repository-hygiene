@@ -5,11 +5,25 @@ import sys
 import os
 
 from auditoria_higiene import __version__
-from auditoria_higiene.core import carregar_configuracao, validar_configuracao, executar_auditoria, caminho_seguro
+from auditoria_higiene.core import (
+    carregar_configuracao,
+    validar_configuracao,
+    executar_auditoria,
+    caminho_seguro,
+)
 from auditoria_higiene.sanitizer import sanitizar_resultado
-from auditoria_higiene.reporters import gerar_relatorio_texto, gerar_relatorio_json, gerar_relatorio_sarif
+from auditoria_higiene.reporters import (
+    gerar_relatorio_texto,
+    gerar_relatorio_json,
+    gerar_relatorio_json_agente,
+    gerar_relatorio_sarif,
+    gerar_resumo,
+    escrever_relatorio,
+)
 from auditoria_higiene.init import cmd_init
-from auditoria_higiene.snapshot import executar_pre_commit as executar_pre_commit_snapshot
+from auditoria_higiene.snapshot import (
+    executar_pre_commit as executar_pre_commit_snapshot,
+)
 
 
 def _resolver_config(directory, config_path):
@@ -19,7 +33,10 @@ def _resolver_config(directory, config_path):
         print(f"Erro: caminho de configuração inválido: {config_path}", file=sys.stderr)
         sys.exit(2)
     if not os.path.exists(config_path_resolved):
-        print(f"Erro: arquivo de configuração não encontrado em {config_path_resolved}", file=sys.stderr)
+        print(
+            f"Erro: arquivo de configuração não encontrado em {config_path_resolved}",
+            file=sys.stderr,
+        )
         sys.exit(2)
     return config_path_resolved
 
@@ -37,17 +54,66 @@ def _carregar_config(config_path_resolved):
         sys.exit(2)
 
 
-def _processar_resultado(resultado, formato="text"):
+def _processar_resultado(
+    resultado, formato=None, directory=".", output=None, resumo=True
+):
     resultado_sanitizado = sanitizar_resultado(resultado)
-    if formato == "json":
-        print(gerar_relatorio_json(resultado_sanitizado))
+    if formato is None:
+        report_path = output or os.path.join(
+            directory, ".repository-hygiene", "auditoria.json"
+        )
+        report_path = _resolver_saida(directory, report_path)
+        try:
+            if output is None:
+                os.makedirs(os.path.dirname(report_path), exist_ok=True)
+            escrever_relatorio(
+                gerar_relatorio_json_agente(
+                    resultado_sanitizado, __version__, directory
+                ),
+                report_path,
+            )
+        except OSError as e:
+            print(f"Erro ao persistir relatório: {e}", file=sys.stderr)
+            sys.exit(2)
+        if resumo:
+            print(
+                gerar_resumo(
+                    resultado_sanitizado, os.path.relpath(report_path, directory)
+                )
+            )
+    elif formato == "json":
+        conteudo = gerar_relatorio_json(resultado_sanitizado)
+        _gravar_se_solicitado(conteudo, output)
+        print(conteudo)
     elif formato == "sarif":
-        print(gerar_relatorio_sarif(resultado_sanitizado))
+        conteudo = gerar_relatorio_sarif(resultado_sanitizado)
+        _gravar_se_solicitado(conteudo, output)
+        print(conteudo)
     else:
-        print(gerar_relatorio_texto(resultado_sanitizado))
+        conteudo = gerar_relatorio_texto(resultado_sanitizado)
+        _gravar_se_solicitado(conteudo, output)
+        print(conteudo)
     if resultado["status"] == "falha":
         sys.exit(1)
     sys.exit(0)
+
+
+def _gravar_se_solicitado(conteudo, output):
+    if not output:
+        return
+    try:
+        escrever_relatorio(conteudo, output)
+    except OSError as e:
+        print(f"Erro ao persistir relatório: {e}", file=sys.stderr)
+        sys.exit(2)
+
+
+def _resolver_saida(directory, output):
+    try:
+        return caminho_seguro(directory, output)
+    except ValueError:
+        print(f"Erro: caminho de saída inválido: {output}", file=sys.stderr)
+        sys.exit(2)
 
 
 def main():
@@ -69,8 +135,12 @@ def main():
     parser.add_argument(
         "--format",
         choices=["text", "json", "sarif"],
-        default="text",
-        help="Formato do relatório (padrão: text)",
+        default=None,
+        help="Formato do relatório (padrão: resumo + JSON)",
+    )
+    parser.add_argument(
+        "--output",
+        help="Caminho do relatório; sem --format, grava JSON",
     )
     parser.add_argument(
         "--version",
@@ -105,7 +175,7 @@ def main():
         return
 
     if args.pre_commit:
-        _executar_pre_commit(args.directory, args.config)
+        _executar_pre_commit(args.directory, args.config, args.format, args.output)
         return
 
     config_path = _resolver_config(args.directory, args.config)
@@ -117,10 +187,15 @@ def main():
         print(f"Erro durante auditoria: {e}", file=sys.stderr)
         sys.exit(2)
 
-    _processar_resultado(resultado, args.format)
+    output = args.output
+    if output and not os.path.isabs(output):
+        output = os.path.join(args.directory, output)
+    if output:
+        output = _resolver_saida(args.directory, output)
+    _processar_resultado(resultado, args.format, args.directory, output)
 
 
-def _executar_pre_commit(directory, config_path):
+def _executar_pre_commit(directory, config_path, formato=None, output=None):
     config_path_resolved = _resolver_config(directory, config_path)
     config = _carregar_config(config_path_resolved)
 
@@ -130,7 +205,11 @@ def _executar_pre_commit(directory, config_path):
         print(f"Erro durante auditoria pre-commit: {e}", file=sys.stderr)
         sys.exit(2)
 
-    _processar_resultado(resultado)
+    if output and not os.path.isabs(output):
+        output = os.path.join(directory, output)
+    if output:
+        output = _resolver_saida(directory, output)
+    _processar_resultado(resultado, formato or "text", directory, output, resumo=False)
 
 
 if __name__ == "__main__":
