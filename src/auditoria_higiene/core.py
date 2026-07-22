@@ -52,6 +52,7 @@ def validar_configuracao(config):
 
 
 def executar_auditoria(raiz, config):
+    _TRACKED_CACHE.pop(os.path.realpath(raiz), None)
     resultados = []
     regras = config.get("regras", {})
     excecoes = config.get("excecoes", {})
@@ -118,6 +119,9 @@ def caminho_seguro(raiz, *partes):
 
 
 def _arquivos_rastreados(raiz):
+    cached = _tracked_set(raiz)
+    if cached:
+        return list(cached)
     try:
         result = subprocess.run(
             ["git", "ls-files"],
@@ -280,8 +284,9 @@ _TRACKED_CACHE = {}
 
 
 def _tracked_set(raiz):
-    if raiz in _TRACKED_CACHE:
-        return _TRACKED_CACHE[raiz]
+    raiz_cache = os.path.realpath(raiz)
+    if raiz_cache in _TRACKED_CACHE:
+        return _TRACKED_CACHE[raiz_cache]
     tracked = set()
     try:
         result = subprocess.run(
@@ -299,7 +304,7 @@ def _tracked_set(raiz):
             }
     except (subprocess.SubprocessError, FileNotFoundError):
         pass
-    _TRACKED_CACHE[raiz] = tracked
+    _TRACKED_CACHE[raiz_cache] = tracked
     return tracked
 
 
@@ -323,19 +328,31 @@ def _referencia_existe(raiz, caminho_rel, ref):
 
 
 def _verificar_artefatos(raiz, caminhos_excluidos, resultados, severidade="error"):
-    gitignore_path = caminho_seguro(raiz, ".gitignore")
-    if not os.path.exists(gitignore_path):
-        return
-    with open(gitignore_path, "r", encoding="utf-8") as f:
-        gitignore_lines = f.read().splitlines()
-    for caminho_rel in _todos_arquivos(raiz):
+    try:
+        result = subprocess.run(
+            ["git", "ls-files", "--others", "--exclude-standard"],
+            capture_output=True,
+            cwd=raiz,
+            timeout=30,
+            shell=False,
+        )
+        if result.returncode == 0:
+            stdout = result.stdout
+            if isinstance(stdout, bytes):
+                stdout = stdout.decode(errors="replace")
+            caminhos = stdout.splitlines()
+        else:
+            caminhos = _artefatos_fallback(raiz, caminhos_excluidos)
+    except (subprocess.SubprocessError, FileNotFoundError):
+        caminhos = _artefatos_fallback(raiz, caminhos_excluidos)
+
+    for caminho_rel in caminhos:
+        caminho_rel = caminho_rel.strip().replace("\\", "/")
+        if not caminho_rel or _esta_excluido(caminho_rel, caminhos_excluidos):
+            continue
         if caminho_rel == ".gitignore":
             continue
-        if _esta_excluido(caminho_rel, caminhos_excluidos):
-            continue
-        if _em_gitignore(caminho_rel, gitignore_lines):
-            continue
-        if _em_git(raiz, caminho_rel):
+        if caminho_rel == ".git" or caminho_rel.startswith(".git/"):
             continue
         resultados.append({
             "regra": "artefatos_fora_gitignore",
@@ -343,6 +360,27 @@ def _verificar_artefatos(raiz, caminhos_excluidos, resultados, severidade="error
             "severidade": severidade,
             "mensagem": "Artefato gerado não coberto pelo .gitignore",
         })
+
+
+def _artefatos_fallback(raiz, caminhos_excluidos):
+    gitignore_path = caminho_seguro(raiz, ".gitignore")
+    if not os.path.exists(gitignore_path):
+        return []
+    with open(gitignore_path, "r", encoding="utf-8") as f:
+        gitignore_lines = f.read().splitlines()
+    tracked = _tracked_set(raiz)
+    artefatos = []
+    for caminho_rel in _todos_arquivos(raiz):
+        caminho_git = caminho_rel.replace("\\", "/")
+        if caminho_git == ".gitignore" or caminho_git == ".git" or caminho_git.startswith(".git/"):
+            continue
+        if _esta_excluido(caminho_rel, caminhos_excluidos):
+            continue
+        if _em_gitignore(caminho_git, gitignore_lines):
+            continue
+        if caminho_git not in tracked:
+            artefatos.append(caminho_rel)
+    return artefatos
 
 
 def _em_git(raiz, caminho_rel):
