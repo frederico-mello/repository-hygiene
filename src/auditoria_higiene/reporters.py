@@ -18,7 +18,8 @@ def gerar_resumo(resultado, report_path):
     return "\n".join(linhas)
 
 
-def escrever_relatorio(conteudo, caminho, criar_pai=True):
+def escrever_relatorio(conteudo, caminho, raiz_permitida, criar_pai=True):
+    _validar_caminho_saida(caminho, raiz_permitida)
     diretorio = os.path.dirname(caminho)
     if criar_pai:
         os.makedirs(
@@ -38,6 +39,13 @@ def escrever_relatorio(conteudo, caminho, criar_pai=True):
         except OSError:
             pass
         raise
+
+
+def _validar_caminho_saida(caminho, raiz_permitida):
+    raiz = os.path.realpath(raiz_permitida)
+    destino = os.path.realpath(caminho)
+    if destino != raiz and not destino.startswith(raiz + os.sep):
+        raise OSError(f"Caminho de saída fora do diretório permitido: {caminho}")
 
 
 def gerar_relatorio_texto(resultado):
