@@ -1,3 +1,5 @@
 """repository-hygiene: Repository hygiene auditor for Git repositories."""
 
-__version__ = "0.1.0"
+import importlib.metadata
+
+__version__ = importlib.metadata.version("repository-hygiene")
