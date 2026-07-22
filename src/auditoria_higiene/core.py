@@ -108,7 +108,7 @@ def _esta_excluido(caminho, caminhos_excluidos):
     return False
 
 
-def _caminho_seguro(raiz, *partes):
+def caminho_seguro(raiz, *partes):
     caminho = os.path.normpath(os.path.join(raiz, *partes))
     raiz_abs = os.path.realpath(raiz)
     caminho_abs = os.path.realpath(caminho)
@@ -148,7 +148,7 @@ def _verificar_segredos(raiz, caminhos_excluidos, resultados, severidade="error"
             continue
         if _em_diretorio_ruidoso_segredos(caminho_rel):
             continue
-        caminho_abs = _caminho_seguro(raiz, caminho_rel)
+        caminho_abs = caminho_seguro(raiz, caminho_rel)
         if not os.path.isfile(caminho_abs):
             continue
         _escanear_linhas_por_segredos(caminho_abs, caminho_rel, resultados, severidade)
@@ -196,7 +196,7 @@ def _verificar_links_internos(raiz, caminhos_excluidos, resultados, severidade="
 
 
 def _verificar_links_em_arquivo(raiz, caminho_rel, padrao_link, resultados, severidade):
-    caminho_abs = _caminho_seguro(raiz, caminho_rel)
+    caminho_abs = caminho_seguro(raiz, caminho_rel)
     try:
         with open(caminho_abs, "r", encoding="utf-8", errors="replace") as f:
             conteudo = f.read()
@@ -215,7 +215,7 @@ def _verificar_links_em_arquivo(raiz, caminho_rel, padrao_link, resultados, seve
             continue
         caminho_alvo = os.path.normpath(os.path.join(os.path.dirname(caminho_rel), alvo))
         try:
-            if not os.path.exists(_caminho_seguro(raiz, caminho_alvo)):
+            if not os.path.exists(caminho_seguro(raiz, caminho_alvo)):
                 resultados.append({
                     "regra": "links_internos_quebrados",
                     "caminho": caminho_rel,
@@ -241,7 +241,7 @@ def _verificar_referencias(raiz, caminhos_excluidos, resultados, severidade="err
 
 
 def _verificar_refs_em_arquivo(raiz, caminho_rel, padrao_ref, resultados, severidade):
-    caminho_abs = _caminho_seguro(raiz, caminho_rel)
+    caminho_abs = caminho_seguro(raiz, caminho_rel)
     try:
         with open(caminho_abs, "r", encoding="utf-8", errors="replace") as f:
             conteudo = f.read()
@@ -302,7 +302,7 @@ def _referencia_existe(raiz, caminho_rel, ref):
             pass
     for cand in candidatos:
         try:
-            if os.path.exists(_caminho_seguro(raiz, cand)):
+            if os.path.exists(caminho_seguro(raiz, cand)):
                 return True
         except ValueError:
             continue
@@ -310,7 +310,7 @@ def _referencia_existe(raiz, caminho_rel, ref):
 
 
 def _verificar_artefatos(raiz, caminhos_excluidos, resultados, severidade="error"):
-    gitignore_path = _caminho_seguro(raiz, ".gitignore")
+    gitignore_path = caminho_seguro(raiz, ".gitignore")
     if not os.path.exists(gitignore_path):
         return
     with open(gitignore_path, "r", encoding="utf-8") as f:
@@ -435,7 +435,7 @@ def _coletar_referencias(raiz, elegiveis, nome_para_arquivos):
     todos_nomes = set(nome_para_arquivos.keys())
     nomes_referenciados = set()
     for caminho_rel in elegiveis:
-        caminho_abs = _caminho_seguro(raiz, caminho_rel)
+        caminho_abs = caminho_seguro(raiz, caminho_rel)
         try:
             with open(caminho_abs, "r", encoding="utf-8", errors="replace") as f:
                 conteudo = f.read()
@@ -458,7 +458,7 @@ def _verificar_documentacao(raiz, caminhos_excluidos, resultados, severidade="wa
 
 
 def _verificar_refs_doc_em_arquivo(raiz, caminho_rel, padrao_ref, resultados, severidade):
-    caminho_abs = _caminho_seguro(raiz, caminho_rel)
+    caminho_abs = caminho_seguro(raiz, caminho_rel)
     try:
         with open(caminho_abs, "r", encoding="utf-8", errors="replace") as f:
             conteudo = f.read()
@@ -472,7 +472,7 @@ def _verificar_refs_doc_em_arquivo(raiz, caminho_rel, padrao_ref, resultados, se
             continue
         caminho_ref = os.path.normpath(os.path.join(os.path.dirname(caminho_rel), ref))
         try:
-            caminho_abs_ref = _caminho_seguro(raiz, caminho_ref)
+            caminho_abs_ref = caminho_seguro(raiz, caminho_ref)
         except ValueError:
             continue
         if not os.path.exists(caminho_abs_ref):
@@ -529,7 +529,7 @@ def _coletar_referencias_config(raiz, arquivos, configs, padroes_config):
     for caminho_rel in arquivos:
         if caminho_rel in configs:
             continue
-        caminho_abs = _caminho_seguro(raiz, caminho_rel)
+        caminho_abs = caminho_seguro(raiz, caminho_rel)
         try:
             with open(caminho_abs, "r", encoding="utf-8", errors="replace") as f:
                 conteudo = f.read()
@@ -542,7 +542,7 @@ def _coletar_referencias_config(raiz, arquivos, configs, padroes_config):
 
 
 def _verificar_openspec_parada(raiz, caminhos_excluidos, resultados, severidade="warning"):
-    changes_dir = _caminho_seguro(raiz, "openspec", "changes")
+    changes_dir = caminho_seguro(raiz, "openspec", "changes")
     if not os.path.isdir(changes_dir):
         return
     for entry in os.listdir(changes_dir):
@@ -585,7 +585,7 @@ def _avaliar_entrada_openspec(raiz, entry, entry_path, resultados, severidade):
 
 
 def _verificar_workflows_inseguros(raiz, caminhos_excluidos, resultados, severidade="warning"):
-    workflows_dir = _caminho_seguro(raiz, ".github", "workflows")
+    workflows_dir = caminho_seguro(raiz, ".github", "workflows")
     if not os.path.isdir(workflows_dir):
         return
     for entry in os.listdir(workflows_dir):
@@ -598,7 +598,7 @@ def _verificar_workflows_inseguros(raiz, caminhos_excluidos, resultados, severid
 
 
 def _analisar_workflow(raiz, caminho_rel, resultados, severidade):
-    caminho_abs = _caminho_seguro(raiz, caminho_rel)
+    caminho_abs = caminho_seguro(raiz, caminho_rel)
     try:
         with open(caminho_abs, "r", encoding="utf-8", errors="replace") as f:
             conteudo = f.read()
