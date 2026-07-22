@@ -344,7 +344,6 @@ class TestArtefatos:
         resultado = executar_auditoria(str(tmp_path), config)
         erros = [r for r in resultado["resultados"] if r["regra"] == "artefatos_fora_gitignore"]
         assert len(erros) == 1
-
     def test_artefato_no_gitignore_ignorado(self, tmp_path):
         from auditoria_higiene.core import executar_auditoria
         (tmp_path / ".gitignore").write_text("*.log\n")
@@ -358,6 +357,95 @@ class TestArtefatos:
         erros = [r for r in resultado["resultados"] if r["regra"] == "artefatos_fora_gitignore"]
         assert len(erros) == 0
 
+    def test_artefatos_git_usa_inventario_unico(self, tmp_path, git_repo, monkeypatch):
+        from auditoria_higiene.core import executar_auditoria
+        repo = git_repo
+        (repo / ".gitignore").write_text("ignored/\n")
+        (repo / "ignored").mkdir()
+        (repo / "ignored" / "arquivo.txt").write_text("ignorado")
+        (repo / "artefato.txt").write_text("nao ignorado")
+        calls = []
+        original_run = subprocess.run
+
+        def recording_run(args, **kwargs):
+            if args[:3] == ["git", "ls-files", "--others"]:
+                calls.append(args)
+            return original_run(args, **kwargs)
+
+        monkeypatch.setattr(subprocess, "run", recording_run)
+        config = {
+            "versao_configuracao": 1,
+            "regras": {"artefatos_fora_gitignore": {"habilitada": True, "severidade": "error"}},
+            "excecoes": {"artefatos_fora_gitignore": []},
+        }
+        resultado = executar_auditoria(str(repo), config)
+        caminhos = [r["caminho"] for r in resultado["resultados"]]
+        assert caminhos == ["artefato.txt"]
+        assert len(calls) == 1
+
+    def test_inventario_nao_fica_stale_entre_auditorias(self, tmp_path, git_repo):
+        from auditoria_higiene.core import executar_auditoria
+        repo = git_repo
+        (repo / ".gitignore").write_text("\n")
+        config = {
+            "versao_configuracao": 1,
+            "regras": {"artefatos_fora_gitignore": {"habilitada": True, "severidade": "error"}},
+            "excecoes": {"artefatos_fora_gitignore": []},
+        }
+        (repo / "primeiro.txt").write_text("um")
+        primeira = executar_auditoria(str(repo), config)
+        (repo / "segundo.txt").write_text("dois")
+        segunda = executar_auditoria(str(repo), config)
+        assert [r["caminho"] for r in primeira["resultados"]] == ["primeiro.txt"]
+        assert {r["caminho"] for r in segunda["resultados"]} == {"primeiro.txt", "segundo.txt"}
+
+    def test_fallback_sem_git_nao_gera_excecao(self, tmp_path, monkeypatch):
+        from auditoria_higiene.core import executar_auditoria
+        (tmp_path / ".gitignore").write_text("ignored/\n")
+        (tmp_path / "arquivo.txt").write_text("conteudo")
+        config = {
+            "versao_configuracao": 1,
+            "regras": {"artefatos_fora_gitignore": {"habilitada": True, "severidade": "error"}},
+            "excecoes": {"artefatos_fora_gitignore": []},
+        }
+
+        def failing_run(*args, **kwargs):
+            raise FileNotFoundError("git")
+
+        monkeypatch.setattr(subprocess, "run", failing_run)
+        resultado = executar_auditoria(str(tmp_path), config)
+        assert resultado["status"] == "falha"
+        assert resultado["resultados"][0]["caminho"] == "arquivo.txt"
+
+    def test_artefatos_ignora_diretorio_grande_com_um_query(self, tmp_path, git_repo, monkeypatch):
+        from auditoria_higiene.core import executar_auditoria
+        import subprocess as _subprocess
+        repo = git_repo
+        (repo / ".gitignore").write_text("node_modules/\n")
+        _subprocess.run(["git", "add", ".gitignore"], cwd=repo, capture_output=True, timeout=10, shell=False)
+        _subprocess.run(["git", "commit", "-m", "add gitignore"], cwd=repo, capture_output=True, timeout=10, shell=False)
+        ignored_dir = repo / "node_modules"
+        ignored_dir.mkdir()
+        for i in range(1000):
+            (ignored_dir / f"dep_{i}.js").write_text("module.exports = {};\n")
+        (repo / "meu_artefato.txt").write_text("conteudo")
+        calls = []
+        original_run = _subprocess.run
+        def counting_run(*args, **kwargs):
+            calls.append(args[0] if args else kwargs.get("args", []))
+            return original_run(*args, **kwargs)
+        monkeypatch.setattr(_subprocess, "run", counting_run)
+        config = {
+            "versao_configuracao": 1,
+            "regras": {"artefatos_fora_gitignore": {"habilitada": True, "severidade": "error"}},
+            "excecoes": {"artefatos_fora_gitignore": []},
+        }
+        resultado = executar_auditoria(str(repo), config)
+        erros = [r for r in resultado["resultados"] if r["regra"] == "artefatos_fora_gitignore"]
+        assert len(erros) == 1
+        assert erros[0]["caminho"] == "meu_artefato.txt"
+        artifact_calls = [c for c in calls if "ls-files" in str(c) and "--others" in str(c)]
+        assert len(artifact_calls) <= 1
 
 class TestGitkeep:
     def test_gitkeep_sem_conteudo_gera_warning(self, tmp_path):
