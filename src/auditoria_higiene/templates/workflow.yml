@@ -50,8 +50,8 @@ jobs:
       - name: Run auditoria
         id: auditoria
         run: |
-          repository-hygiene . --format text > auditoria-report.txt 2>&1
-          echo "exit_code=$?" >> $GITHUB_OUTPUT
+          rc=0; repository-hygiene . --format text > auditoria-report.txt 2>&1 || rc=$?
+          echo "exit_code=$rc" >> $GITHUB_OUTPUT
 
       - name: Publish report to Summary
         run: |
