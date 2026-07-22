@@ -2,6 +2,7 @@
 # Regras, severidades e exceções para verificações automáticas
 
 versao_configuracao: 1
+modo: ci
 
 regras:
   segredos_rastreados:

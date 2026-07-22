@@ -541,6 +541,107 @@ class TestSanitizer:
         assert sanitizado["resultados"] == []
 
 
+class TestModosExecucao:
+    def test_sem_modo_mantem_comportamento_legado(self, tmp_path):
+        from repository_hygiene.core import executar_auditoria
+        (tmp_path / "segredo.txt").write_text("senha=admin")
+        config = {
+            "versao_configuracao": 1,
+            "regras": {"segredos_rastreados": {"habilitada": True, "severidade": "error"}},
+            "excecoes": {"segredos_rastreados": []},
+        }
+        resultado = executar_auditoria(str(tmp_path), config)
+        assert resultado["status"] == "falha"
+        assert "classificacao" not in resultado["resultados"][0]
+
+    def test_json_inclui_classificacao_e_decisao(self, tmp_path):
+        from repository_hygiene.core import executar_auditoria
+        from repository_hygiene.reporters import gerar_relatorio_json
+        import json
+        (tmp_path / "codigo.py").write_text('importar_arquivo("dados.csv")')
+        config = {
+            "versao_configuracao": 1,
+            "modo": "ci",
+            "regras": {"referencias_inexistentes": {"habilitada": True, "severidade": "error"}},
+            "excecoes": {"referencias_inexistentes": []},
+        }
+        resultado = executar_auditoria(str(tmp_path), config)
+        saida = json.loads(gerar_relatorio_json(resultado))
+        ocorrencia = saida["resultados"][0]
+        assert "classificacao" in ocorrencia
+        assert "confianca" in ocorrencia
+        assert "policy_action" in ocorrencia
+
+    def test_ci_falha_em_referencia_confirmada_ausente(self, tmp_path):
+        from repository_hygiene.core import executar_auditoria
+        (tmp_path / "codigo.py").write_text('importar_arquivo("dados.py")')
+        config = {
+            "versao_configuracao": 1,
+            "modo": "ci",
+            "regras": {"referencias_inexistentes": {"habilitada": True, "severidade": "error"}},
+            "excecoes": {"referencias_inexistentes": []},
+        }
+        resultado = executar_auditoria(str(tmp_path), config)
+        erros = [r for r in resultado["resultados"] if r["regra"] == "referencias_inexistentes"]
+        assert len(erros) == 1
+        assert resultado["status"] == "falha"
+
+    def test_ci_nao_falha_em_ambiguo(self, tmp_path):
+        from repository_hygiene.core import executar_auditoria
+        (tmp_path / "doc.md").write_text("ref `arquivo_inexistente.csv`")
+        config = {
+            "versao_configuracao": 1,
+            "modo": "ci",
+            "regras": {"referencias_inexistentes": {"habilitada": True, "severidade": "error"}},
+            "excecoes": {"referencias_inexistentes": []},
+        }
+        resultado = executar_auditoria(str(tmp_path), config)
+        erros = [r for r in resultado["resultados"] if r["regra"] == "referencias_inexistentes"]
+        assert len(erros) == 1
+        assert resultado["status"] == "sucesso"
+
+    def test_pre_commit_reporta_ambiguo_sem_falhar(self, tmp_path):
+        from repository_hygiene.core import executar_auditoria
+        (tmp_path / "doc.md").write_text("ref `arquivo_inexistente.csv`")
+        config = {
+            "versao_configuracao": 1,
+            "modo": "pre-commit",
+            "regras": {"referencias_inexistentes": {"habilitada": True, "severidade": "error"}},
+            "excecoes": {"referencias_inexistentes": []},
+        }
+        resultado = executar_auditoria(str(tmp_path), config)
+        erros = [r for r in resultado["resultados"] if r["regra"] == "referencias_inexistentes"]
+        assert len(erros) == 1
+        assert resultado["status"] == "sucesso"
+
+    def test_pre_commit_falha_em_provavel(self, tmp_path):
+        from repository_hygiene.core import executar_auditoria
+        (tmp_path / "codigo.md").write_text('ref `arquivo_inexistente.yaml`')
+        config = {
+            "versao_configuracao": 1,
+            "modo": "pre-commit",
+            "regras": {"referencias_inexistentes": {"habilitada": True, "severidade": "error"}},
+            "excecoes": {"referencias_inexistentes": []},
+        }
+        resultado = executar_auditoria(str(tmp_path), config)
+        erros = [r for r in resultado["resultados"] if r["regra"] == "referencias_inexistentes"]
+        assert len(erros) == 1
+        assert resultado["status"] == "falha"
+
+    def test_modo_invalido_fallback_legado(self, tmp_path):
+        from repository_hygiene.core import executar_auditoria
+        (tmp_path / "segredo.txt").write_text("senha=admin")
+        config = {
+            "versao_configuracao": 1,
+            "modo": "modo_invalido",
+            "regras": {"segredos_rastreados": {"habilitada": True, "severidade": "error"}},
+            "excecoes": {"segredos_rastreados": []},
+        }
+        resultado = executar_auditoria(str(tmp_path), config)
+        assert resultado["status"] == "falha"
+        assert "classificacao" not in resultado["resultados"][0]
+
+
 class TestCLI:
     def test_cli_ajuda(self):
         import subprocess

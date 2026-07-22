@@ -41,6 +41,9 @@ def _cmd_audit(args):
         print(f"Erro ao carregar configuração: {e}", file=sys.stderr)
         sys.exit(2)
 
+    if args.mode is not None:
+        config["modo"] = args.mode
+
     try:
         resultado = executar_auditoria(args.directory, config)
     except Exception as e:
@@ -87,6 +90,12 @@ def main():
         choices=["text", "json", "sarif"],
         default="text",
         help="Report format (default: text)",
+    )
+    audit_parser.add_argument(
+        "--mode",
+        choices=["pre-commit", "ci"],
+        default=None,
+        help="Modo de execução: pre-commit (padrão local) ou ci (mais restritivo)",
     )
 
     install_parser = subparsers.add_parser("install", help="Install audit configuration in a repository")
