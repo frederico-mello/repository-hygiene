@@ -884,6 +884,26 @@ class TestWorkflowsInseguros:
 
 
 class TestDocumentacaoDesatualizada:
+    def test_doc_ref_entre_aspas_gera_warning(self, tmp_path):
+        from auditoria_higiene.core import executar_auditoria
+
+        (tmp_path / "doc.md").write_text('Referencia "dados.csv"')
+        resultado = executar_auditoria(
+            str(tmp_path),
+            {
+                "versao_configuracao": 1,
+                "regras": {
+                    "documentacao_desatualizada": {
+                        "habilitada": True,
+                        "severidade": "warning",
+                    }
+                },
+                "excecoes": {"documentacao_desatualizada": []},
+            },
+        )
+
+        assert len(resultado["resultados"]) == 1
+
     def test_documentacao_openspec_nao_eh_validada_como_referencia_operacional(
         self, git_repo
     ):
