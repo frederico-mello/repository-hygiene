@@ -1,4 +1,4 @@
-"""Testes para o pacote auditoria-higiene."""
+"""Testes para o pacote repository-hygiene."""
 
 import pytest
 import yaml
@@ -695,7 +695,7 @@ class TestNativeHook:
         assert os.path.exists(hook_path)
         assert os.access(hook_path, os.X_OK)
         content = open(hook_path).read()
-        assert "auditoria-higiene" in content
+        assert "repository-hygiene" in content
         assert "--pre-commit" in content
 
     def test_preserve_existing_hook(self, tmp_path, git_repo):
@@ -730,7 +730,7 @@ class TestNativeHook:
 
         assert result.returncode == 0
         content = open(hook_path).read()
-        assert "auditoria-higiene" in content
+        assert "repository-hygiene" in content
         assert "--pre-commit" in content
         assert os.access(hook_path, os.X_OK)
 
@@ -743,7 +743,7 @@ class TestCLI:
             capture_output=True, text=True, timeout=10,
         )
         assert result.returncode == 0
-        assert "auditoria-higiene" in result.stdout
+        assert "repository-hygiene" in result.stdout
 
     def test_cli_init_cria_arquivos(self, tmp_path):
         import subprocess
@@ -753,7 +753,7 @@ class TestCLI:
         )
         assert result.returncode == 0, result.stderr
         assert os.path.exists(os.path.join(tmp_path, "auditoria.yaml"))
-        assert os.path.exists(os.path.join(tmp_path, ".github", "workflows", "auditoria-higiene.yml"))
+        assert os.path.exists(os.path.join(tmp_path, ".github", "workflows", "repository-hygiene.yml"))
 
     def test_cli_init_nao_sobrescreve(self, tmp_path):
         import subprocess
@@ -788,7 +788,7 @@ class TestCLI:
             capture_output=True, text=True, timeout=10,
         )
         assert result.returncode == 0
-        assert "auditoria-higiene" in result.stdout
+        assert "repository-hygiene" in result.stdout
 
     def test_cli_json_format(self, tmp_path):
         import subprocess

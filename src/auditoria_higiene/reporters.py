@@ -83,9 +83,9 @@ def _run_sarif(resultado):
     return {
         "tool": {
             "driver": {
-                "name": "auditoria-higiene",
+                "name": "repository-hygiene",
                 "version": "0.1.0",
-                "informationUri": "https://github.com/frederico/auditoria-higiene",
+                "informationUri": "https://github.com/frederico-mello/repository-hygiene",
                 "rules": list(regras_unicas.values()),
             }
         },
