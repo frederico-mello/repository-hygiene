@@ -91,25 +91,40 @@ def _classificar_ref_por_extensao(ref):
     }
 
 
+_REGRAS_COM_CLASSIFICACAO = frozenset(
+    {"referencias_inexistentes", "documentacao_desatualizada"}
+)
+
+
 def _aplicar_politica_modo(ocorrencia, politica):
     if "classificacao" not in ocorrencia:
-        return ocorrencia
+        return ocorrencia, True
     cls = ocorrencia["classificacao"]
-    if politica == "ci" and cls == "probable":
-        ocorrencia["policy_action"] = "report"
-    elif politica == "pre-commit" and cls == "probable":
-        ocorrencia["policy_action"] = "fail"
-    return ocorrencia
+    if politica == "ci":
+        if cls == "confirmed":
+            policy_action, conta_como_erro = "fail", True
+        else:
+            policy_action, conta_como_erro = "report", False
+    elif politica == "pre-commit":
+        if cls == "confirmed":
+            policy_action, conta_como_erro = "fail", True
+        elif cls == "probable":
+            policy_action, conta_como_erro = "fail", True
+        else:
+            policy_action, conta_como_erro = "report", False
+    else:
+        return ocorrencia, True
+    ocorrencia["policy_action"] = policy_action
+    return ocorrencia, conta_como_erro
 
 
 def executar_auditoria(raiz, config):
+    validar_configuracao(config)
     resultados = []
     regras = config.get("regras", {})
     excecoes = config.get("excecoes", {})
     regras_desativadas = []
     modo = config.get("modo")
-    if modo is not None and modo not in ("pre-commit", "ci"):
-        modo = None
 
     for nome_regra, cfg in regras.items():
         if not cfg.get("habilitada", True):
@@ -119,30 +134,19 @@ def executar_auditoria(raiz, config):
         _avaliar_regra(nome_regra, cfg, raiz, caminhos_excluidos, resultados)
 
     if modo:
-        politica = modo
-        resultados = [
-            _aplicar_politica_modo(r, politica)
-            if r.get("regra") in ("referencias_inexistentes", "documentacao_desatualizada")
-            else r
-            for r in resultados
-        ]
-        tem_erro = any(
-            r["severidade"] == "error"
-            and not (
-                r.get("regra") in ("referencias_inexistentes", "documentacao_desatualizada")
-                and (
-                    (
-                        politica == "pre-commit"
-                        and r.get("classificacao") in ("ambiguous", "rejected")
-                    )
-                    or (
-                        politica == "ci"
-                        and r.get("classificacao") in ("probable", "ambiguous", "rejected")
-                    )
-                )
-            )
-            for r in resultados
-        )
+        resultados_processados = []
+        tem_erro = False
+        for r in resultados:
+            if r.get("regra") in _REGRAS_COM_CLASSIFICACAO:
+                r_atualizado, conta_como_erro = _aplicar_politica_modo(r, modo)
+                resultados_processados.append(r_atualizado)
+                if r["severidade"] == "error" and conta_como_erro:
+                    tem_erro = True
+            else:
+                resultados_processados.append(r)
+                if r["severidade"] == "error":
+                    tem_erro = True
+        resultados = resultados_processados
     else:
         tem_erro = any(r["severidade"] == "error" for r in resultados)
 

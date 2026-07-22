@@ -628,7 +628,7 @@ class TestModosExecucao:
         assert len(erros) == 1
         assert resultado["status"] == "falha"
 
-    def test_modo_invalido_fallback_legado(self, tmp_path):
+    def test_modo_invalido_levanta_erro(self, tmp_path):
         from repository_hygiene.core import executar_auditoria
         (tmp_path / "segredo.txt").write_text("senha=admin")
         config = {
@@ -637,9 +637,8 @@ class TestModosExecucao:
             "regras": {"segredos_rastreados": {"habilitada": True, "severidade": "error"}},
             "excecoes": {"segredos_rastreados": []},
         }
-        resultado = executar_auditoria(str(tmp_path), config)
-        assert resultado["status"] == "falha"
-        assert "classificacao" not in resultado["resultados"][0]
+        with pytest.raises(ValueError, match="Modo 'modo_invalido' inv"):
+            executar_auditoria(str(tmp_path), config)
 
 
 class TestCLI:
