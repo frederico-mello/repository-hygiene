@@ -3,9 +3,9 @@ requires = ["setuptools>=75.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "auditoria-higiene"
+name = "repository-hygiene"
 version = "0.1.0"
-description = "Auditor de higiene para repositórios Git"
+description = "Repository hygiene auditor for Git repositories"
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
@@ -24,11 +24,11 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/frederico/auditoria-higiene"
-Source = "https://github.com/frederico/auditoria-higiene"
+Homepage = "https://github.com/frederico-mello/repository-hygiene"
+Source = "https://github.com/frederico-mello/repository-hygiene"
 
 [project.scripts]
-auditoria-higiene = "auditoria_higiene.cli:main"
+repository-hygiene = "auditoria_higiene.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
