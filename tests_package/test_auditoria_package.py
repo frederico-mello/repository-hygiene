@@ -866,6 +866,65 @@ class TestNativeHook:
 
 
 class TestCLI:
+    def test_cli_padrao_gera_json_e_resumo(self, tmp_path):
+        config = {
+            "versao_configuracao": 1,
+            "regras": {"segredos_rastreados": {"habilitada": True, "severidade": "error"}},
+            "excecoes": {"segredos_rastreados": []},
+        }
+        with open(tmp_path / "auditoria.yaml", "w", encoding="utf-8") as f:
+            yaml.dump(config, f)
+
+        result = subprocess.run(
+            [sys.executable, "-m", "auditoria_higiene.cli", str(tmp_path)],
+            capture_output=True, text=True, timeout=10,
+        )
+
+        assert result.returncode == 0
+        assert "Status: sucesso" in result.stdout
+        report = json.loads((tmp_path / ".repository-hygiene" / "auditoria.json").read_text())
+        assert report["schema_version"] == 1
+        assert report["audited_directory"] == os.path.realpath(tmp_path)
+
+    def test_cli_formato_explicito_grava_saida(self, tmp_path):
+        config = {
+            "versao_configuracao": 1,
+            "regras": {"segredos_rastreados": {"habilitada": True, "severidade": "error"}},
+            "excecoes": {"segredos_rastreados": []},
+        }
+        with open(tmp_path / "auditoria.yaml", "w", encoding="utf-8") as f:
+            yaml.dump(config, f)
+        (tmp_path / "segredo.txt").write_text("senha=admin", encoding="utf-8")
+        output = tmp_path / "report.json"
+
+        result = subprocess.run(
+            [sys.executable, "-m", "auditoria_higiene.cli", str(tmp_path), "--format", "json", "--output", str(output)],
+            capture_output=True, text=True, timeout=10,
+        )
+
+        assert result.returncode == 1
+        assert json.loads(result.stdout) == json.loads(output.read_text())
+
+    def test_cli_pre_commit_nao_gera_relatorio_padrao(self, tmp_path, git_repo):
+        repo = git_repo
+        config = {
+            "versao_configuracao": 1,
+            "regras": {"segredos_rastreados": {"habilitada": True, "severidade": "error"}},
+            "excecoes": {"segredos_rastreados": []},
+        }
+        with open(repo / "auditoria.yaml", "w", encoding="utf-8") as f:
+            yaml.dump(config, f)
+        (repo / "arquivo.txt").write_text("limpo", encoding="utf-8")
+        subprocess.run(["git", "add", "."], cwd=repo, capture_output=True, timeout=10)
+
+        result = subprocess.run(
+            [sys.executable, "-m", "auditoria_higiene.cli", "--pre-commit", str(repo)],
+            capture_output=True, text=True, timeout=10,
+        )
+
+        assert result.returncode == 0
+        assert not (repo / ".repository-hygiene" / "auditoria.json").exists()
+
     def test_cli_ajuda(self):
         import subprocess
         result = subprocess.run(
