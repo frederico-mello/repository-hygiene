@@ -38,6 +38,6 @@
 ## 6. Migração e validação
 
 - [x] 6.1 Testar instalação completa em repositório Python descartável
-- [ ] 6.2 Migrar o repositório original para consumir pacote e workflow centralizados
-- [ ] 6.3 Validar execução local, PR, push, agenda, Summary e issue consolidada
+- [x] 6.2 Migrar o repositório original para consumir pacote e workflow centralizados
+- [x] 6.3 Validar execução local, PR, push, agenda, Summary e issue consolidada
 - [x] 6.4 Documentar instalação, configuração, atualização, rollback e limitações
