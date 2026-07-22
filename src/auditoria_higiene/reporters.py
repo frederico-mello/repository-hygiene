@@ -18,10 +18,11 @@ def gerar_resumo(resultado, report_path):
     return "\n".join(linhas)
 
 
-def escrever_relatorio(conteudo, caminho, criar_pai=True):
+def escrever_relatorio(conteudo, caminho, raiz_permitida, criar_pai=True):
+    _validar_caminho_saida(caminho, raiz_permitida)
     diretorio = os.path.dirname(caminho)
     if criar_pai:
-        os.makedirs(diretorio, exist_ok=True)  # NOSONAR validated by cli._resolver_saida
+        os.makedirs(diretorio, exist_ok=True)  # NOSONAR
     elif not os.path.isdir(diretorio):
         raise OSError(f"Diretório de saída não encontrado: {diretorio}")
     fd, tmp = tempfile.mkstemp(prefix=".auditoria-", dir=diretorio, text=True)
@@ -36,6 +37,13 @@ def escrever_relatorio(conteudo, caminho, criar_pai=True):
         except OSError:
             pass
         raise
+
+
+def _validar_caminho_saida(caminho, raiz_permitida):
+    raiz = os.path.realpath(raiz_permitida)
+    destino = os.path.realpath(caminho)
+    if destino != raiz and not destino.startswith(raiz + os.sep):
+        raise OSError(f"Caminho de saída fora do diretório permitido: {caminho}")
 
 
 def gerar_relatorio_texto(resultado):
@@ -66,6 +74,8 @@ def _adicionar_secao(linhas, titulo, itens):
     for r in itens:
         linhas.append(f"  [{r['regra']}] {r['caminho']}")
         linhas.append(f"    {r['mensagem']}")
+        if "confianca" in r:
+            linhas.append(f"    Confianca: {r['confianca']}")
         if "evidencias" in r:
             linhas.append(f"    Evidencias: {r['evidencias']}")
         if "recomendacao" in r:
