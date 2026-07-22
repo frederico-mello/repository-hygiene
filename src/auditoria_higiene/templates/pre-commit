@@ -6,5 +6,6 @@ import sys
 if __name__ == "__main__":
     result = subprocess.run(
         [sys.executable, "-m", "auditoria_higiene.cli", "--pre-commit", "."],
+        shell=False,
     )
     sys.exit(result.returncode)

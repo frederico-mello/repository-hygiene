@@ -47,6 +47,16 @@ def config_file(tmp_path, config_minima):
     return str(path)
 
 
+@pytest.fixture
+def git_repo(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    subprocess.run(["git", "init"], cwd=repo, capture_output=True, timeout=10, shell=False)
+    subprocess.run(["git", "config", "user.email", "t@t.com"], cwd=repo, capture_output=True, timeout=10, shell=False)
+    subprocess.run(["git", "config", "user.name", "T"], cwd=repo, capture_output=True, timeout=10, shell=False)
+    return repo
+
+
 class TestConfiguracao:
     def test_carregar_configuracao_valida(self, config_file):
         from auditoria_higiene.core import carregar_configuracao
@@ -542,14 +552,10 @@ class TestSanitizer:
 
 
 class TestCLIPreCommit:
-    def test_cli_pre_commit_clean_exit_0(self, tmp_path):
-        repo = tmp_path / "repo"
-        repo.mkdir()
-        subprocess.run(["git", "init"], cwd=repo, capture_output=True, timeout=10)
-        subprocess.run(["git", "config", "user.email", "t@t.com"], cwd=repo, capture_output=True, timeout=10)
-        subprocess.run(["git", "config", "user.name", "T"], cwd=repo, capture_output=True, timeout=10)
+    def test_cli_pre_commit_clean_exit_0(self, tmp_path, git_repo):
+        repo = git_repo
         (repo / "clean.txt").write_text("conteudo limpo")
-        subprocess.run(["git", "add", "clean.txt"], cwd=repo, capture_output=True, timeout=10)
+        subprocess.run(["git", "add", "clean.txt"], cwd=repo, capture_output=True, timeout=10, shell=False)
         config = {
             "versao_configuracao": 1,
             "regras": {"segredos_rastreados": {"habilitada": True, "severidade": "error"}},
@@ -565,14 +571,10 @@ class TestCLIPreCommit:
 
         assert result.returncode == 0
 
-    def test_cli_pre_commit_staged_error_exit_1(self, tmp_path):
-        repo = tmp_path / "repo"
-        repo.mkdir()
-        subprocess.run(["git", "init"], cwd=repo, capture_output=True, timeout=10)
-        subprocess.run(["git", "config", "user.email", "t@t.com"], cwd=repo, capture_output=True, timeout=10)
-        subprocess.run(["git", "config", "user.name", "T"], cwd=repo, capture_output=True, timeout=10)
+    def test_cli_pre_commit_staged_error_exit_1(self, tmp_path, git_repo):
+        repo = git_repo
         (repo / "segredo.txt").write_text("senha=admin")
-        subprocess.run(["git", "add", "segredo.txt"], cwd=repo, capture_output=True, timeout=10)
+        subprocess.run(["git", "add", "segredo.txt"], cwd=repo, capture_output=True, timeout=10, shell=False)
         config = {
             "versao_configuracao": 1,
             "regras": {"segredos_rastreados": {"habilitada": True, "severidade": "error"}},
@@ -589,14 +591,10 @@ class TestCLIPreCommit:
         assert result.returncode == 1
         assert "segredos_rastreados" in result.stdout
 
-    def test_cli_pre_commit_invalid_config_exit_2(self, tmp_path):
-        repo = tmp_path / "repo"
-        repo.mkdir()
-        subprocess.run(["git", "init"], cwd=repo, capture_output=True, timeout=10)
-        subprocess.run(["git", "config", "user.email", "t@t.com"], cwd=repo, capture_output=True, timeout=10)
-        subprocess.run(["git", "config", "user.name", "T"], cwd=repo, capture_output=True, timeout=10)
+    def test_cli_pre_commit_invalid_config_exit_2(self, tmp_path, git_repo):
+        repo = git_repo
         (repo / "f.txt").write_text("conteudo")
-        subprocess.run(["git", "add", "f.txt"], cwd=repo, capture_output=True, timeout=10)
+        subprocess.run(["git", "add", "f.txt"], cwd=repo, capture_output=True, timeout=10, shell=False)
         config = {"versao_configuracao": 99, "regras": {}, "excecoes": {}}
         with open(repo / "auditoria.yaml", "w") as f:
             yaml.dump(config, f)
@@ -628,14 +626,10 @@ class TestCLIPreCommit:
         assert result.returncode == 2
         assert "Falha ao listar" in result.stderr
 
-    def test_cli_pre_commit_unstaged_error_ignored(self, tmp_path):
-        repo = tmp_path / "repo"
-        repo.mkdir()
-        subprocess.run(["git", "init"], cwd=repo, capture_output=True, timeout=10)
-        subprocess.run(["git", "config", "user.email", "t@t.com"], cwd=repo, capture_output=True, timeout=10)
-        subprocess.run(["git", "config", "user.name", "T"], cwd=repo, capture_output=True, timeout=10)
+    def test_cli_pre_commit_unstaged_error_ignored(self, tmp_path, git_repo):
+        repo = git_repo
         (repo / "file.txt").write_text("conteudo limpo")
-        subprocess.run(["git", "add", "file.txt"], cwd=repo, capture_output=True, timeout=10)
+        subprocess.run(["git", "add", "file.txt"], cwd=repo, capture_output=True, timeout=10, shell=False)
         (repo / "file.txt").write_text("senha=admin")
         config = {
             "versao_configuracao": 1,
@@ -652,12 +646,8 @@ class TestCLIPreCommit:
 
         assert result.returncode == 0
 
-    def test_cli_pre_commit_missing_config_exit_2(self, tmp_path):
-        repo = tmp_path / "repo"
-        repo.mkdir()
-        subprocess.run(["git", "init"], cwd=repo, capture_output=True, timeout=10)
-        subprocess.run(["git", "config", "user.email", "t@t.com"], cwd=repo, capture_output=True, timeout=10)
-        subprocess.run(["git", "config", "user.name", "T"], cwd=repo, capture_output=True, timeout=10)
+    def test_cli_pre_commit_missing_config_exit_2(self, tmp_path, git_repo):
+        repo = git_repo
 
         result = subprocess.run(
             [sys.executable, "-m", "auditoria_higiene.cli", "--pre-commit", str(repo)],
@@ -667,15 +657,11 @@ class TestCLIPreCommit:
         assert result.returncode == 2
         assert "não encontrado" in result.stderr
 
-    def test_cli_pre_commit_warning_does_not_block(self, tmp_path):
-        repo = tmp_path / "repo"
-        repo.mkdir()
-        subprocess.run(["git", "init"], cwd=repo, capture_output=True, timeout=10)
-        subprocess.run(["git", "config", "user.email", "t@t.com"], cwd=repo, capture_output=True, timeout=10)
-        subprocess.run(["git", "config", "user.name", "T"], cwd=repo, capture_output=True, timeout=10)
+    def test_cli_pre_commit_warning_does_not_block(self, tmp_path, git_repo):
+        repo = git_repo
         (repo / "vazio" / ".gitkeep").parent.mkdir()
         (repo / "vazio" / ".gitkeep").write_text("")
-        subprocess.run(["git", "add", "vazio/.gitkeep"], cwd=repo, capture_output=True, timeout=10)
+        subprocess.run(["git", "add", "vazio/.gitkeep"], cwd=repo, capture_output=True, timeout=10, shell=False)
         config = {
             "versao_configuracao": 1,
             "regras": {
@@ -696,12 +682,8 @@ class TestCLIPreCommit:
 
 
 class TestNativeHook:
-    def test_install_hook_in_repo_without_hook(self, tmp_path):
-        repo = tmp_path / "repo"
-        repo.mkdir()
-        subprocess.run(["git", "init"], cwd=repo, capture_output=True, timeout=10)
-        subprocess.run(["git", "config", "user.email", "t@t.com"], cwd=repo, capture_output=True, timeout=10)
-        subprocess.run(["git", "config", "user.name", "T"], cwd=repo, capture_output=True, timeout=10)
+    def test_install_hook_in_repo_without_hook(self, tmp_path, git_repo):
+        repo = git_repo
 
         result = subprocess.run(
             [sys.executable, "-m", "auditoria_higiene.cli", "--init", "--install-hook", str(repo)],
@@ -716,12 +698,8 @@ class TestNativeHook:
         assert "auditoria-higiene" in content
         assert "--pre-commit" in content
 
-    def test_preserve_existing_hook(self, tmp_path):
-        repo = tmp_path / "repo"
-        repo.mkdir()
-        subprocess.run(["git", "init"], cwd=repo, capture_output=True, timeout=10)
-        subprocess.run(["git", "config", "user.email", "t@t.com"], cwd=repo, capture_output=True, timeout=10)
-        subprocess.run(["git", "config", "user.name", "T"], cwd=repo, capture_output=True, timeout=10)
+    def test_preserve_existing_hook(self, tmp_path, git_repo):
+        repo = git_repo
         hook_dir = os.path.join(repo, ".git", "hooks")
         os.makedirs(hook_dir, exist_ok=True)
         hook_path = os.path.join(hook_dir, "pre-commit")
@@ -737,12 +715,8 @@ class TestNativeHook:
         assert open(hook_path).read() == "#!/bin/sh\necho 'existing hook'\n"
         assert "Pulando" in result.stdout
 
-    def test_force_replacement(self, tmp_path):
-        repo = tmp_path / "repo"
-        repo.mkdir()
-        subprocess.run(["git", "init"], cwd=repo, capture_output=True, timeout=10)
-        subprocess.run(["git", "config", "user.email", "t@t.com"], cwd=repo, capture_output=True, timeout=10)
-        subprocess.run(["git", "config", "user.name", "T"], cwd=repo, capture_output=True, timeout=10)
+    def test_force_replacement(self, tmp_path, git_repo):
+        repo = git_repo
         hook_dir = os.path.join(repo, ".git", "hooks")
         os.makedirs(hook_dir, exist_ok=True)
         hook_path = os.path.join(hook_dir, "pre-commit")
@@ -858,15 +832,11 @@ class TestCLI:
 
 
 class TestSnapshot:
-    def test_clean_staged_content(self, tmp_path):
+    def test_clean_staged_content(self, tmp_path, git_repo):
         from auditoria_higiene.snapshot import criar_snapshot, limpar_snapshot
-        repo = tmp_path / "repo"
-        repo.mkdir()
-        subprocess.run(["git", "init"], cwd=repo, capture_output=True, timeout=10)
-        subprocess.run(["git", "config", "user.email", "t@t.com"], cwd=repo, capture_output=True, timeout=10)
-        subprocess.run(["git", "config", "user.name", "T"], cwd=repo, capture_output=True, timeout=10)
+        repo = git_repo
         (repo / "clean.txt").write_text("conteudo limpo")
-        subprocess.run(["git", "add", "clean.txt"], cwd=repo, capture_output=True, timeout=10)
+        subprocess.run(["git", "add", "clean.txt"], cwd=repo, capture_output=True, timeout=10, shell=False)
 
         snapshot_path = criar_snapshot(str(repo))
         try:
@@ -876,15 +846,11 @@ class TestSnapshot:
         finally:
             limpar_snapshot(snapshot_path)
 
-    def test_unstaged_error_not_in_snapshot(self, tmp_path):
+    def test_unstaged_error_not_in_snapshot(self, tmp_path, git_repo):
         from auditoria_higiene.snapshot import criar_snapshot, limpar_snapshot
-        repo = tmp_path / "repo"
-        repo.mkdir()
-        subprocess.run(["git", "init"], cwd=repo, capture_output=True, timeout=10)
-        subprocess.run(["git", "config", "user.email", "t@t.com"], cwd=repo, capture_output=True, timeout=10)
-        subprocess.run(["git", "config", "user.name", "T"], cwd=repo, capture_output=True, timeout=10)
+        repo = git_repo
         (repo / "file.txt").write_text("conteudo limpo")
-        subprocess.run(["git", "add", "file.txt"], cwd=repo, capture_output=True, timeout=10)
+        subprocess.run(["git", "add", "file.txt"], cwd=repo, capture_output=True, timeout=10, shell=False)
         (repo / "file.txt").write_text("senha=admin")
 
         snapshot_path = criar_snapshot(str(repo))
@@ -894,15 +860,11 @@ class TestSnapshot:
         finally:
             limpar_snapshot(snapshot_path)
 
-    def test_staged_error_blocks_commit(self, tmp_path):
+    def test_staged_error_blocks_commit(self, tmp_path, git_repo):
         from auditoria_higiene.snapshot import executar_pre_commit
-        repo = tmp_path / "repo"
-        repo.mkdir()
-        subprocess.run(["git", "init"], cwd=repo, capture_output=True, timeout=10)
-        subprocess.run(["git", "config", "user.email", "t@t.com"], cwd=repo, capture_output=True, timeout=10)
-        subprocess.run(["git", "config", "user.name", "T"], cwd=repo, capture_output=True, timeout=10)
+        repo = git_repo
         (repo / "segredo.txt").write_text("senha=admin")
-        subprocess.run(["git", "add", "segredo.txt"], cwd=repo, capture_output=True, timeout=10)
+        subprocess.run(["git", "add", "segredo.txt"], cwd=repo, capture_output=True, timeout=10, shell=False)
         config = {
             "versao_configuracao": 1,
             "regras": {"segredos_rastreados": {"habilitada": True, "severidade": "error"}},
@@ -915,15 +877,11 @@ class TestSnapshot:
         erros = [r for r in resultado["resultados"] if r["regra"] == "segredos_rastreados"]
         assert len(erros) == 1
 
-    def test_added_file_in_snapshot(self, tmp_path):
+    def test_added_file_in_snapshot(self, tmp_path, git_repo):
         from auditoria_higiene.snapshot import criar_snapshot, limpar_snapshot
-        repo = tmp_path / "repo"
-        repo.mkdir()
-        subprocess.run(["git", "init"], cwd=repo, capture_output=True, timeout=10)
-        subprocess.run(["git", "config", "user.email", "t@t.com"], cwd=repo, capture_output=True, timeout=10)
-        subprocess.run(["git", "config", "user.name", "T"], cwd=repo, capture_output=True, timeout=10)
+        repo = git_repo
         (repo / "novo.txt").write_text("arquivo adicionado")
-        subprocess.run(["git", "add", "novo.txt"], cwd=repo, capture_output=True, timeout=10)
+        subprocess.run(["git", "add", "novo.txt"], cwd=repo, capture_output=True, timeout=10, shell=False)
 
         snapshot_path = criar_snapshot(str(repo))
         try:
@@ -933,18 +891,14 @@ class TestSnapshot:
         finally:
             limpar_snapshot(snapshot_path)
 
-    def test_modified_file_in_snapshot(self, tmp_path):
+    def test_modified_file_in_snapshot(self, tmp_path, git_repo):
         from auditoria_higiene.snapshot import criar_snapshot, limpar_snapshot
-        repo = tmp_path / "repo"
-        repo.mkdir()
-        subprocess.run(["git", "init"], cwd=repo, capture_output=True, timeout=10)
-        subprocess.run(["git", "config", "user.email", "t@t.com"], cwd=repo, capture_output=True, timeout=10)
-        subprocess.run(["git", "config", "user.name", "T"], cwd=repo, capture_output=True, timeout=10)
+        repo = git_repo
         (repo / "dados.txt").write_text("versao original")
-        subprocess.run(["git", "add", "dados.txt"], cwd=repo, capture_output=True, timeout=10)
-        subprocess.run(["git", "commit", "-m", "first"], cwd=repo, capture_output=True, timeout=10)
+        subprocess.run(["git", "add", "dados.txt"], cwd=repo, capture_output=True, timeout=10, shell=False)
+        subprocess.run(["git", "commit", "-m", "first"], cwd=repo, capture_output=True, timeout=10, shell=False)
         (repo / "dados.txt").write_text("versao modificada")
-        subprocess.run(["git", "add", "dados.txt"], cwd=repo, capture_output=True, timeout=10)
+        subprocess.run(["git", "add", "dados.txt"], cwd=repo, capture_output=True, timeout=10, shell=False)
 
         snapshot_path = criar_snapshot(str(repo))
         try:
@@ -953,17 +907,13 @@ class TestSnapshot:
         finally:
             limpar_snapshot(snapshot_path)
 
-    def test_removed_file_not_in_snapshot(self, tmp_path):
+    def test_removed_file_not_in_snapshot(self, tmp_path, git_repo):
         from auditoria_higiene.snapshot import criar_snapshot, limpar_snapshot
-        repo = tmp_path / "repo"
-        repo.mkdir()
-        subprocess.run(["git", "init"], cwd=repo, capture_output=True, timeout=10)
-        subprocess.run(["git", "config", "user.email", "t@t.com"], cwd=repo, capture_output=True, timeout=10)
-        subprocess.run(["git", "config", "user.name", "T"], cwd=repo, capture_output=True, timeout=10)
+        repo = git_repo
         (repo / "remover.txt").write_text("vai ser removido")
-        subprocess.run(["git", "add", "remover.txt"], cwd=repo, capture_output=True, timeout=10)
-        subprocess.run(["git", "commit", "-m", "add file"], cwd=repo, capture_output=True, timeout=10)
-        subprocess.run(["git", "rm", "remover.txt"], cwd=repo, capture_output=True, timeout=10)
+        subprocess.run(["git", "add", "remover.txt"], cwd=repo, capture_output=True, timeout=10, shell=False)
+        subprocess.run(["git", "commit", "-m", "add file"], cwd=repo, capture_output=True, timeout=10, shell=False)
+        subprocess.run(["git", "rm", "remover.txt"], cwd=repo, capture_output=True, timeout=10, shell=False)
 
         snapshot_path = criar_snapshot(str(repo))
         try:
@@ -971,15 +921,11 @@ class TestSnapshot:
         finally:
             limpar_snapshot(snapshot_path)
 
-    def test_invalid_config_raises_value_error(self, tmp_path):
+    def test_invalid_config_raises_value_error(self, tmp_path, git_repo):
         from auditoria_higiene.snapshot import executar_pre_commit
-        repo = tmp_path / "repo"
-        repo.mkdir()
-        subprocess.run(["git", "init"], cwd=repo, capture_output=True, timeout=10)
-        subprocess.run(["git", "config", "user.email", "t@t.com"], cwd=repo, capture_output=True, timeout=10)
-        subprocess.run(["git", "config", "user.name", "T"], cwd=repo, capture_output=True, timeout=10)
+        repo = git_repo
         (repo / "f.txt").write_text("conteudo")
-        subprocess.run(["git", "add", "f.txt"], cwd=repo, capture_output=True, timeout=10)
+        subprocess.run(["git", "add", "f.txt"], cwd=repo, capture_output=True, timeout=10, shell=False)
         config_invalida = {"versao_configuracao": 99, "regras": {}, "excecoes": {}}
 
         with pytest.raises(ValueError, match="99"):
@@ -1003,18 +949,18 @@ class TestSnapshot:
         import os as _os
         repo = tmp_path / "repo"
         repo.mkdir()
-        subprocess.run(["git", "init"], cwd=repo, capture_output=True, timeout=10)
-        subprocess.run(["git", "config", "user.email", "test@test"], cwd=repo, capture_output=True, timeout=10)
-        subprocess.run(["git", "config", "user.name", "Test"], cwd=repo, capture_output=True, timeout=10)
+        subprocess.run(["git", "init"], cwd=repo, capture_output=True, timeout=10, shell=False)
+        subprocess.run(["git", "config", "user.email", "test@test"], cwd=repo, capture_output=True, timeout=10, shell=False)
+        subprocess.run(["git", "config", "user.name", "Test"], cwd=repo, capture_output=True, timeout=10, shell=False)
         result = subprocess.run(
             ["git", "hash-object", "--stdin", "-w"],
-            input=b"conteudo", capture_output=True, timeout=10, cwd=repo,
+            input=b"conteudo", capture_output=True, timeout=10, cwd=repo, shell=False,
         )
         blob_hash = result.stdout.decode().strip()
         subprocess.run(
             ["git", "update-index", "--add", "--cacheinfo",
              "100644", blob_hash, "f.txt"],
-            cwd=repo, capture_output=True, timeout=10,
+            cwd=repo, capture_output=True, timeout=10, shell=False,
         )
         obj_dir = _os.path.join(repo, ".git", "objects", blob_hash[:2], blob_hash[2:])
         _os.remove(obj_dir)
@@ -1026,3 +972,17 @@ class TestSnapshot:
 
         with pytest.raises(RuntimeError, match="Falha ao materializar"):
             executar_pre_commit(str(repo), config)
+
+    def test_binary_file_preserved_in_snapshot(self, tmp_path, git_repo):
+        from auditoria_higiene.snapshot import criar_snapshot, limpar_snapshot
+        repo = git_repo
+        binario = b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\xff\xfe\x80"
+        (repo / "imagem.png").write_bytes(binario)
+        subprocess.run(["git", "add", "imagem.png"], cwd=repo, capture_output=True, timeout=10, shell=False)
+
+        snapshot_path = criar_snapshot(str(repo))
+        try:
+            with open(os.path.join(snapshot_path, "imagem.png"), "rb") as f:
+                assert f.read() == binario
+        finally:
+            limpar_snapshot(snapshot_path)
