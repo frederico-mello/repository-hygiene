@@ -1,10 +1,8 @@
 """CLI do auditor de higiene."""
 
 import argparse
-import json
 import sys
 import os
-from datetime import datetime, timezone
 
 from auditoria_higiene import __version__
 from auditoria_higiene.core import (
@@ -17,6 +15,7 @@ from auditoria_higiene.sanitizer import sanitizar_resultado
 from auditoria_higiene.reporters import (
     gerar_relatorio_texto,
     gerar_relatorio_json,
+    gerar_relatorio_json_agente,
     gerar_relatorio_sarif,
     gerar_resumo,
     escrever_relatorio,
@@ -63,19 +62,14 @@ def _processar_resultado(
         report_path = output or os.path.join(
             directory, ".repository-hygiene", "auditoria.json"
         )
-        relatorio_json = gerar_relatorio_json(resultado_sanitizado)
-        metadados = {
-            "schema_version": 1,
-            "auditor_version": __version__,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "audited_directory": os.path.normpath(directory),
-            **json.loads(relatorio_json),
-        }
         try:
             if output is None:
                 os.makedirs(os.path.dirname(report_path), exist_ok=True)
             escrever_relatorio(
-                json.dumps(metadados, ensure_ascii=False, indent=2), report_path
+                gerar_relatorio_json_agente(
+                    resultado_sanitizado, __version__, directory
+                ),
+                report_path,
             )
         except OSError as e:
             print(f"Erro ao persistir relatório: {e}", file=sys.stderr)
