@@ -12,6 +12,21 @@ CONFIG_VERSION = 1
 _DIR_ARCHIVE = ".archive/"
 _DIR_OPENSPEC_CHANGES = "openspec/changes/"
 _DIR_OPENSPEC_PROPOSTAS = "openspec/proposals/"
+_DIR_TESTS = "tests/"
+_DIR_TESTS_PACKAGE = "tests_package/"
+_ARQUIVO_GITIGNORE = ".gitignore"
+_EXTENSOES_REFERENCIAS = (
+    ".py",
+    ".md",
+    ".yaml",
+    ".yml",
+    ".txt",
+    ".json",
+    ".csv",
+    ".html",
+    ".css",
+    ".js",
+)
 
 _PADROES_SEGREDOS_FRACOS = [
     re.compile(r"(?i)(?<!\w)senha\s*[=:]\s*\S+"),
@@ -202,8 +217,8 @@ def _em_diretorio_ruidoso_segredos(caminho_rel):
             _DIR_ARCHIVE,
             _DIR_OPENSPEC_CHANGES,
             _DIR_OPENSPEC_PROPOSTAS,
-            "tests/",
-            "tests_package/",
+            _DIR_TESTS,
+            _DIR_TESTS_PACKAGE,
         )
     )
 
@@ -273,7 +288,7 @@ def _verificar_referencias(raiz, caminhos_excluidos, resultados, severidade="err
             continue
         if _em_diretorio_ruidoso_referencias(caminho_rel):
             continue
-        if not caminho_rel.endswith((".py", ".md", ".yaml", ".yml", ".json", ".html")):
+        if not caminho_rel.endswith(_EXTENSOES_REFERENCIAS):
             continue
         _verificar_refs_em_arquivo(
             raiz, caminho_rel, padrao_ref, resultados, severidade
@@ -314,8 +329,8 @@ def _em_diretorio_ruidoso_referencias(caminho_rel):
             ".github/skills/openspec-",
             ".opencode/commands/",
             ".opencode/skills/openspec-",
-            "tests/",
-            "tests_package/",
+            _DIR_TESTS,
+            _DIR_TESTS_PACKAGE,
         )
     )
 
@@ -372,6 +387,20 @@ def _referencia_existe(raiz, caminho_rel, ref):
 def _verificar_artefatos(
     raiz, caminhos_excluidos, resultados, severidade="error", cfg=None
 ):
+    for caminho_rel in _listar_artefatos(raiz, caminhos_excluidos):
+        if not _deve_reportar_artefato(caminho_rel, caminhos_excluidos, cfg):
+            continue
+        resultados.append(
+            {
+                "regra": "artefatos_fora_gitignore",
+                "caminho": caminho_rel,
+                "severidade": severidade,
+                "mensagem": "Artefato gerado não coberto pelo .gitignore",
+            }
+        )
+
+
+def _listar_artefatos(raiz, caminhos_excluidos):
     try:
         result = subprocess.run(
             ["git", "ls-files", "--others", "--exclude-standard", "--directory", "-z"],
@@ -386,34 +415,22 @@ def _verificar_artefatos(
                 stdout = stdout.decode(errors="surrogateescape")
             caminhos = stdout.split("\0")
         else:
-            caminhos = _artefatos_fallback(raiz, caminhos_excluidos)
+            return _artefatos_fallback(raiz, caminhos_excluidos)
     except (subprocess.SubprocessError, FileNotFoundError):
-        caminhos = _artefatos_fallback(raiz, caminhos_excluidos)
+        return _artefatos_fallback(raiz, caminhos_excluidos)
+    return [caminho.replace("\\", "/") for caminho in caminhos if caminho]
 
-    for caminho_rel in caminhos:
-        caminho_rel = caminho_rel.replace("\\", "/")
-        if not caminho_rel or _esta_excluido(caminho_rel, caminhos_excluidos):
-            continue
-        if caminho_rel == ".gitignore":
-            continue
-        if caminho_rel == ".git" or caminho_rel.startswith(".git/"):
-            continue
-        if caminho_rel == ".repository-hygiene" or caminho_rel.startswith(
-            ".repository-hygiene/"
-        ):
-            continue
-        if _eh_diretorio_fonte(caminho_rel):
-            continue
-        if not _eh_artefato_configurado(caminho_rel, cfg):
-            continue
-        resultados.append(
-            {
-                "regra": "artefatos_fora_gitignore",
-                "caminho": caminho_rel,
-                "severidade": severidade,
-                "mensagem": "Artefato gerado não coberto pelo .gitignore",
-            }
-        )
+
+def _deve_reportar_artefato(caminho_rel, caminhos_excluidos, cfg):
+    if _esta_excluido(caminho_rel, caminhos_excluidos):
+        return False
+    if caminho_rel == _ARQUIVO_GITIGNORE or caminho_rel.startswith(
+        (".git/", ".repository-hygiene/")
+    ):
+        return False
+    return not _eh_diretorio_fonte(caminho_rel) and _eh_artefato_configurado(
+        caminho_rel, cfg
+    )
 
 
 def _eh_diretorio_fonte(caminho_rel):
@@ -428,7 +445,7 @@ def _eh_artefato_configurado(caminho_rel, cfg):
 
 
 def _artefatos_fallback(raiz, caminhos_excluidos):
-    gitignore_path = caminho_seguro(raiz, ".gitignore")
+    gitignore_path = caminho_seguro(raiz, _ARQUIVO_GITIGNORE)
     if not os.path.exists(gitignore_path):
         return []
     with open(gitignore_path, "r", encoding="utf-8") as f:
@@ -438,7 +455,7 @@ def _artefatos_fallback(raiz, caminhos_excluidos):
     for caminho_rel in _todos_arquivos(raiz):
         caminho_git = caminho_rel.replace("\\", "/")
         if (
-            caminho_git == ".gitignore"
+            caminho_git == _ARQUIVO_GITIGNORE
             or caminho_git == ".git"
             or caminho_git.startswith(".git/")
         ):
@@ -549,16 +566,14 @@ def _filtrar_elegiveis_sem_referencia(arquivos, caminhos_excluidos):
                 _DIR_ARCHIVE,
                 _DIR_OPENSPEC_CHANGES,
                 _DIR_OPENSPEC_PROPOSTAS,
-                "tests/",
-                "tests_package/",
+                _DIR_TESTS,
+                _DIR_TESTS_PACKAGE,
             )
         ):
             continue
         if os.path.basename(caminho_rel) == "__init__.py":
             continue
-        if not caminho_rel.endswith(
-            (".py", ".md", ".yaml", ".yml", ".json", ".txt", ".html", ".css", ".js")
-        ):
+        if not caminho_rel.endswith(_EXTENSOES_REFERENCIAS):
             continue
         elegiveis.append(caminho_rel)
     return elegiveis
@@ -800,7 +815,17 @@ def _analisar_workflow(raiz, caminho_rel, resultados, severidade, cfg=None):
     workflow = yaml.safe_load(conteudo)
     if not isinstance(workflow, dict):
         return
-    permissoes = workflow.get("permissions", {})
+    _reportar_permissoes_inseguras(
+        workflow.get("permissions", {}), caminho_rel, resultados, severidade, cfg
+    )
+    _reportar_jobs_inseguros(
+        workflow.get("jobs", {}), caminho_rel, resultados, severidade
+    )
+
+
+def _reportar_permissoes_inseguras(
+    permissoes, caminho_rel, resultados, severidade, cfg
+):
     if isinstance(permissoes, str) and permissoes in ("write-all",):
         resultados.append(
             {
@@ -824,45 +849,55 @@ def _analisar_workflow(raiz, caminho_rel, resultados, severidade, cfg=None):
                         "recomendacao": f"Restringir {scope} ao nível 'read' ou 'none' se possível",
                     }
                 )
-    jobs = workflow.get("jobs", {})
+
+
+def _reportar_jobs_inseguros(jobs, caminho_rel, resultados, severidade):
     if not isinstance(jobs, dict):
         return
     for job_name, job in jobs.items():
         if not isinstance(job, dict):
             continue
-        if (
-            job.get("if", "")
-            .strip()
-            .startswith("github.event_name == 'pull_request_target'")
-        ):
+        _reportar_pull_request_target(
+            job_name, job, caminho_rel, resultados, severidade
+        )
+        _reportar_actions_sem_versao(job_name, job, caminho_rel, resultados, severidade)
+
+
+def _reportar_pull_request_target(job_name, job, caminho_rel, resultados, severidade):
+    if (
+        job.get("if", "")
+        .strip()
+        .startswith("github.event_name == 'pull_request_target'")
+    ):
+        resultados.append(
+            {
+                "regra": "workflows_inseguros",
+                "caminho": caminho_rel,
+                "severidade": severidade,
+                "mensagem": f"Job '{job_name}' usa pull_request_target sem proteção adicional",
+                "recomendacao": "Validar segurança de pull_request_target ou usar pull_request",
+            }
+        )
+
+
+def _reportar_actions_sem_versao(job_name, job, caminho_rel, resultados, severidade):
+    steps = job.get("steps", [])
+    if not isinstance(steps, list):
+        return
+    for step_idx, step in enumerate(steps):
+        if not isinstance(step, dict):
+            continue
+        uses = step.get("uses", "")
+        if uses and _uses_action_sem_versao_fixa(uses):
             resultados.append(
                 {
                     "regra": "workflows_inseguros",
                     "caminho": caminho_rel,
                     "severidade": severidade,
-                    "mensagem": f"Job '{job_name}' usa pull_request_target sem proteção adicional",
-                    "recomendacao": "Validar segurança de pull_request_target ou usar pull_request",
+                    "mensagem": f"Step {step_idx + 1} em job '{job_name}' usa action sem versão fixa: {uses}",
+                    "recomendacao": "Fixar versão com tag semver ou SHA do commit",
                 }
             )
-        steps = job.get("steps", [])
-        if not isinstance(steps, list):
-            continue
-        for step_idx, step in enumerate(steps):
-            if not isinstance(step, dict):
-                continue
-            uses = step.get("uses", "")
-            if not uses:
-                continue
-            if _uses_action_sem_versao_fixa(uses):
-                resultados.append(
-                    {
-                        "regra": "workflows_inseguros",
-                        "caminho": caminho_rel,
-                        "severidade": severidade,
-                        "mensagem": f"Step {step_idx + 1} em job '{job_name}' usa action sem versão fixa: {uses}",
-                        "recomendacao": "Fixar versão com tag semver ou SHA do commit",
-                    }
-                )
 
 
 def _uses_action_sem_versao_fixa(uses):
