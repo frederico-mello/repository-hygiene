@@ -222,7 +222,9 @@ def _arquivos_rastreados(raiz):
 
 def _todos_arquivos(raiz):
     arquivos = []
-    for dirpath, _, filenames in os.walk(raiz):
+    _PASTAS_IGNORADAS = frozenset({".git", "node_modules", "__pycache__", ".venv", "venv", ".mypy_cache", ".pytest_cache", ".ruff_cache"})
+    for dirpath, dirnames, filenames in os.walk(raiz):
+        dirnames[:] = [d for d in dirnames if d not in _PASTAS_IGNORADAS]
         for f in filenames:
             caminho = os.path.relpath(os.path.join(dirpath, f), raiz)
             arquivos.append(caminho)
@@ -426,6 +428,8 @@ def _verificar_artefatos(raiz, caminhos_excluidos, resultados, severidade="error
         return
     with open(gitignore_path, "r", encoding="utf-8") as f:
         gitignore_lines = f.read().splitlines()
+    rastreados = _arquivos_rastreados(raiz)
+    rastreados_set = set(rastreados)
     for caminho_rel in _todos_arquivos(raiz):
         if caminho_rel == ".gitignore":
             continue
@@ -433,7 +437,7 @@ def _verificar_artefatos(raiz, caminhos_excluidos, resultados, severidade="error
             continue
         if _em_gitignore(caminho_rel, gitignore_lines):
             continue
-        if _em_git(raiz, caminho_rel):
+        if caminho_rel in rastreados_set:
             continue
         resultados.append(
             {
