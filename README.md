@@ -5,7 +5,13 @@ Auditor de higiene para repositórios Git. Verifica segredos, links quebrados, r
 ## Instalação
 
 ```bash
-uv tool install auditoria-higiene
+uv tool install git+https://github.com/frederico-mello/repository-hygiene.git@v0.1.0
+```
+
+O pacote ainda não está publicado no PyPI. Para usar a versão local clonada:
+
+```bash
+uv tool install --editable .
 ```
 
 ## Uso

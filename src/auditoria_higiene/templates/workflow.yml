@@ -45,7 +45,7 @@ jobs:
       - name: Install auditoria-higiene
         run: |
           python -m pip install --upgrade pip
-          pip install auditoria-higiene==0.1.0
+           pip install git+https://github.com/frederico-mello/repository-hygiene.git@v0.1.0
 
       - name: Run auditoria
         id: auditoria
