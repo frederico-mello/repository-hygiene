@@ -4,8 +4,37 @@ Auditor de higiene para repositórios Git. Verifica segredos, links quebrados, r
 
 ## Instalação
 
+### Em uma venv
+
+No projeto que será auditado:
+
 ```bash
-pip install repository-hygiene
+python -m venv .venv
+# Linux/macOS
+source .venv/bin/activate
+# Windows PowerShell
+.venv\Scripts\Activate.ps1
+
+python -m pip install --upgrade pip
+python -m pip install repository-hygiene
+```
+
+Para instalar diretamente da versão publicada no GitHub:
+
+```bash
+python -m pip install git+https://github.com/frederico-mello/repository-hygiene.git
+```
+
+Para fixar uma tag ou branch:
+
+```bash
+python -m pip install git+https://github.com/frederico-mello/repository-hygiene.git@v0.2.0
+```
+
+Use a instalação via GitHub para testar código ainda não publicado no PyPI. Para uso normal, prefira o pacote publicado:
+
+```bash
+python -m pip install repository-hygiene
 # ou
 uv tool install repository-hygiene
 ```
