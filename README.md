@@ -260,3 +260,63 @@ uv run pytest tests_package/
 ## Licença
 
 MIT
+
+## Prerequisites
+
+- **Python 3.10+**
+- **uv** (recommended) — install from https://docs.astral.sh/uv/#installation
+- Or **pip** (alternative)
+
+## Installation & Execution
+
+### Quick start (recommended) — ephemeral via `uvx`
+
+No installation required. `uvx` resolves the package in an isolated environment:
+
+```bash
+uvx repository-hygiene install .
+uvx repository-hygiene audit .
+```
+
+The package is not installed globally. For reproducible automation, pin a version:
+
+```bash
+uvx repository-hygiene@0.2.0 install .
+```
+
+### Persistent installation via `uv`
+
+```bash
+uv tool install repository-hygiene
+repository-hygiene audit .
+```
+
+If the command is not found after installation, run `uv tool update-shell` or use `uvx repository-hygiene` as fallback.
+
+To force reinstall an existing version:
+
+```bash
+uv tool install --force repository-hygiene
+```
+
+To roll back to a specific version:
+
+```bash
+uv tool install --force repository-hygiene==0.2.0
+```
+
+### Via `pip`
+
+```bash
+pip install repository-hygiene
+repository-hygiene audit .
+```
+
+### Via Python module
+
+```bash
+python -m auditoria_higiene audit .
+python -m auditoria_higiene --help
+```
+
+

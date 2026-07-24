@@ -1,4 +1,4 @@
-"""Comando init: gera configuração e workflow para um projeto."""
+"""Comandos install e update: gera configuração e workflow para um projeto."""
 
 import os
 import sys
@@ -6,18 +6,45 @@ import pkgutil
 
 
 def cmd_init(directory, force=False, install_hook=False):
+    cmd_install(directory, force=force, dry_run=False)
+    if install_hook:
+        _instalar_hook(os.path.abspath(directory), force)
+
+
+def cmd_install(directory, force=False, dry_run=False):
     raiz = os.path.abspath(directory)
     if not os.path.isdir(raiz):
         print(f"Erro: diretório não encontrado: {raiz}", file=sys.stderr)
         sys.exit(2)
 
+    if dry_run:
+        _dry_run_msg(raiz, "auditoria.yaml", "templates/auditoria.yaml")
+        _dry_run_msg(raiz, ".github/workflows/repository-hygiene.yml", "templates/workflow.yml")
+        return
+
     _gerar_arquivo(raiz, "auditoria.yaml", "templates/auditoria.yaml", force)
     _gerar_arquivo(raiz, ".github/workflows/repository-hygiene.yml", "templates/workflow.yml", force)
     print(f"Arquivos gerados em {raiz}")
-    print("Execute 'repository-hygiene .' para auditar o repositório.")
 
-    if install_hook:
-        _instalar_hook(raiz, force)
+
+def cmd_update(directory, version=None, dry_run=False):
+    raiz = os.path.abspath(directory)
+    if not os.path.isdir(raiz):
+        print(f"Erro: diretório não encontrado: {raiz}", file=sys.stderr)
+        sys.exit(2)
+
+    if dry_run:
+        _dry_run_msg(raiz, "auditoria.yaml", "templates/auditoria.yaml")
+        _dry_run_msg(raiz, ".github/workflows/repository-hygiene.yml", "templates/workflow.yml")
+        return
+
+    _gerar_arquivo(raiz, "auditoria.yaml", "templates/auditoria.yaml", True)
+    _gerar_arquivo(raiz, ".github/workflows/repository-hygiene.yml", "templates/workflow.yml", True)
+    print(f"Arquivos atualizados em {raiz}")
+
+
+def _dry_run_msg(raiz, caminho_rel, _template_recurso):
+    print(f"  dry-run: {os.path.join(raiz, caminho_rel)}")
 
 
 def _instalar_hook(raiz, force):
