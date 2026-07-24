@@ -2008,10 +2008,8 @@ class TestSnapshot:
         assert "repository-hygiene" in result.stdout
 
     def test_package_metadata(self):
-        import auditoria_higiene
-        assert auditoria_higiene.__version__ == "0.1.0"
         from importlib.metadata import version, entry_points
-        assert version("repository-hygiene") == "0.1.0"
+        assert version("repository-hygiene") == "0.2.0"
         eps = entry_points(group="console_scripts")
         rh_eps = [ep for ep in eps if ep.name == "repository-hygiene"]
         assert len(rh_eps) == 1
@@ -2104,7 +2102,7 @@ class TestSnapshot:
             yaml.dump(config, f)
         (tmp_path / "segredo.txt").write_text("API_KEY=super_secreto_123")
         result = subprocess.run(
-            [sys.executable, "-m", "auditoria_higiene", "audit", str(tmp_path)],
+            [sys.executable, "-m", "auditoria_higiene", "audit", str(tmp_path), "--format", "text"],
             capture_output=True, text=True, timeout=10,
         )
         assert result.returncode == 1
@@ -2170,7 +2168,10 @@ class TestSnapshot:
             [sys.executable, "-m", "auditoria_higiene.cli"],
             capture_output=True, text=True, timeout=10,
         )
-        assert result.returncode == 2
+        assert result.returncode == 0
+        assert "install" in result.stdout
+        assert "audit" in result.stdout
+        assert "update" in result.stdout
 
     def test_cli_versao(self):
         import subprocess
@@ -2342,7 +2343,7 @@ class TestSnapshot:
             "README.md",
         )
         content = open(readme, encoding="utf-8").read()
-        assert "repository-hygiene@0.1.0" in content
+        assert "repository-hygiene@0.2.0" in content
         assert "uv tool install --force" in content
         assert "rollback" in content.lower() or "roll back" in content.lower()
 
@@ -2357,7 +2358,7 @@ class TestSnapshot:
         )
         if result.returncode != 0:
             pytest.skip(f"uvx not available: {result.stderr}")
-        assert "0.1.0" in result.stdout
+        assert "0.2.0" in result.stdout
 
     def test_versao_persiste_sem_atualizacao(self):
         pkg_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -2372,7 +2373,7 @@ class TestSnapshot:
             capture_output=True, text=True, timeout=30,
         )
         assert r2.returncode == 0
-        assert "0.1.0" in r2.stdout
+        assert "0.2.0" in r2.stdout
 
     def test_ci_workflow_multiplataforma_existe(self):
         workflow = os.path.join(
