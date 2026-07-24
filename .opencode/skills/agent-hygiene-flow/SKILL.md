@@ -85,8 +85,9 @@ clean audit — no error findings, no unhandled residual findings.
    unrelated problems.
 3. **Worktree isolation (MANDATORY):** any code or repository edit motivated by
    a finding MUST occur in an isolated worktree created via `git-wt switch -c`
-   and MUST be delivered through push and pull request. Never edit files
-   directly on the protected branch (main/master).
+   (Worktrunk; see AGENTS.md for prerequisites) and MUST be delivered through
+   push and pull request. Never edit files directly on the protected branch
+   (main/master).
 4. Do not modify `AGENTS.md`, `.gitignore`, configuration files, or any file
    not referenced by a finding unless a matching finding and operational
    authorization exist. This prohibition does not apply to `auditoria.yaml`
@@ -140,7 +141,8 @@ corrections. If the flow terminated as blocked, do NOT perform cleanup.
   representation provided by the report.
 - **Worktree isolation:** every code edit motivated by a finding goes through
   `git-wt switch -c` → commit → push → `gh pr create`. No direct edits to
-  main/master.
+  main/master. (`git-wt` is Worktrunk, the project's mandatory worktree
+  isolation tool. See AGENTS.md for prerequisites.)
 - **Temporary artifacts:** `.repository-hygiene/auditoria.json` and
   `.repository-hygiene/` are temporary. Remove them after a clean flow. Do not
   commit, version, archive, or share them.
