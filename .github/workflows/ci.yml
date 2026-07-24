@@ -17,16 +17,16 @@ jobs:
         python-version: ["3.10", "3.11", "3.12"]
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
-      - uses: astral-sh/setup-uv@v3
+      - uses: astral-sh/setup-uv@caf0cab7a618c569241d31dcd442f54681755d39 # v3
         with:
           python-version: ${{ matrix.python-version }}
 
       - name: Install package
         run: |
           uv venv
-          uv pip install pytest -e .
+          uv pip install 'pytest==8.3.4' -e .
 
       - name: Run tests
         run: uv run pytest tests_package/ -q
@@ -40,9 +40,9 @@ jobs:
         os: [ubuntu-latest, windows-latest, macos-latest]
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
-      - uses: astral-sh/setup-uv@v3
+      - uses: astral-sh/setup-uv@caf0cab7a618c569241d31dcd442f54681755d39 # v3
 
       - name: Build package
         run: uv build
@@ -64,4 +64,4 @@ jobs:
         run: |
           uv tool install --force ${{ steps.find-wheel.outputs.wheel }}
           uv tool list | grep repository-hygiene
-          uv tool run repository-hygiene --version
+          uv tool run --from ${{ steps.find-wheel.outputs.wheel }} repository-hygiene --version
