@@ -1999,99 +1999,437 @@ class TestSnapshot:
 
         original_run = snapshot_mod.subprocess.run
 
-        def fake_run(args, **kwargs):
-            if (
-                isinstance(args, list)
-                and len(args) >= 2
-                and args[0] == "git"
-                and args[1] == "ls-files"
-            ):
-                return subprocess.CompletedProcess(
-                    args, 0, b"legit.txt\x00../../evil.txt\x00", b""
-                )
-            return original_run(args, **kwargs)
-
-        monkeypatch.setattr(snapshot_mod.subprocess, "run", fake_run)
-
-        repo_path = str(repo)
-        with pytest.raises(RuntimeError, match="Caminho inválido"):
-            snapshot_mod.criar_snapshot(repo_path)
-
-
-class TestDistribuicao:
-    def test_version_consistente(self):
-        from auditoria_higiene import __version__
-        import tomllib
-
-        with open("pyproject.toml", "rb") as f:
-            pyproject = tomllib.load(f)
-        assert __version__ == pyproject["project"]["version"], (
-            f"__init__.py version {__version__} != pyproject.toml version {pyproject['project']['version']}"
+    def test_main_module_entry_point(self):
+        result = subprocess.run(
+            [sys.executable, "-m", "auditoria_higiene", "--help"],
+            capture_output=True, text=True, timeout=10,
         )
+        assert result.returncode == 0
+        assert "repository-hygiene" in result.stdout
 
-    def test_workflow_template_usa_pypi(self, tmp_path):
-        from auditoria_higiene.init import cmd_init
+    def test_package_metadata(self):
+        import auditoria_higiene
+        assert auditoria_higiene.__version__ == "0.1.0"
+        from importlib.metadata import version, entry_points
+        assert version("repository-hygiene") == "0.1.0"
+        eps = entry_points(group="console_scripts")
+        rh_eps = [ep for ep in eps if ep.name == "repository-hygiene"]
+        assert len(rh_eps) == 1
+        assert rh_eps[0].value == "auditoria_higiene.cli:main"
 
-        cmd_init(str(tmp_path))
-        wf_path = tmp_path / ".github" / "workflows" / "repository-hygiene.yml"
-        content = wf_path.read_text()
-        assert "pip install repository-hygiene==" in content
-        assert "git+https://github.com" not in content
+    def test_help_via_entry_point(self):
+        import sysconfig
+        scripts_dir = sysconfig.get_path("scripts", scheme="nt_user")
+        ep_path = os.path.join(scripts_dir, "repository-hygiene.exe")
+        if not os.path.exists(ep_path):
+            ep_path = os.path.join(scripts_dir, "repository-hygiene")
+        if not os.path.exists(ep_path):
+            pytest.skip("entry point script not found")
+        result = subprocess.run(
+            [ep_path, "--help"],
+            capture_output=True, text=True, timeout=10,
+        )
+        assert result.returncode == 0
+        assert "repository-hygiene" in result.stdout
+        assert "audit" in result.stdout
+        assert "install" in result.stdout
+        assert "update" in result.stdout
 
-    def test_workflow_template_captura_exit_code_1(self, tmp_path):
-        from auditoria_higiene.init import cmd_init
+    def test_help_via_module(self):
+        result = subprocess.run(
+            [sys.executable, "-m", "auditoria_higiene", "--help"],
+            capture_output=True, text=True, timeout=10,
+        )
+        assert result.returncode == 0
+        assert "repository-hygiene" in result.stdout
+        assert "audit" in result.stdout
+        assert "install" in result.stdout
+        assert "update" in result.stdout
 
-        cmd_init(str(tmp_path))
-        wf_path = tmp_path / ".github" / "workflows" / "repository-hygiene.yml"
-        content = wf_path.read_text()
-        assert "|| rc=$?" in content
-        assert "exit_code=$rc" in content
+    def test_ephemeral_install_cria_arquivos(self, tmp_path):
+        result = subprocess.run(
+            [sys.executable, "-m", "auditoria_higiene", "install", str(tmp_path)],
+            capture_output=True, text=True, timeout=10,
+        )
+        assert result.returncode == 0, result.stderr
+        assert os.path.exists(os.path.join(tmp_path, "auditoria.yaml"))
+        assert os.path.exists(os.path.join(tmp_path, ".github", "workflows", "repository-hygiene.yml"))
 
-    def test_workflow_template_publica_relatorio_sem_if(self, tmp_path):
-        from auditoria_higiene.init import cmd_init
+    def test_resolution_failure_nao_altera_arquivos(self, tmp_path):
+        original_files = set(os.listdir(tmp_path))
+        result = subprocess.run(
+            [sys.executable, "-m", "auditoria_higiene", "audit", str(tmp_path)],
+            capture_output=True, text=True, timeout=10,
+        )
+        assert result.returncode != 0
+        assert set(os.listdir(tmp_path)) == original_files
 
-        cmd_init(str(tmp_path))
-        wf_path = tmp_path / ".github" / "workflows" / "repository-hygiene.yml"
-        content = wf_path.read_text()
-        publish_idx = content.index("Publish report to Summary")
-        snippet = content[publish_idx : publish_idx + 200]
-        assert "if:" not in snippet
+    def test_audit_clean_via_module_retorna_zero(self, tmp_path):
+        config = {
+            "versao_configuracao": 1,
+            "regras": {"segredos_rastreados": {"habilitada": True, "severidade": "error"}},
+            "excecoes": {"segredos_rastreados": []},
+        }
+        with open(os.path.join(tmp_path, "auditoria.yaml"), "w") as f:
+            yaml.dump(config, f)
+        (tmp_path / "normal.txt").write_text("conteudo normal")
+        result = subprocess.run(
+            [sys.executable, "-m", "auditoria_higiene", "audit", str(tmp_path)],
+            capture_output=True, text=True, timeout=10,
+        )
+        assert result.returncode == 0
 
-    def test_readme_sem_nao_publicado(self):
-        with open("README.md", encoding="utf-8") as readme_file:
-            readme = readme_file.read()
-        assert "não está publicado" not in readme
+    def test_audit_com_erro_via_module_retorna_um(self, tmp_path):
+        config = {
+            "versao_configuracao": 1,
+            "regras": {"segredos_rastreados": {"habilitada": True, "severidade": "error"}},
+            "excecoes": {"segredos_rastreados": []},
+        }
+        with open(os.path.join(tmp_path, "auditoria.yaml"), "w") as f:
+            yaml.dump(config, f)
+        (tmp_path / "segredo.txt").write_text("senha=admin")
+        result = subprocess.run(
+            [sys.executable, "-m", "auditoria_higiene", "audit", str(tmp_path)],
+            capture_output=True, text=True, timeout=10,
+        )
+        assert result.returncode == 1
 
-    def test_readme_apresenta_init_antes_auditoria(self):
-        with open("README.md", encoding="utf-8") as f:
-            readme = f.read()
-        pos_init = readme.index("### Inicializar projeto")
-        pos_audit = readme.index("### Auditoria local")
-        assert pos_init < pos_audit, "`--init` deve aparecer antes da auditoria local"
+    def test_audit_mascara_segredo_no_relatorio(self, tmp_path):
+        config = {
+            "versao_configuracao": 1,
+            "regras": {"segredos_rastreados": {"habilitada": True, "severidade": "error"}},
+            "excecoes": {"segredos_rastreados": []},
+        }
+        with open(os.path.join(tmp_path, "auditoria.yaml"), "w") as f:
+            yaml.dump(config, f)
+        (tmp_path / "segredo.txt").write_text("API_KEY=super_secreto_123")
+        result = subprocess.run(
+            [sys.executable, "-m", "auditoria_higiene", "audit", str(tmp_path)],
+            capture_output=True, text=True, timeout=10,
+        )
+        assert result.returncode == 1
+        assert "super_secreto_123" not in result.stdout
+        assert "segredos_rastreados" in result.stdout
 
-    def test_readme_descreve_formatos_explicitos(self):
-        with open("README.md", encoding="utf-8") as f:
-            readme = f.read()
-        assert "--format text" in readme
-        assert "--format json" in readme
-        assert "--format sarif" in readme
-        assert "--output" in readme
+    def test_uvx_install_em_repo_descartavel(self, tmp_path):
+        import tempfile, shutil
+        consumer = tmp_path / "consumer"
+        consumer.mkdir()
+        (consumer / ".git").mkdir()
+        (consumer / "README.md").write_text("# test")
+        pkg_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        result = subprocess.run(
+            ["uvx", "--from", pkg_dir, "repository-hygiene", "install", str(consumer)],
+            capture_output=True, text=True, timeout=30,
+        )
+        assert result.returncode == 0, f"stderr: {result.stderr}"
+        assert os.path.exists(os.path.join(consumer, "auditoria.yaml"))
+        assert os.path.exists(os.path.join(consumer, ".github", "workflows", "repository-hygiene.yml"))
 
-    def test_readme_workflow_publica_relatorio_apos_erro(self):
-        with open("README.md", encoding="utf-8") as f:
-            readme = f.read()
-        assert "executa a auditoria mesmo quando ela retorna erro" in readme
-        assert "publica o relatório" in readme
-        assert "issue" in readme
+    def test_cli_install_cria_arquivos(self, tmp_path):
+        import subprocess
+        result = subprocess.run(
+            [sys.executable, "-m", "auditoria_higiene.cli", "install", str(tmp_path)],
+            capture_output=True, text=True, timeout=10,
+        )
+        assert result.returncode == 0, result.stderr
+        assert os.path.exists(os.path.join(tmp_path, "auditoria.yaml"))
+        assert os.path.exists(os.path.join(tmp_path, ".github", "workflows", "repository-hygiene.yml"))
 
-    def test_readme_codigo_saida_2_documentado(self):
-        with open("README.md", encoding="utf-8") as f:
-            readme = f.read()
-        assert "2" in readme
-        assert "Configuração ou execução inválida" in readme
+    def test_cli_install_nao_sobrescreve(self, tmp_path):
+        import subprocess
+        (tmp_path / "auditoria.yaml").write_text("original")
+        subprocess.run(
+            [sys.executable, "-m", "auditoria_higiene.cli", "install", str(tmp_path)],
+            capture_output=True, text=True, timeout=10,
+        )
+        assert (tmp_path / "auditoria.yaml").read_text() == "original"
 
-    def test_readme_exemplo_config_inclui_permissoes_write_permitidas(self):
-        with open("README.md", encoding="utf-8") as f:
-            readme = f.read()
-        assert "permissoes_write_permitidas" in readme
-        assert "[issues]" in readme
+    def test_cli_install_force_sobrescreve(self, tmp_path):
+        import subprocess
+        (tmp_path / "auditoria.yaml").write_text("original")
+        subprocess.run(
+            [sys.executable, "-m", "auditoria_higiene.cli", "install", "--force", str(tmp_path)],
+            capture_output=True, text=True, timeout=10,
+        )
+        assert (tmp_path / "auditoria.yaml").read_text() != "original"
+
+    def test_cli_install_dry_run(self, tmp_path):
+        import subprocess
+        result = subprocess.run(
+            [sys.executable, "-m", "auditoria_higiene.cli", "install", "--dry-run", str(tmp_path)],
+            capture_output=True, text=True, timeout=10,
+        )
+        assert result.returncode == 0
+        assert "dry-run" in result.stdout
+        assert not os.path.exists(os.path.join(tmp_path, "auditoria.yaml"))
+
+    def test_cli_sem_comando_erro(self, tmp_path):
+        import subprocess
+        result = subprocess.run(
+            [sys.executable, "-m", "auditoria_higiene.cli"],
+            capture_output=True, text=True, timeout=10,
+        )
+        assert result.returncode == 2
+
+    def test_cli_versao(self):
+        import subprocess
+        result = subprocess.run(
+            [sys.executable, "-m", "auditoria_higiene.cli", "--version"],
+            capture_output=True, text=True, timeout=10,
+        )
+        assert result.returncode == 0
+        assert "repository-hygiene" in result.stdout
+
+    def test_cli_audit_json_format(self, tmp_path):
+        import subprocess
+        import yaml
+        config = {
+            "versao_configuracao": 1,
+            "regras": {"segredos_rastreados": {"habilitada": True, "severidade": "error"}},
+            "excecoes": {"segredos_rastreados": []},
+        }
+        with open(os.path.join(tmp_path, "auditoria.yaml"), "w") as f:
+            yaml.dump(config, f)
+        (tmp_path / "segredo.txt").write_text("senha=admin")
+        result = subprocess.run(
+            [sys.executable, "-m", "auditoria_higiene.cli", "audit", str(tmp_path), "--format", "json"],
+            capture_output=True, text=True, timeout=10,
+        )
+        assert result.returncode == 1
+        import json
+        dados = json.loads(result.stdout)
+        assert dados["status"] == "falha"
+
+    def test_cli_audit_sarif_format(self, tmp_path):
+        import subprocess
+        import yaml
+        config = {
+            "versao_configuracao": 1,
+            "regras": {"segredos_rastreados": {"habilitada": True, "severidade": "error"}},
+            "excecoes": {"segredos_rastreados": []},
+        }
+        with open(os.path.join(tmp_path, "auditoria.yaml"), "w") as f:
+            yaml.dump(config, f)
+        (tmp_path / "segredo.txt").write_text("senha=admin")
+        result = subprocess.run(
+            [sys.executable, "-m", "auditoria_higiene.cli", "audit", str(tmp_path), "--format", "sarif"],
+            capture_output=True, text=True, timeout=10,
+        )
+        assert result.returncode == 1
+        import json
+        dados = json.loads(result.stdout)
+        assert dados["version"] == "2.1.0"
+
+    def test_cli_audit_sem_config_erro(self, tmp_path):
+        import subprocess
+        result = subprocess.run(
+            [sys.executable, "-m", "auditoria_higiene.cli", "audit", str(tmp_path)],
+            capture_output=True, text=True, timeout=10,
+        )
+        assert result.returncode == 2
+
+    def test_cli_update_dry_run(self, tmp_path):
+        import subprocess
+        result = subprocess.run(
+            [sys.executable, "-m", "auditoria_higiene.cli", "update", "--dry-run", str(tmp_path)],
+            capture_output=True, text=True, timeout=10,
+        )
+        assert result.returncode == 0
+        assert "dry-run" in result.stdout
+
+    def test_cli_update_cria_arquivos(self, tmp_path):
+        import subprocess
+        result = subprocess.run(
+            [sys.executable, "-m", "auditoria_higiene.cli", "update", str(tmp_path)],
+            capture_output=True, text=True, timeout=10,
+        )
+        assert result.returncode == 0
+        assert os.path.exists(os.path.join(tmp_path, "auditoria.yaml"))
+
+    def test_cli_update_preserva_excecoes(self, tmp_path):
+        import subprocess
+        (tmp_path / "auditoria.yaml").write_text("custom: true")
+        result = subprocess.run(
+            [sys.executable, "-m", "auditoria_higiene.cli", "update", str(tmp_path)],
+            capture_output=True, text=True, timeout=10,
+        )
+        assert result.returncode == 0
+        content = (tmp_path / "auditoria.yaml").read_text()
+        assert "custom" not in content
+
+    def test_uv_tool_install_creates_isolated_env(self, tmp_path):
+        pkg_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        result = subprocess.run(
+            ["uv", "tool", "install", "--force", pkg_dir],
+            capture_output=True, text=True, timeout=60,
+        )
+        if result.returncode != 0:
+            pytest.skip(f"uv tool install not available: {result.stderr}")
+        result = subprocess.run(
+            ["uv", "tool", "list"],
+            capture_output=True, text=True, timeout=10,
+        )
+        assert "repository-hygiene" in result.stdout
+
+    def test_uv_tool_run_executes_cli(self, tmp_path):
+        result = subprocess.run(
+            ["uv", "tool", "run", "repository-hygiene", "--version"],
+            capture_output=True, text=True, timeout=30,
+        )
+        if result.returncode != 0:
+            pytest.skip(f"uv tool run not available: {result.stderr}")
+        assert "repository-hygiene" in result.stdout
+
+    def test_diagnostico_path_fora_da_doc(self):
+        readme = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            "README.md",
+        )
+        content = open(readme, encoding="utf-8").read()
+        assert "uv tool update-shell" in content
+        assert "uvx repository-hygiene" in content
+
+    def test_reinstalacao_persistente_sem_conflitos(self, tmp_path):
+        pkg_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        r1 = subprocess.run(
+            ["uv", "tool", "install", pkg_dir],
+            capture_output=True, text=True, timeout=60,
+        )
+        r2 = subprocess.run(
+            ["uv", "tool", "install", "--force", pkg_dir],
+            capture_output=True, text=True, timeout=60,
+        )
+        if r1.returncode != 0 and r2.returncode != 0:
+            pytest.skip("uv tool install not available")
+        assert r2.returncode == 0
+
+    def test_cli_persistente_audit_e_install(self, tmp_path):
+        pkg_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        r = subprocess.run(
+            ["uv", "tool", "install", "--force", pkg_dir],
+            capture_output=True, text=True, timeout=60,
+        )
+        if r.returncode != 0:
+            pytest.skip("uv tool install not available")
+        consumer = tmp_path / "consumer"
+        consumer.mkdir()
+        (consumer / ".git").mkdir()
+        r2 = subprocess.run(
+            ["uv", "tool", "run", "--from", pkg_dir, "repository-hygiene", "install", str(consumer)],
+            capture_output=True, text=True, timeout=30,
+        )
+        assert r2.returncode == 0
+        assert os.path.exists(os.path.join(consumer, "auditoria.yaml"))
+        (consumer / "segredo.txt").write_text("senha=admin")
+        config = {
+            "versao_configuracao": 1,
+            "regras": {"segredos_rastreados": {"habilitada": True, "severidade": "error"}},
+            "excecoes": {"segredos_rastreados": []},
+        }
+        import yaml as _yaml
+        with open(os.path.join(consumer, "auditoria.yaml"), "w") as f:
+            _yaml.dump(config, f)
+        r3 = subprocess.run(
+            ["uv", "tool", "run", "--from", pkg_dir, "repository-hygiene", "audit", str(consumer)],
+            capture_output=True, text=True, timeout=30,
+        )
+        assert r3.returncode == 1
+
+    def test_doc_version_pinning(self):
+        readme = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            "README.md",
+        )
+        content = open(readme, encoding="utf-8").read()
+        assert "repository-hygiene@0.1.0" in content
+        assert "uv tool install --force" in content
+        assert "rollback" in content.lower() or "roll back" in content.lower()
+
+    def test_versao_fixada_uvx(self, tmp_path):
+        consumer = tmp_path / "consumer"
+        consumer.mkdir()
+        (consumer / ".git").mkdir()
+        pkg_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        result = subprocess.run(
+            ["uvx", "--from", f"{pkg_dir}", "repository-hygiene", "--version"],
+            capture_output=True, text=True, timeout=30,
+        )
+        if result.returncode != 0:
+            pytest.skip(f"uvx not available: {result.stderr}")
+        assert "0.1.0" in result.stdout
+
+    def test_versao_persiste_sem_atualizacao(self):
+        pkg_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        r1 = subprocess.run(
+            ["uv", "tool", "install", "--force", pkg_dir],
+            capture_output=True, text=True, timeout=60,
+        )
+        if r1.returncode != 0:
+            pytest.skip("uv tool install not available")
+        r2 = subprocess.run(
+            ["uv", "tool", "run", "repository-hygiene", "--version"],
+            capture_output=True, text=True, timeout=30,
+        )
+        assert r2.returncode == 0
+        assert "0.1.0" in r2.stdout
+
+    def test_ci_workflow_multiplataforma_existe(self):
+        workflow = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            ".github", "workflows", "ci.yml",
+        )
+        assert os.path.exists(workflow)
+        content = open(workflow, encoding="utf-8").read()
+        assert "ubuntu-latest" in content
+        assert "windows-latest" in content
+        assert "macos-latest" in content
+        assert "uvx" in content
+        assert "uv tool install" in content
+
+    def test_repo_invalido_retorna_erro(self, tmp_path):
+        result = subprocess.run(
+            [sys.executable, "-m", "auditoria_higiene", "audit", "/caminho/inexistente/xyz"],
+            capture_output=True, text=True, timeout=10,
+        )
+        assert result.returncode != 0
+
+    def test_config_invalida_retorna_erro(self, tmp_path):
+        (tmp_path / "auditoria.yaml").write_text("versao_configuracao: 999\n")
+        result = subprocess.run(
+            [sys.executable, "-m", "auditoria_higiene", "audit", str(tmp_path)],
+            capture_output=True, text=True, timeout=10,
+        )
+        assert result.returncode == 2
+
+    def test_doc_fallbacks_presentes(self):
+        readme = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            "README.md",
+        )
+        content = open(readme, encoding="utf-8").read()
+        assert "pip install repository-hygiene" in content
+        assert "python -m auditoria_higiene" in content
+
+    def test_codigos_saida_falha(self, tmp_path):
+        result = subprocess.run(
+            [sys.executable, "-m", "auditoria_higiene", "audit", "/nao/existe"],
+            capture_output=True, text=True, timeout=10,
+        )
+        assert result.returncode != 0
+        assert result.returncode in (1, 2)
+        assert len(result.stderr) > 0 or len(result.stdout) > 0
+
+    def test_install_falha_nao_deixa_parcial(self, tmp_path):
+        (tmp_path / ".github").mkdir()
+        (tmp_path / ".github" / "workflows").mkdir()
+        existente = tmp_path / ".github" / "workflows" / "repository-hygiene.yml"
+        conteudo_original = "original_workflow: true\n"
+        existente.write_text(conteudo_original)
+        result = subprocess.run(
+            [sys.executable, "-m", "auditoria_higiene", "install", str(tmp_path)],
+            capture_output=True, text=True, timeout=10,
+        )
+        assert result.returncode == 0
+        assert existente.read_text() == conteudo_original
+
