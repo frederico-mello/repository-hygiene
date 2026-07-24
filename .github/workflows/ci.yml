@@ -1,0 +1,67 @@
+name: ci
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
+
+jobs:
+  test:
+    name: test (${{ matrix.os }}, Python ${{ matrix.python-version }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version: ["3.10", "3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: latest
+
+      - name: Set up Python ${{ matrix.python-version }}
+        run: uv python install ${{ matrix.python-version }}
+
+      - name: Install package
+        run: uv pip install --system -e .
+
+      - name: Run tests
+        run: python -m pytest tests_package/ -q
+
+  install-flow:
+    name: install flow (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: latest
+
+      - name: Build package
+        run: uv build
+
+      - name: uvx install (ephemeral)
+        run: |
+          mkdir -p /tmp/consumer
+          git init /tmp/consumer
+          uvx --from dist/*.whl repository-hygiene install /tmp/consumer
+          test -f /tmp/consumer/auditoria.yaml
+          test -f /tmp/consumer/.github/workflows/repository-hygiene.yml
+
+      - name: uv tool install (persistent)
+        run: |
+          uv tool install --force dist/*.whl
+          uv tool list | grep repository-hygiene
+          uv tool run repository-hygiene --version
