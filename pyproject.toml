@@ -33,7 +33,7 @@ repository-hygiene = "auditoria_higiene.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-auditoria_higiene = ["templates/*"]
+auditoria_higiene = ["templates/*", "templates/skills/**/*"]
 
 [tool.semantic_release]
 branch = "main"
