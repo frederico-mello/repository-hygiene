@@ -7,6 +7,7 @@ import pkgutil
 
 def cmd_init(directory, force=False, install_hook=False):
     cmd_install(directory, force=force, dry_run=False)
+    _instalar_hook_commit_msg(os.path.abspath(directory), force)
     if install_hook:
         _instalar_hook(os.path.abspath(directory), force)
 
@@ -66,6 +67,27 @@ def _instalar_hook(raiz, force):
         f.write(dados)
     os.chmod(hook_path, 0o700)
     print("  Criado: .git/hooks/pre-commit")
+
+
+def _instalar_hook_commit_msg(raiz, force):
+    git_dir = _caminho_no_diretorio(raiz, ".git")
+    if not os.path.isdir(git_dir):
+        print(f"  Erro: {raiz} não é um repositório Git (sem diretório .git)", file=sys.stderr)
+        return
+    hook_dir = _caminho_no_diretorio(git_dir, "hooks")
+    hook_path = _caminho_no_diretorio(hook_dir, "commit-msg")
+    if os.path.exists(hook_path) and not force:
+        print("  Pulando (já existe): .git/hooks/commit-msg")
+        return
+    os.makedirs(hook_dir, exist_ok=True)
+    dados = pkgutil.get_data(__package__, "templates/commit-msg")
+    if dados is None:
+        print("  Erro: template não encontrado: templates/commit-msg", file=sys.stderr)
+        return
+    with open(hook_path, "wb") as f:
+        f.write(dados)
+    os.chmod(hook_path, 0o700)
+    print("  Criado: .git/hooks/commit-msg")
 
 
 def _gerar_arquivo(raiz, caminho_rel, template_recurso, force):
