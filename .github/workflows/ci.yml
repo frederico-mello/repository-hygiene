@@ -63,6 +63,7 @@ jobs:
           uvx --from '${{ steps.find-wheel.outputs.wheel }}' 'repository-hygiene==0.2.0' install /tmp/consumer
           test -f /tmp/consumer/auditoria.yaml
           test -f /tmp/consumer/.github/workflows/repository-hygiene.yml
+          test -f /tmp/consumer/.opencode/skills/agent-hygiene-flow/SKILL.md
 
       - name: uv tool install (persistent)
         run: |
