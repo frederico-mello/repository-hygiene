@@ -2506,7 +2506,7 @@ class TestSnapshot:
         assert result.returncode == 0
         assert existente.read_text() == conteudo_original
 
-    def test_workflow_template_no_hardcoded_version(self, tmp_path):
+    def test_workflow_template_version_constraint(self, tmp_path):
         result = subprocess.run(
             [sys.executable, "-m", "auditoria_higiene", "install", str(tmp_path)],
             capture_output=True, text=True, timeout=10,
@@ -2514,6 +2514,5 @@ class TestSnapshot:
         assert result.returncode == 0
         workflow = tmp_path / ".github" / "workflows" / "repository-hygiene.yml"
         content = workflow.read_text()
-        assert "repository-hygiene==" not in content
-        assert "pip install repository-hygiene" in content
+        assert "repository-hygiene>=" in content
 
