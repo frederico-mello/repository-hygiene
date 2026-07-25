@@ -35,6 +35,9 @@ regras:
     habilitada: true
     severidade: warning
     permissoes_write_permitidas: [issues]
+  conventional-commits:
+    habilitada: true
+    severidade: warning
 
 excecoes:
   segredos_rastreados:
@@ -53,3 +56,4 @@ excecoes:
   configuracao_sem_integracao: []
   openspec_parada: []
   workflows_inseguros: []
+  conventional-commits: []
