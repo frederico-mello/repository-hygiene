@@ -12,3 +12,4 @@ rules:
     - "MANDATORY: Invoke the 'openspec-plus-design' skill BEFORE writing the design document."
   tasks:
     - "MANDATORY: Invoke the 'openspec-plus-tasks' skill BEFORE writing the tasks file."
+
