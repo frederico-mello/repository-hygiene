@@ -1,6 +1,52 @@
 # CHANGELOG
 
 
+## v0.5.0 (2026-07-25)
+
+### Bug Fixes
+
+- Reduce cognitive complexity and validate file paths
+  ([`7dbdff7`](https://github.com/frederico-mello/repository-hygiene/commit/7dbdff7462aee964d5acbfc86170e7a94ee52022))
+
+- Extract `_processar_ref_doc` from `_verificar_refs_doc_em_arquivo` (16→15) - Extract
+  `_subdir_contem_nome` and `_arquivo_contem_texto` from `_dir_mencionada_em_openspec` (20→15) - Add
+  path validation in semantic.py before glob and file open to prevent path traversal
+  (pythonsecurity:S8707)
+
+### Chores
+
+- Archive reconcile-hygiene-semantic-audit
+  ([`df094b5`](https://github.com/frederico-mello/repository-hygiene/commit/df094b56cd93e7731eabb252a78677aea6c0f7de))
+
+- Resolve merge conflict in openspec/config.yaml
+  ([`1660cbe`](https://github.com/frederico-mello/repository-hygiene/commit/1660cbe5aee367efbc36461cf38f4a9d742a5cea))
+
+- **openspec**: Arquivar change install-skill e sincronizar spec
+  ([`bf00b90`](https://github.com/frederico-mello/repository-hygiene/commit/bf00b908e7b96e9a7bfc47876260054c84ab54a6))
+
+### Documentation
+
+- Reescrever README conciso — PT só, fluxo linear, aviso pip install
+  ([`d5a1963`](https://github.com/frederico-mello/repository-hygiene/commit/d5a19635ae90cc9b5e90640d315ef1dca0825c93))
+
+Remove duplicacao PT/EN (Instalacao + Installation & Execution). Remove instrucoes de venv
+  redundantes. Adiciona aviso: apos pip install, executar repository-hygiene install . Reorganiza em
+  fluxo linear: instalar → usar (init/audit/hook) → configurar. 336 → 160 linhas.
+
+### Features
+
+- Semantic repository reconciliation audit
+  ([`71c0b6c`](https://github.com/frederico-mello/repository-hygiene/commit/71c0b6c890a962be5052def768fd073c86f71783))
+
+Add nested repo detection, workflow intent evaluation, semantic evidence cross-referencing with
+  OpenSpec/Graphify, typed recommendation taxonomy, and updated agent-hygiene-flow skill.
+
+- New: semantic-repository-reconciliation spec + semantic.py module - Modified:
+  context-aware-audit-findings, agent-hygiene-flow, documentation-consistency specs - Core: taxonomy
+  constants, nested repo rule, workflow permission justification - Tests: 32+ new tests across
+  test_auditoria_package.py and test_semantic.py
+
+
 ## v0.4.0 (2026-07-25)
 
 ### Features
@@ -110,6 +156,13 @@ SonarCloud Quality Gate: 19.3% duplicated lines (threshold 3%). git_repo fixture
 
 - Ignore build artifacts
   ([`6ab124b`](https://github.com/frederico-mello/repository-hygiene/commit/6ab124bff822a10571457426f1972577fbc0163b))
+
+- **openspec-plus**: Bump to v1.4.0
+  ([`02b4e3d`](https://github.com/frederico-mello/repository-hygiene/commit/02b4e3d006e98dd6ba81fc64c0e342669d785227))
+
+- Update openspec/config.yaml with openspec-plus context and rules - Aligns with upstream
+  sudokar/openspec-plus v1.4.0 - See CHANGELOG:
+  https://github.com/sudokar/openspec-plus/releases/tag/v1.4.0
 
 ### Documentation
 
