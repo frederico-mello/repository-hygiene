@@ -219,7 +219,7 @@ permissions:
   pull-requests: read
 ```
 
-O workflow instala a versão `0.2.0` do pacote, executa a auditoria mesmo quando ela retorna erro, publica o relatório em `$GITHUB_STEP_SUMMARY` e usa uma issue marcada com `maintenance` para consolidar falhas. Em eventos `pull_request`, a issue não é criada nem atualizada.
+O workflow instala o pacote da versão atual, executa a auditoria mesmo quando ela retorna erro, publica o relatório em `$GITHUB_STEP_SUMMARY` e usa uma issue marcada com `maintenance` para consolidar falhas. Em eventos `pull_request`, a issue não é criada nem atualizada.
 
 O workflow dispara em mudanças de `auditoria.yaml`, `.github/**`, `.opencode/**`, `openspec/**`, `docs/**`, `README.md`, `.gitignore` e `Makefile`, além da execução semanal e manual (`workflow_dispatch`). Actions de terceiros são fixadas em versões principais (`@v4`, `@v5` e `@v7`); a regra `workflows_inseguros` sinaliza permissões excessivas e referências de actions sem versão.
 
