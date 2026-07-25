@@ -2515,4 +2515,5 @@ class TestSnapshot:
         workflow = tmp_path / ".github" / "workflows" / "repository-hygiene.yml"
         content = workflow.read_text()
         assert "repository-hygiene>=" in content
+        assert "repository-hygiene==" not in content
 
