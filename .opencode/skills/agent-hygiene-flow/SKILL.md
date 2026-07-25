@@ -68,13 +68,31 @@ clean audit — no error findings, no unhandled residual findings.
 | `segredos_rastreados` | error (blocks) | Remove or replace the detected secret. Add the file to `.gitignore` or to `auditoria.yaml` exceptions if the match is a false positive. |
 | `links_internos_quebrados` | error (blocks) | Fix the broken link target or remove the link. |
 | `referencias_inexistentes` | error (blocks) | Remove the dangling reference or create the referenced file. |
-| `artefatos_fora_gitignore` | error (blocks) | Add the artifact pattern to `.gitignore` or remove the generated file. |
+| `artefatos_fora_gitignore` | error (blocks) | Add the artifact pattern to `.gitignore` for generated artifacts. Remove accidental content (e.g., nested repository clones) instead of adding to `.gitignore`. Use the `recomendacao` field from the finding to determine the correct action (`add-to-gitignore` or `remove`). |
 | `gitkeep_sem_conteudo` | warning (informs) | Remove directories containing only `.gitkeep` that serve no purpose, or add meaningful content. |
 | `arquivos_sem_referencia` | warning (informs) | Add references to the unreferenced file in documentation or code, or consider removal. |
 | `documentacao_desatualizada` | warning (informs) | Update documentation to remove or correct references to files that no longer exist. |
 | `configuracao_sem_integracao` | warning (informs) | Add a CI workflow, pre-commit hook, or usage documentation so the configuration is operational. |
 | `openspec_parada` | warning (informs) | Archive stalled OpenSpec changes older than 30 days, or continue them. |
-| `workflows_inseguros` | warning (informs) | Restrict workflow permissions to the minimum required, and pin third-party action versions. |
+| `repositorios_aninhados` | error (blocks) | Remove the nested repository directory. Do NOT add a `.gitignore` pattern — nested repositories are accidental content, not generated artifacts. Submodule references in `.gitmodules` indicate intended submodules; skip those. |
+| `workflows_inseguros` | warning (informs) | Restrict workflow permissions to the minimum required, and pin third-party action versions. If the finding's `recomendacao` is `accept-false-positive`, the permission is justified by the workflow's purpose — record acceptance and proceed. If `scope-permissions`, restrict the scope. If `pin-action-version`, pin the action to a fixed version. |
+
+### Remediation Action Taxonomy
+
+Each finding includes a `recomendacao` field with one of these typed values. The agent SHALL use the typed value, not the message text, to determine the correct remediation action.
+
+| `recomendacao` Value | Action |
+|---|---|
+| `remove` | Delete the content (accidental clone, orphaned directory, confirmed surplus) |
+| `add-to-gitignore` | Add a pattern to `.gitignore` (generated artifact, cache, build output) |
+| `fix-reference` | Correct a broken file reference or link |
+| `update-documentation` | Update documentation that references nonexistent files |
+| `add-ci-integration` | Add a CI workflow, pre-commit hook, or usage documentation for a configuration file |
+| `archive-change` | Archive a stalled OpenSpec change |
+| `scope-permissions` | Restrict workflow permissions to the minimum required |
+| `pin-action-version` | Pin a third-party GitHub Action to a fixed version tag or commit SHA |
+| `investigate` | Manual investigation required before taking action |
+| `accept-false-positive` | Finding is a justified false positive — record acceptance and skip remediation |
 
 ## Phase 5: Remediation
 
