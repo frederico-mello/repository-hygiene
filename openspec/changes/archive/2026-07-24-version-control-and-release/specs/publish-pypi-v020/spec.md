@@ -1,10 +1,6 @@
 # Publish PyPI — Versionamento Contínuo
 
-## Purpose
-
-This capability covers the PyPI publication of `repository-hygiene`, including version metadata determined by semantic release, install instructions, workflow template with dynamic version, migration documentation, and automated tagging.
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: Package version is determined by semantic release
 The version in `pyproject.toml` SHALL be determined and updated automatically by the release pipeline based on Conventional Commits since the last tag, rather than being a fixed hardcoded value.
@@ -28,7 +24,7 @@ The README SHALL instruct users to install via `pip install repository-hygiene` 
 - **AND** the README SHALL NOT contain the phrase "não está publicado"
 
 ### Requirement: Workflow template installs from PyPI
-The generated workflow template SHALL install `repository-hygiene` via `pip install` from PyPI. The version reference SHALL be dynamic, not a hardcoded version string.
+The generated workflow template SHALL install `repository-hygiene` via `pip install` from PyPI. The version reference SHALL be dynamic (`repository-hygiene>=<current>`), not a hardcoded version string.
 
 #### Scenario: Workflow uses PyPI install with dynamic version
 - **WHEN** `repository-hygiene --init .` generates `.github/workflows/repository-hygiene.yml`
