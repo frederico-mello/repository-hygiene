@@ -1,6 +1,19 @@
 # CHANGELOG
 
 
+## v0.4.0 (2026-07-25)
+
+### Features
+
+- **install**: Provisionar skill agent-hygiene-flow no alvo
+  ([`66c597e`](https://github.com/frederico-mello/repository-hygiene/commit/66c597ec27aa3ba9a8b30d393102b1b33d46efe5))
+
+Adiciona a skill OpenCode agent-hygiene-flow como package data e provisiona em
+  .opencode/skills/agent-hygiene-flow/ durante o 'repository-hygiene install'. Reutiliza a semantica
+  de skip/force/dry-run ja existente. A versao empacotada com o pacote fixa a versao da skill
+  entregue.
+
+
 ## v0.3.0 (2026-07-25)
 
 ### Bug Fixes
