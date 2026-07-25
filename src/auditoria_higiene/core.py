@@ -121,6 +121,11 @@ def _avaliar_regra(nome_regra, cfg, raiz, caminhos_excluidos, resultados):
         _verificar_workflows_inseguros(
             raiz, caminhos_excluidos, resultados, severidade, cfg
         )
+    elif nome_regra == "conventional-commits":
+        from auditoria_higiene.commit_check import validar_commits
+
+        findings = validar_commits(raiz, severidade)
+        resultados.extend(findings)
 
 
 def _esta_excluido(caminho, caminhos_excluidos):

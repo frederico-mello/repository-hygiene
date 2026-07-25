@@ -1,17 +1,23 @@
-# Publish PyPI v0.2.0
+# Publish PyPI — Versionamento Contínuo
 
 ## Purpose
 
-This capability covers the PyPI publication of `repository-hygiene` version `0.2.0`, including version metadata, install instructions, workflow template, migration documentation, and tagging.
+This capability covers the PyPI publication of `repository-hygiene`, including version metadata determined by semantic release, install instructions, workflow template with dynamic version, migration documentation, and automated tagging.
 
 ## Requirements
 
-### Requirement: Package version is 0.2.0
-The system SHALL publish version `0.2.0` of `repository-hygiene` to PyPI. The version in `pyproject.toml` SHALL be `0.2.0`.
+### Requirement: Package version is determined by semantic release
+The version in `pyproject.toml` SHALL be determined and updated automatically by the release pipeline based on Conventional Commits since the last tag, rather than being a fixed hardcoded value.
 
 #### Scenario: Version matches pyproject.toml
 - **WHEN** the package is built
-- **THEN** `repository-hygiene --version` outputs `repository-hygiene 0.2.0`
+- **THEN** `repository-hygiene --version` SHALL output the version matching `pyproject.toml`
+
+#### Scenario: Version changes after feat commit merge
+- **GIVEN** a `feat:` commit is merged to main
+- **WHEN** the release pipeline executes
+- **THEN** `pyproject.toml` SHALL be updated with the next semantic version
+- **AND** `repository-hygiene --version` SHALL output the new version
 
 ### Requirement: README uses PyPI install instructions
 The README SHALL instruct users to install via `pip install repository-hygiene` or `uv tool install repository-hygiene`. The README SHALL NOT state that the package is unpublished.
@@ -22,11 +28,12 @@ The README SHALL instruct users to install via `pip install repository-hygiene` 
 - **AND** the README SHALL NOT contain the phrase "não está publicado"
 
 ### Requirement: Workflow template installs from PyPI
-The generated workflow template SHALL install `repository-hygiene==0.2.0` via `pip install` from PyPI, not from a Git URL.
+The generated workflow template SHALL install `repository-hygiene` via `pip install` from PyPI. The version reference SHALL be dynamic, not a hardcoded version string.
 
-#### Scenario: Workflow uses PyPI install
+#### Scenario: Workflow uses PyPI install with dynamic version
 - **WHEN** `repository-hygiene --init .` generates `.github/workflows/repository-hygiene.yml`
-- **THEN** the workflow SHALL contain `pip install repository-hygiene==0.2.0`
+- **THEN** the workflow SHALL contain `pip install repository-hygiene`
+- **AND** the workflow SHALL NOT contain a hardcoded version like `repository-hygiene==<fixed>`
 - **AND** the workflow SHALL NOT contain `git+https://github.com`
 
 ### Requirement: Migration guide exists
@@ -37,10 +44,10 @@ The README SHALL document how to migrate from `0.1.0` CLI (`audit`, `install`, `
 - **THEN** the README SHALL contain a "Migração" section
 - **AND** the section SHALL map `audit` → direct call, `install` → `--init`, `update` → removed
 
-### Requirement: Tag v0.2.0 matches published package
-A Git tag `v0.2.0` SHALL be created pointing to the commit that produced the PyPI release.
+### Requirement: Tag created by release pipeline
+A Git tag SHALL be created automatically by the release pipeline pointing to the commit that produced the PyPI release.
 
-#### Scenario: Tag exists
-- **WHEN** the package is published on PyPI
-- **THEN** a tag `v0.2.0` SHALL exist in the repository
+#### Scenario: Tag created on release
+- **WHEN** the release pipeline publishes a new version to PyPI
+- **THEN** a tag matching the version SHALL exist in the repository
 - **AND** the tag SHALL point to the same commit used for the PyPI build
