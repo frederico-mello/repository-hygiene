@@ -22,7 +22,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install python-semantic-release build twine
+          pip install --only-binary :all: python-semantic-release build twine
 
       - name: Semantic Release
         run: semantic-release version --push
