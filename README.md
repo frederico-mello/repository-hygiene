@@ -60,6 +60,20 @@ repository-hygiene --init --install-hook --force .  # força substituição do h
 
 Após a inicialização, revise o arquivo `auditoria.yaml` gerado e ajuste regras, severidades e exceções conforme necessário. Em seguida, execute a auditoria.
 
+### Skill OpenCode provisionada
+
+`repository-hygiene install` também provisiona a skill
+`agent-hygiene-flow` em `.opencode/skills/agent-hygiene-flow/`, que guia o
+agente na execução do fluxo de remediação de higiene. A skill usa
+exatamente a versão empacotada com esta distribuição, então o versionamento
+do pacote fixa a versão da skill entregue. Para sobrescrever uma skill já
+existente, use `--force`:
+
+```bash
+repository-hygiene install --force .   # sobrescreve config, workflow e skill
+repository-hygiene install --dry-run . # mostra o que seria instalado sem gravar
+```
+
 ### Configuração
 
 Arquivo `auditoria.yaml` na raiz do projeto:
