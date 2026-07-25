@@ -31,6 +31,9 @@ regras:
   openspec_parada:
     habilitada: true
     severidade: warning
+  repositorios_aninhados:
+    habilitada: true
+    severidade: error
   workflows_inseguros:
     habilitada: true
     severidade: warning
@@ -55,5 +58,6 @@ excecoes:
   documentacao_desatualizada: []
   configuracao_sem_integracao: []
   openspec_parada: []
+  repositorios_aninhados: []
   workflows_inseguros: []
   conventional-commits: []
