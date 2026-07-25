@@ -12,7 +12,7 @@ _PADRAO_CONVENCIONAL = re.compile(
 )
 
 
-def validar_commits(repo_path):
+def validar_commits(repo_path, severidade="warning"):
     try:
         resultado = subprocess.run(
             ["git", "log", "--no-merges", "--format=%H%x00%s"],
@@ -25,7 +25,7 @@ def validar_commits(repo_path):
     except FileNotFoundError:
         return [
             {
-                "regra": "commits_convencionais",
+                "regra": "conventional-commits",
                 "caminho": repo_path,
                 "severidade": "error",
                 "mensagem": "git não disponível no PATH — auditoria de commits não executada",
@@ -45,9 +45,9 @@ def validar_commits(repo_path):
         if not _mensagem_conventional(mensagem):
             findings.append(
                 {
-                    "regra": "commits_convencionais",
+                    "regra": "conventional-commits",
                     "caminho": hash_commit,
-                    "severidade": "warning",
+                    "severidade": severidade,
                     "mensagem": f"Commit não segue Conventional Commits: {mensagem!r}",
                 }
             )
