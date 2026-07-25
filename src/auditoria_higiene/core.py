@@ -698,32 +698,36 @@ def _verificar_refs_doc_em_arquivo(
     except (OSError, UnicodeDecodeError):
         return
     for match in padrao_ref.finditer(conteudo):
-        ref = match.group(1)
-        if _parece_versao(ref):
-            continue
-        if _eh_url_http(ref):
-            continue
-        if ref.startswith(("/", "\\", "~")):
-            continue
-        caminho_ref = os.path.normpath(os.path.join(os.path.dirname(caminho_rel), ref))
-        try:
-            caminho_abs_ref = caminho_seguro(raiz, caminho_ref)
-        except ValueError:
-            continue
-        if not os.path.exists(caminho_abs_ref):
-            if caminho_ref in evidencias:
-                continue
-            resultados.append(
-                {
-                    "regra": "documentacao_desatualizada",
-                    "caminho": caminho_rel,
-                    "severidade": severidade,
-                    "confianca": "high",
-                    "mensagem": f"Documentação referencia arquivo inexistente: {ref}",
-                    "evidencias": f"Arquivo {caminho_rel} contém referência a {ref} que não existe no repositório",
-                    "recomendacao": UPDATE_DOCS,
-                }
-            )
+        _processar_ref_doc(match, raiz, caminho_rel, resultados, severidade, evidencias)
+
+
+def _processar_ref_doc(match, raiz, caminho_rel, resultados, severidade, evidencias):
+    ref = match.group(1)
+    if _parece_versao(ref):
+        return
+    if _eh_url_http(ref):
+        return
+    if ref.startswith(("/", "\\", "~")):
+        return
+    caminho_ref = os.path.normpath(os.path.join(os.path.dirname(caminho_rel), ref))
+    try:
+        caminho_abs_ref = caminho_seguro(raiz, caminho_ref)
+    except ValueError:
+        return
+    if not os.path.exists(caminho_abs_ref):
+        if caminho_ref in evidencias:
+            return
+        resultados.append(
+            {
+                "regra": "documentacao_desatualizada",
+                "caminho": caminho_rel,
+                "severidade": severidade,
+                "confianca": "high",
+                "mensagem": f"Documentação referencia arquivo inexistente: {ref}",
+                "evidencias": f"Arquivo {caminho_rel} contém referência a {ref} que não existe no repositório",
+                "recomendacao": UPDATE_DOCS,
+            }
+        )
 
 
 def _parece_versao(valor):
@@ -1113,19 +1117,27 @@ def _dir_mencionada_em_openspec(raiz, dir_name):
         dir_abs = os.path.join(raiz, "openspec", subdir)
         if not os.path.isdir(dir_abs):
             continue
-        for root, _, files in os.walk(dir_abs):
-            for fname in files:
-                if not fname.endswith(".md"):
-                    continue
-                fpath = os.path.join(root, fname)
-                try:
-                    with open(fpath, "r", encoding="utf-8", errors="replace") as f:
-                        conteudo = f.read()
-                except (OSError, UnicodeDecodeError):
-                    continue
-                if dir_name in conteudo:
-                    return True
+        if _subdir_contem_nome(dir_abs, dir_name):
+            return True
     return False
+
+
+def _subdir_contem_nome(dir_abs, dir_name):
+    for root, _, files in os.walk(dir_abs):
+        for fname in files:
+            if not fname.endswith(".md"):
+                continue
+            if _arquivo_contem_texto(os.path.join(root, fname), dir_name):
+                return True
+    return False
+
+
+def _arquivo_contem_texto(fpath, texto):
+    try:
+        with open(fpath, "r", encoding="utf-8", errors="replace") as f:
+            return texto in f.read()
+    except (OSError, UnicodeDecodeError):
+        return False
 
 
 def _uses_action_sem_versao_fixa(uses):
