@@ -69,3 +69,9 @@ jobs:
           uv tool install --force ${{ steps.find-wheel.outputs.wheel }}
           uv tool list | grep repository-hygiene
           uv tool run --from '${{ steps.find-wheel.outputs.wheel }}' 'repository-hygiene==0.2.0' --version
+
+  actionlint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: rhysd/action-actionlint@v1

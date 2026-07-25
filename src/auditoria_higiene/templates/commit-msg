@@ -1,0 +1,18 @@
+#!/bin/sh
+COMMIT_MSG_FILE=$1
+COMMIT_MSG=$(cat "$COMMIT_MSG_FILE")
+
+echo "$COMMIT_MSG" | grep -qE "^Merge" && exit 0
+
+if echo "$COMMIT_MSG" | grep -qE "^(feat|fix|docs|style|refactor|perf|test|chore|ci|build)(\([a-zA-Z0-9._-]+\))?!?: .+$"; then
+    exit 0
+else
+    echo "ERROR: Commit message must follow Conventional Commits format:"
+    echo "  type(optional-scope)!?: description"
+    echo "  Valid types: feat, fix, docs, style, refactor, perf, test, chore, ci, build"
+    echo "  Examples:"
+    echo "    feat: add new feature"
+    echo "    fix(auth): fix login bug"
+    echo "    feat!: breaking change"
+    exit 1
+fi

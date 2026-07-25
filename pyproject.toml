@@ -35,6 +35,13 @@ where = ["src"]
 [tool.setuptools.package-data]
 auditoria_higiene = ["templates/*"]
 
+[tool.semantic_release]
+branch = "main"
+version_variable = ["pyproject.toml:project.version"]
+tag_format = "v{version}"
+commit_message = "chore(release): {version}"
+changelog_file = "CHANGELOG.md"
+
 [tool.pytest.ini_options]
 testpaths = ["tests_package", "tests"]
 python_files = ["test_*.py"]
