@@ -90,7 +90,7 @@ class TestMontarEvidencias:
         )
 
         config = {
-            "fontes_semanticas": {"openwiki": None, "graphify": None, "openspec": True}
+            "semantic_sources": {"openwiki": None, "graphify": None, "openspec": True}
         }
 
         evidencias = montar_evidencias(str(tmp_path), config)
@@ -103,7 +103,7 @@ class TestMontarEvidencias:
 
         _EVIDENCIAS_CACHE.clear()
         config = {
-            "fontes_semanticas": {"openwiki": None, "graphify": None, "openspec": True}
+            "semantic_sources": {"openwiki": None, "graphify": None, "openspec": True}
         }
 
         e1 = montar_evidencias(str(tmp_path), config)
@@ -146,20 +146,20 @@ class TestVerificarSemReferenciaComEvidencia:
         )
 
         config = {
-            "versao_configuracao": 1,
-            "regras": {
-                "arquivos_sem_referencia": {
-                    "habilitada": True,
-                    "severidade": "warning",
+            "config_version": 1,
+            "rules": {
+                "unreferenced_files": {
+                    "enabled": True,
+                    "severity": "warning",
                 }
             },
-            "excecoes": {"arquivos_sem_referencia": []},
+            "exceptions": {"unreferenced_files": []},
         }
         resultado = executar_auditoria(str(repo), config)
         achados = [
             r
             for r in resultado["resultados"]
-            if r["regra"] == "arquivos_sem_referencia"
+            if r["regra"] == "unreferenced_files"
             and r["caminho"] == "src/meu_modulo.py"
         ]
         assert achados == []
@@ -191,20 +191,20 @@ class TestVerificarDocumentacaoComEvidencia:
         )
 
         config = {
-            "versao_configuracao": 1,
-            "regras": {
-                "documentacao_desatualizada": {
-                    "habilitada": True,
-                    "severidade": "warning",
+            "config_version": 1,
+            "rules": {
+                "outdated_documentation": {
+                    "enabled": True,
+                    "severity": "warning",
                 }
             },
-            "excecoes": {"documentacao_desatualizada": []},
+            "exceptions": {"outdated_documentation": []},
         }
         resultado = executar_auditoria(str(repo), config)
         achados = [
             r
             for r in resultado["resultados"]
-            if r["regra"] == "documentacao_desatualizada"
+            if r["regra"] == "outdated_documentation"
             and "src/planned_module.py" in r["mensagem"]
         ]
         assert achados == []

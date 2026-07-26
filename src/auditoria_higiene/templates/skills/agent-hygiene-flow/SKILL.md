@@ -65,16 +65,16 @@ clean audit — no error findings, no unhandled residual findings.
 
 | Rule | Default Severity | Remediation Action |
 |---|---|---|
-| `segredos_rastreados` | error (blocks) | Remove or replace the detected secret. Add the file to `.gitignore` or to `auditoria.yaml` exceptions if the match is a false positive. |
-| `links_internos_quebrados` | error (blocks) | Fix the broken link target or remove the link. |
-| `referencias_inexistentes` | error (blocks) | Remove the dangling reference or create the referenced file. |
-| `artefatos_fora_gitignore` | error (blocks) | Add the artifact pattern to `.gitignore` or remove the generated file. |
-| `gitkeep_sem_conteudo` | warning (informs) | Remove directories containing only `.gitkeep` that serve no purpose, or add meaningful content. |
-| `arquivos_sem_referencia` | warning (informs) | Add references to the unreferenced file in documentation or code, or consider removal. |
-| `documentacao_desatualizada` | warning (informs) | Update documentation to remove or correct references to files that no longer exist. |
-| `configuracao_sem_integracao` | warning (informs) | Add a CI workflow, pre-commit hook, or usage documentation so the configuration is operational. |
-| `openspec_parada` | warning (informs) | Archive stalled OpenSpec changes older than 30 days, or continue them. |
-| `workflows_inseguros` | warning (informs) | Restrict workflow permissions to the minimum required, and pin third-party action versions. |
+| `tracked_secrets` | error (blocks) | Remove or replace the detected secret. Add the file to `.gitignore` or to `auditoria.yaml` exceptions if the match is a false positive. |
+| `broken_internal_links` | error (blocks) | Fix the broken link target or remove the link. |
+| `missing_references` | error (blocks) | Remove the dangling reference or create the referenced file. |
+| `untracked_artifacts` | error (blocks) | Add the artifact pattern to `.gitignore` or remove the generated file. |
+| `empty_gitkeep_directories` | warning (informs) | Remove directories containing only `.gitkeep` that serve no purpose, or add meaningful content. |
+| `unreferenced_files` | warning (informs) | Add references to the unreferenced file in documentation or code, or consider removal. |
+| `outdated_documentation` | warning (informs) | Update documentation to remove or correct references to files that no longer exist. |
+| `unintegrated_configurations` | warning (informs) | Add a CI workflow, pre-commit hook, or usage documentation so the configuration is operational. |
+| `stale_openspec_changes` | warning (informs) | Archive stalled OpenSpec changes older than 30 days, or continue them. |
+| `insecure_workflows` | warning (informs) | Restrict workflow permissions to the minimum required, and pin third-party action versions. |
 
 ## Phase 5: Remediation
 

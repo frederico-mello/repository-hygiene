@@ -1,4 +1,4 @@
-"""Comandos install e update: gera configuração e workflow para um projeto."""
+"""Install and update commands: generate config and workflow for a project."""
 
 import os
 import pkgutil
@@ -16,7 +16,7 @@ def cmd_init(directory, force=False, install_hook=False):
 def cmd_install(directory, force=False, dry_run=False):
     raiz = os.path.abspath(directory)
     if not os.path.isdir(raiz):
-        print(f"Erro: diretório não encontrado: {raiz}", file=sys.stderr)
+        print(f"Error: directory not found: {raiz}", file=sys.stderr)
         sys.exit(2)
 
     if dry_run:
@@ -28,13 +28,13 @@ def cmd_install(directory, force=False, dry_run=False):
     _gerar_arquivo(raiz, "auditoria.yaml", "templates/auditoria.yaml", force)
     _gerar_arquivo(raiz, ".github/workflows/repository-hygiene.yml", "templates/workflow.yml", force)
     _instalar_skills(raiz, force)
-    print(f"Arquivos gerados em {raiz}")
+    print(f"Files generated in {raiz}")
 
 
 def cmd_install_skill(directory, force=False, dry_run=False):
     raiz = os.path.abspath(directory)
     if not os.path.isdir(raiz):
-        print(f"Erro: diretório não encontrado: {raiz}", file=sys.stderr)
+        print(f"Error: directory not found: {raiz}", file=sys.stderr)
         sys.exit(2)
     if dry_run:
         _dry_run_msg_skills(raiz)
@@ -45,7 +45,7 @@ def cmd_install_skill(directory, force=False, dry_run=False):
 def cmd_update(directory, version=None, dry_run=False):
     raiz = os.path.abspath(directory)
     if not os.path.isdir(raiz):
-        print(f"Erro: diretório não encontrado: {raiz}", file=sys.stderr)
+        print(f"Error: directory not found: {raiz}", file=sys.stderr)
         sys.exit(2)
 
     if dry_run:
@@ -55,7 +55,7 @@ def cmd_update(directory, version=None, dry_run=False):
 
     _gerar_arquivo(raiz, "auditoria.yaml", "templates/auditoria.yaml", True)
     _gerar_arquivo(raiz, ".github/workflows/repository-hygiene.yml", "templates/workflow.yml", True)
-    print(f"Arquivos atualizados em {raiz}")
+    print(f"Files updated in {raiz}")
 
 
 def _dry_run_msg(raiz, caminho_rel, _template_recurso):
@@ -92,7 +92,7 @@ def _instalar_skills(raiz, force):
         skill_dest_rel = os.path.join(".opencode", "skills", skill_name)
         skill_dest_abs = _caminho_no_diretorio(raiz, skill_dest_rel)
         if os.path.exists(skill_dest_abs) and not force:
-            print(f"  Pulando (já existe): {skill_dest_rel}")
+            print(f"  Skipping (already exists): {skill_dest_rel}")
             continue
         os.makedirs(skill_dest_abs, exist_ok=True)
         for entrada in skill_src.iterdir():
@@ -101,69 +101,69 @@ def _instalar_skills(raiz, force):
             destino_arquivo = os.path.join(skill_dest_abs, entrada.name)
             with open(destino_arquivo, "wb") as saida:
                 saida.write(entrada.read_bytes())
-        print(f"  Criado: {skill_dest_rel}")
+        print(f"  Created: {skill_dest_rel}")
 
 
 def _instalar_hook(raiz, force):
     git_dir = _caminho_no_diretorio(raiz, ".git")
     if not os.path.isdir(git_dir):
-        print(f"  Erro: {raiz} não é um repositório Git (sem diretório .git)", file=sys.stderr)
+        print(f"  Error: {raiz} is not a Git repository (no .git directory)", file=sys.stderr)
         return
     hook_dir = _caminho_no_diretorio(git_dir, "hooks")
     hook_path = _caminho_no_diretorio(hook_dir, "pre-commit")
     if os.path.exists(hook_path) and not force:
-        print("  Pulando (já existe): .git/hooks/pre-commit")
+        print("  Skipping (already exists): .git/hooks/pre-commit")
         return
     os.makedirs(hook_dir, exist_ok=True)
     dados = pkgutil.get_data(__package__, "templates/pre-commit")
     if dados is None:
-        print("  Erro: template não encontrado: templates/pre-commit", file=sys.stderr)
+        print("  Error: template not found: templates/pre-commit", file=sys.stderr)
         return
     with open(hook_path, "wb") as f:
         f.write(dados)
     os.chmod(hook_path, 0o700)
-    print("  Criado: .git/hooks/pre-commit")
+    print("  Created: .git/hooks/pre-commit")
 
 
 def _instalar_hook_commit_msg(raiz, force):
     git_dir = _caminho_no_diretorio(raiz, ".git")
     if not os.path.isdir(git_dir):
-        print(f"  Erro: {raiz} não é um repositório Git (sem diretório .git)", file=sys.stderr)
+        print(f"  Error: {raiz} is not a Git repository (no .git directory)", file=sys.stderr)
         return
     hook_dir = _caminho_no_diretorio(git_dir, "hooks")
     hook_path = _caminho_no_diretorio(hook_dir, "commit-msg")
     if os.path.exists(hook_path) and not force:
-        print("  Pulando (já existe): .git/hooks/commit-msg")
+        print("  Skipping (already exists): .git/hooks/commit-msg")
         return
     os.makedirs(hook_dir, exist_ok=True)
     dados = pkgutil.get_data(__package__, "templates/commit-msg")
     if dados is None:
-        print("  Erro: template não encontrado: templates/commit-msg", file=sys.stderr)
+        print("  Error: template not found: templates/commit-msg", file=sys.stderr)
         return
     with open(hook_path, "wb") as f:
         f.write(dados)
     os.chmod(hook_path, 0o700)
-    print("  Criado: .git/hooks/commit-msg")
+    print("  Created: .git/hooks/commit-msg")
 
 
 def _gerar_arquivo(raiz, caminho_rel, template_recurso, force):
     caminho_abs = _caminho_no_diretorio(raiz, caminho_rel)
     if os.path.exists(caminho_abs) and not force:
-        print(f"  Pulando (já existe): {caminho_rel}")
+        print(f"  Skipping (already exists): {caminho_rel}")
         return
     os.makedirs(os.path.dirname(caminho_abs), exist_ok=True)
     dados = pkgutil.get_data(__package__, template_recurso)
     if dados is None:
-        print("  Erro: template não encontrado: " + template_recurso, file=sys.stderr)
+        print("  Error: template not found: " + template_recurso, file=sys.stderr)
         return
     with open(caminho_abs, "wb") as f:
         f.write(dados)
-    print("  Criado: " + caminho_rel)
+    print("  Created: " + caminho_rel)
 
 
 def _caminho_no_diretorio(diretorio, caminho_rel):
     base = os.path.realpath(diretorio)
     caminho = os.path.realpath(os.path.join(base, caminho_rel))
     if caminho != base and not caminho.startswith(base + os.sep):
-        raise ValueError(f"Caminho fora do diretório permitido: {caminho_rel}")
+        raise ValueError(f"Path outside permitted directory: {caminho_rel}")
     return caminho

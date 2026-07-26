@@ -1,0 +1,18 @@
+regras:
+  segredos_rastreados:
+    habilitada: true
+    severidade: error
+  links_internos_quebrados:
+    habilitada: true
+    severidade: error
+  referencias_inexistentes:
+    habilitada: true
+    severidade: error
+  artefatos_fora_gitignore:
+    habilitada: true
+    severidade: error
+excecoes:
+  segredos_rastreados: []
+  links_internos_quebrados: []
+  referencias_inexistentes: []
+  artefatos_fora_gitignore: []
