@@ -1,62 +1,62 @@
-# Configuração do auditor de higiene do repositório
-# Regras, severidades e exceções para verificações automáticas
+# Repository hygiene auditor configuration
+# Rules, severities, and exceptions for automated checks
 
-versao_configuracao: 1
+config_version: 1
 
-regras:
-  segredos_rastreados:
-    habilitada: true
-    severidade: error
-  links_internos_quebrados:
-    habilitada: true
-    severidade: error
-  referencias_inexistentes:
-    habilitada: true
-    severidade: error
-  artefatos_fora_gitignore:
-    habilitada: true
-    severidade: error
-    # Opcional: limita alertas a padrões de artefatos gerados.
-    # padroes_artefatos: [".ruff_cache/", ".pytest_cache/", "dist/"]
-  gitkeep_sem_conteudo:
-    habilitada: true
-    severidade: warning
-  arquivos_sem_referencia:
-    habilitada: true
-    severidade: warning
-  documentacao_desatualizada:
-    habilitada: true
-    severidade: warning
-  configuracao_sem_integracao:
-    habilitada: true
-    severidade: warning
-  openspec_parada:
-    habilitada: true
-    severidade: warning
-  workflows_inseguros:
-    habilitada: true
-    severidade: warning
-    # Permissões write necessárias ao workflow podem ser explicitamente permitidas.
-    permissoes_write_permitidas: [issues]
-  conventional-commits:
-    habilitada: true
-    severidade: warning
+rules:
+  tracked_secrets:
+    enabled: true
+    severity: error
+  broken_internal_links:
+    enabled: true
+    severity: error
+  missing_references:
+    enabled: true
+    severity: error
+  untracked_artifacts:
+    enabled: true
+    severity: error
+    # Optional: limit alerts to generated artifact patterns.
+    # artifact_patterns: [".ruff_cache/", ".pytest_cache/", "dist/"]
+  empty_gitkeep_directories:
+    enabled: true
+    severity: warning
+  unreferenced_files:
+    enabled: true
+    severity: warning
+  outdated_documentation:
+    enabled: true
+    severity: warning
+  unintegrated_configurations:
+    enabled: true
+    severity: warning
+  stale_openspec_changes:
+    enabled: true
+    severity: warning
+  insecure_workflows:
+    enabled: true
+    severity: warning
+    # Write permissions required by the workflow can be explicitly allowed.
+    allowed_write_permissions: [issues]
+  conventional_commits:
+    enabled: true
+    severity: warning
 
-excecoes:
-  segredos_rastreados:
+exceptions:
+  tracked_secrets:
     - .secrets.baseline
     - .env.example
-  links_internos_quebrados: []
-  referencias_inexistentes:
+  broken_internal_links: []
+  missing_references:
     - auditoria-report.txt
-  artefatos_fora_gitignore:
+  untracked_artifacts:
     - .git
-  gitkeep_sem_conteudo: []
-  arquivos_sem_referencia:
+  empty_gitkeep_directories: []
+  unreferenced_files:
     - .gitignore
     - Makefile
-  documentacao_desatualizada: []
-  configuracao_sem_integracao: []
-  openspec_parada: []
-  workflows_inseguros: []
-  conventional-commits: []
+  outdated_documentation: []
+  unintegrated_configurations: []
+  stale_openspec_changes: []
+  insecure_workflows: []
+  conventional_commits: []
