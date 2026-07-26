@@ -1,4 +1,4 @@
-"""Snapshot do índice Git para auditoria de staged."""
+"""Git index snapshot for staged audit."""
 import os
 import subprocess
 import tempfile
@@ -9,7 +9,7 @@ from auditoria_higiene.core import executar_auditoria, validar_configuracao
 
 def criar_snapshot(raiz):
     if not os.path.isdir(raiz):
-        raise RuntimeError(f"Diretório inválido: {raiz}")
+        raise RuntimeError(f"Invalid directory: {raiz}")
     snapshot_dir = tempfile.mkdtemp(prefix="auditoria-snapshot-")
     snapshot_real = os.path.realpath(snapshot_dir)
     try:
@@ -20,7 +20,7 @@ def criar_snapshot(raiz):
                 check=True,
             )
         except subprocess.CalledProcessError as exc:
-            raise RuntimeError(f"Falha ao listar arquivos do índice Git: {exc.stderr.decode(errors='replace').strip()}")
+            raise RuntimeError(f"Failed to list Git index files: {exc.stderr.decode(errors='replace').strip()}")
         arquivos = [
             caminho.decode("utf-8") if isinstance(caminho, bytes) else caminho
             for caminho in result.stdout.split(b"\x00")
@@ -28,10 +28,10 @@ def criar_snapshot(raiz):
         ]
         for caminho_rel in arquivos:
             if caminho_rel.startswith("-"):
-                raise RuntimeError(f"Caminho inválido no índice Git: {caminho_rel}")
+                raise RuntimeError(f"Invalid path in Git index: {caminho_rel}")
             caminho_dest = os.path.realpath(os.path.join(snapshot_dir, caminho_rel))
             if caminho_dest != snapshot_real and not caminho_dest.startswith(snapshot_real + os.sep):
-                raise RuntimeError(f"Caminho inválido no índice Git: {caminho_rel}")
+                raise RuntimeError(f"Invalid path in Git index: {caminho_rel}")
             os.makedirs(os.path.dirname(caminho_dest), exist_ok=True)
             try:
                 result_show = subprocess.run(
@@ -40,7 +40,7 @@ def criar_snapshot(raiz):
                     check=True, shell=False,
                 )
             except subprocess.CalledProcessError:
-                raise RuntimeError(f"Falha ao materializar arquivo do índice: {caminho_rel}")
+                raise RuntimeError(f"Failed to materialize file from index: {caminho_rel}")
             with open(caminho_dest, "wb") as f:
                 f.write(result_show.stdout)
     except BaseException:

@@ -1,6 +1,15 @@
 # CHANGELOG
 
 
+## v1.0.0 (2026-07-26)
+
+### BREAKING CHANGE
+
+- Rename all Portuguese configuration keys to English in `auditoria.yaml` — see
+  [Migration Guide](docs/MIGRATION.md) for the key translation table.
+  Existing configurations using Portuguese keys must be updated.
+
+
 ## v0.5.0 (2026-07-25)
 
 ### Bug Fixes

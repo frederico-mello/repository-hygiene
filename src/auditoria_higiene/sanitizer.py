@@ -1,4 +1,4 @@
-"""Sanitização de dados sensíveis em resultados de auditoria."""
+"""Sanitization of sensitive data in audit results."""
 
 _CAMPOS_SENSIVEIS = frozenset({"mensagem", "evidencias"})
 
