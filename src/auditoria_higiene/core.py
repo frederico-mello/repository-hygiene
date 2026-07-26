@@ -1,4 +1,4 @@
-"""Núcleo de auditoria: carregamento de configuração e execução de regras."""
+"""Audit core: configuration loading and rule execution."""
 
 import os
 import re
@@ -6,6 +6,114 @@ import subprocess
 from datetime import datetime, timezone
 
 import yaml
+
+_MIGRATION_GUIDE_PATH = "docs/MIGRATION.md"
+
+
+class ConfigError(ValueError):
+    """Raised when a configuration file violates the localization contract."""
+
+
+_PT_TO_EN: dict[str, str] = {
+    "versao_configuracao": "config_version",
+    "regras": "rules",
+    "excecoes": "exceptions",
+    "segredos_rastreados": "tracked_secrets",
+    "links_internos_quebrados": "broken_internal_links",
+    "referencias_inexistentes": "missing_references",
+    "artefatos_fora_gitignore": "untracked_artifacts",
+    "gitkeep_sem_conteudo": "empty_gitkeep_directories",
+    "arquivos_sem_referencia": "unreferenced_files",
+    "documentacao_desatualizada": "outdated_documentation",
+    "configuracao_sem_integracao": "unintegrated_configurations",
+    "openspec_parada": "stale_openspec_changes",
+    "workflows_inseguros": "insecure_workflows",
+    "repositorios_aninhados": "nested_repositories",
+    "conventional-commits": "conventional_commits",
+    "fontes_semanticas": "semantic_sources",
+    "padroes_artefatos": "artifact_patterns",
+    "permissoes_write_permitidas": "allowed_write_permissions",
+    "habilitada": "enabled",
+    "severidade": "severity",
+    "openwiki": "openwiki",
+    "graphify": "graphify",
+    "openspec": "openspec",
+}
+
+_LOCALIZED_CONFIG_KEYS: frozenset[str] = frozenset(_PT_TO_EN.values())
+
+
+def _visitar_chaves(no):
+    if isinstance(no, dict):
+        for chave, valor in no.items():
+            if isinstance(chave, str):
+                yield chave
+            yield from _visitar_chaves(valor)
+    elif isinstance(no, list):
+        for item in no:
+            yield from _visitar_chaves(item)
+
+
+def _distancia_edicao(a, b):
+    if a == b:
+        return 0
+    if not a:
+        return len(b)
+    if not b:
+        return len(a)
+    anterior = list(range(len(b) + 1))
+    for i, ca in enumerate(a, 1):
+        atual = [i]
+        for j, cb in enumerate(b, 1):
+            insercao = atual[j - 1] + 1
+            delecao = anterior[j] + 1
+            sub = anterior[j - 1] + (0 if ca == cb else 1)
+            atual.append(min(insercao, delecao, sub))
+        anterior = atual
+    return anterior[-1]
+
+
+def _chave_mais_proxima(chave, max_dist=2):
+    melhor = None
+    melhor_dist = max_dist + 1
+    for en in _LOCALIZED_CONFIG_KEYS:
+        d = _distancia_edicao(chave, en)
+        if d < melhor_dist:
+            melhor_dist = d
+            melhor = en
+    return melhor
+
+
+def _validar_chave_localizada(config) -> None:
+    if not isinstance(config, dict):
+        return
+    chaves = sorted(set(_visitar_chaves(config)))
+    pt_chaves = [c for c in chaves if c in _PT_TO_EN]
+    unknown_chaves = [
+        c for c in chaves if c not in _PT_TO_EN and c not in _LOCALIZED_CONFIG_KEYS
+    ]
+    if not pt_chaves and not unknown_chaves:
+        return
+    linhas = [
+        "Configuration rejected: invalid keys detected in auditoria.yaml."
+    ]
+    if pt_chaves:
+        linhas.append("Portuguese keys detected (rename to the English equivalent):")
+        for chave in pt_chaves:
+            linhas.append(f"  - {chave} -> {_PT_TO_EN[chave]}")
+    if unknown_chaves:
+        linhas.append("Unknown keys detected:")
+        for chave in unknown_chaves:
+            sugestao = _chave_mais_proxima(chave)
+            if sugestao:
+                linhas.append(f"  - {chave} (did you mean: {sugestao}?)")
+            else:
+                linhas.append(f"  - {chave}")
+    linhas.append(
+        f"See {_MIGRATION_GUIDE_PATH} for the canonical English key table."
+    )
+    raise ConfigError("\n".join(linhas))
+
 
 REMOVE = "remove"
 ADD_TO_GITIGNORE = "add-to-gitignore"
@@ -69,8 +177,9 @@ def carregar_configuracao(caminho):
         config = yaml.safe_load(f)
     if config is None:
         config = {}
-    if "fontes_semanticas" not in config:
-        config["fontes_semanticas"] = {
+    _validar_chave_localizada(config)
+    if "semantic_sources" not in config:
+        config["semantic_sources"] = {
             "openwiki": None,
             "graphify": None,
             "openspec": True,
@@ -79,10 +188,10 @@ def carregar_configuracao(caminho):
 
 
 def validar_configuracao(config):
-    versao = config.get("versao_configuracao", 1)
+    versao = config.get("config_version", 1)
     if versao != CONFIG_VERSION:
         raise ValueError(
-            f"Versão de configuração {versao} não suportada. Esperada: {CONFIG_VERSION}"
+            f"Unsupported config version {versao}. Expected: {CONFIG_VERSION}"
         )
     return True
 
@@ -93,59 +202,59 @@ def executar_auditoria(raiz, config):
 
     _EVIDENCIAS_CACHE.pop(os.path.realpath(raiz), None)
     resultados = []
-    regras = config.get("regras", {})
-    excecoes = config.get("excecoes", {})
+    regras = config.get("rules", {})
+    excecoes = config.get("exceptions", {})
     regras_desativadas = []
 
     for nome_regra, cfg in regras.items():
-        if not cfg.get("habilitada", True):
+        if not cfg.get("enabled", True):
             regras_desativadas.append(nome_regra)
             continue
         caminhos_excluidos = excecoes.get(nome_regra, [])
         _avaliar_regra(nome_regra, cfg, raiz, caminhos_excluidos, resultados, config)
 
     tem_erro = any(
-        r["severidade"] == "error" and r.get("confianca", "high") in ("high", "medium")
+        r["severity"] == "error" and r.get("confianca", "high") in ("high", "medium")
         for r in resultados
     )
     return {
         "resultados": resultados,
         "status": "falha" if tem_erro else "sucesso",
-        "regras_desativadas": regras_desativadas,
+        "disabled_rules": regras_desativadas,
     }
 
 
 def _avaliar_regra(nome_regra, cfg, raiz, caminhos_excluidos, resultados, config=None):
-    severidade = cfg.get("severidade", "error")
-    if nome_regra == "segredos_rastreados":
+    severidade = cfg.get("severity", "error")
+    if nome_regra == "tracked_secrets":
         _verificar_segredos(raiz, caminhos_excluidos, resultados, severidade)
-    elif nome_regra == "links_internos_quebrados":
+    elif nome_regra == "broken_internal_links":
         _verificar_links_internos(raiz, caminhos_excluidos, resultados, severidade)
-    elif nome_regra == "referencias_inexistentes":
+    elif nome_regra == "missing_references":
         _verificar_referencias(raiz, caminhos_excluidos, resultados, severidade)
-    elif nome_regra == "artefatos_fora_gitignore":
+    elif nome_regra == "untracked_artifacts":
         _verificar_artefatos(raiz, caminhos_excluidos, resultados, severidade, cfg)
-    elif nome_regra == "gitkeep_sem_conteudo":
+    elif nome_regra == "empty_gitkeep_directories":
         _verificar_gitkeep(raiz, caminhos_excluidos, resultados, severidade)
-    elif nome_regra == "arquivos_sem_referencia":
+    elif nome_regra == "unreferenced_files":
         _verificar_sem_referencia(
             raiz, caminhos_excluidos, resultados, severidade, config
         )
-    elif nome_regra == "documentacao_desatualizada":
+    elif nome_regra == "outdated_documentation":
         _verificar_documentacao(
             raiz, caminhos_excluidos, resultados, severidade, config
         )
-    elif nome_regra == "configuracao_sem_integracao":
+    elif nome_regra == "unintegrated_configurations":
         _verificar_config_sem_integracao(
             raiz, caminhos_excluidos, resultados, severidade
         )
-    elif nome_regra == "openspec_parada":
+    elif nome_regra == "stale_openspec_changes":
         _verificar_openspec_parada(raiz, caminhos_excluidos, resultados, severidade)
-    elif nome_regra == "workflows_inseguros":
+    elif nome_regra == "insecure_workflows":
         _verificar_workflows_inseguros(
             raiz, caminhos_excluidos, resultados, severidade, cfg
         )
-    elif nome_regra == "repositorios_aninhados":
+    elif nome_regra == "nested_repositories":
         _verificar_repositorios_aninhados(
             raiz, caminhos_excluidos, resultados, severidade, config
         )
@@ -173,7 +282,7 @@ def caminho_seguro(raiz, *partes):
     raiz_abs = os.path.realpath(raiz)
     caminho_abs = os.path.realpath(caminho)
     if not caminho_abs.startswith(raiz_abs + os.sep) and caminho_abs != raiz_abs:
-        raise ValueError(f"Path traversal detectado: {caminho}")
+        raise ValueError(f"Path traversal detected: {caminho}")
     return caminho_abs
 
 
@@ -231,12 +340,12 @@ def _escanear_linhas_por_segredos(caminho_abs, caminho_rel, resultados, severida
                     if padrao.search(linha):
                         resultados.append(
                             {
-                                "regra": "segredos_rastreados",
+                                "regra": "tracked_secrets",
                                 "caminho": caminho_rel,
                                 "linha": i,
-                                "severidade": severidade,
+                                "severity": severidade,
                                 "confianca": confianca,
-                                "mensagem": "Segredo ou credencial encontrado",
+                                "mensagem": "Secret or credential found",
                                 "recomendacao": INVESTIGATE,
                             }
                         )
@@ -303,10 +412,10 @@ def _verificar_links_em_arquivo(raiz, caminho_rel, padrao_link, resultados, seve
             if not os.path.exists(caminho_seguro(raiz, caminho_alvo)):
                 resultados.append(
                     {
-                        "regra": "links_internos_quebrados",
+                        "regra": "broken_internal_links",
                         "caminho": caminho_rel,
-                        "severidade": severidade,
-                        "mensagem": f"Link interno quebrado: {url}",
+                        "severity": severidade,
+                        "mensagem": f"Broken internal link: {url}",
                         "recomendacao": FIX_REFERENCE,
                     }
                 )
@@ -346,10 +455,10 @@ def _verificar_refs_em_arquivo(raiz, caminho_rel, padrao_ref, resultados, severi
         if not _referencia_existe(raiz, caminho_rel, ref):
             resultados.append(
                 {
-                    "regra": "referencias_inexistentes",
+                    "regra": "missing_references",
                     "caminho": caminho_rel,
-                    "severidade": severidade,
-                    "mensagem": f"Referência a arquivo inexistente: {ref}",
+                    "severity": severidade,
+                    "mensagem": f"Reference to missing file: {ref}",
                     "recomendacao": FIX_REFERENCE,
                 }
             )
@@ -428,10 +537,10 @@ def _verificar_artefatos(
             continue
         resultados.append(
             {
-                "regra": "artefatos_fora_gitignore",
+                "regra": "untracked_artifacts",
                 "caminho": caminho_rel,
-                "severidade": severidade,
-                "mensagem": "Artefato gerado não coberto pelo .gitignore",
+                "severity": severidade,
+                "mensagem": "Generated artifact not covered by .gitignore",
                 "recomendacao": ADD_TO_GITIGNORE,
             }
         )
@@ -483,7 +592,7 @@ def _eh_diretorio_fonte(caminho_rel):
 
 
 def _eh_artefato_configurado(caminho_rel, cfg):
-    padroes = (cfg or {}).get("padroes_artefatos")
+    padroes = (cfg or {}).get("artifact_patterns")
     if not padroes:
         return True
     return any(_corresponde_gitignore(caminho_rel, padrao) for padrao in padroes)
@@ -566,10 +675,10 @@ def _verificar_gitkeep(raiz, caminhos_excluidos, resultados, severidade="warning
             continue
         resultados.append(
             {
-                "regra": "gitkeep_sem_conteudo",
+                "regra": "empty_gitkeep_directories",
                 "caminho": caminho_rel,
-                "severidade": severidade,
-                "mensagem": "Diretório contém apenas .gitkeep sem conteúdo adicional",
+                "severity": severidade,
+                "mensagem": "Directory contains only .gitkeep with no additional content",
                 "recomendacao": INVESTIGATE,
             }
         )
@@ -594,12 +703,12 @@ def _verificar_sem_referencia(
             continue
         resultados.append(
             {
-                "regra": "arquivos_sem_referencia",
+                "regra": "unreferenced_files",
                 "caminho": caminho_rel,
-                "severidade": severidade,
+                "severity": severidade,
                 "confianca": "low",
-                "mensagem": "Arquivo sem referências detectáveis em outros arquivos",
-                "evidencias": f"Arquivo {caminho_rel} não é mencionado em nenhum outro arquivo rastreado",
+                "mensagem": "File with no detectable references in other files",
+                "evidencias": f"File {caminho_rel} is not mentioned in any other tracked file",
                 "recomendacao": INVESTIGATE,
             }
         )
@@ -719,12 +828,12 @@ def _processar_ref_doc(match, raiz, caminho_rel, resultados, severidade, evidenc
             return
         resultados.append(
             {
-                "regra": "documentacao_desatualizada",
+                "regra": "outdated_documentation",
                 "caminho": caminho_rel,
-                "severidade": severidade,
+                "severity": severidade,
                 "confianca": "high",
-                "mensagem": f"Documentação referencia arquivo inexistente: {ref}",
-                "evidencias": f"Arquivo {caminho_rel} contém referência a {ref} que não existe no repositório",
+                "mensagem": f"Documentation references missing file: {ref}",
+                "evidencias": f"File {caminho_rel} contains reference to {ref} which does not exist in the repository",
                 "recomendacao": UPDATE_DOCS,
             }
         )
@@ -767,12 +876,12 @@ def _reportar_configs_sem_referencia(
             continue
         resultados.append(
             {
-                "regra": "configuracao_sem_integracao",
+                "regra": "unintegrated_configurations",
                 "caminho": caminho_rel,
-                "severidade": severidade,
+                "severity": severidade,
                 "confianca": "low",
-                "mensagem": "Configuração sem workflow, comando ou documentação correspondente",
-                "evidencias": f"Arquivo {caminho_rel} não é referenciado por nenhum outro arquivo rastreado",
+                "mensagem": "Configuration without corresponding workflow, command, or documentation",
+                "evidencias": f"File {caminho_rel} is not referenced by any other tracked file",
                 "recomendacao": ADD_CI,
             }
         )
@@ -842,11 +951,11 @@ def _avaliar_entrada_openspec(raiz, entry, entry_path, resultados, severidade):
         if dias_parado >= 30:
             resultados.append(
                 {
-                    "regra": "openspec_parada",
+                    "regra": "stale_openspec_changes",
                     "caminho": f"openspec/changes/{entry}",
-                    "severidade": severidade,
-                    "mensagem": f"Mudança OpenSpec parada há {dias_parado} dias sem alteração",
-                    "evidencias": f"Último commit em openspec/changes/{entry} há {dias_parado} dias",
+                    "severity": severidade,
+                    "mensagem": f"OpenSpec change stale for {dias_parado} days without modification",
+                    "evidencias": f"Last commit in openspec/changes/{entry} {dias_parado} days ago",
                     "recomendacao": ARCHIVE_CHANGE,
                 }
             )
@@ -949,34 +1058,34 @@ def _reportar_permissoes_inseguras(
     if isinstance(permissoes, str) and permissoes in ("write-all",):
         resultados.append(
             {
-                "regra": "workflows_inseguros",
+                "regra": "insecure_workflows",
                 "caminho": caminho_rel,
-                "severidade": severidade,
-                "mensagem": "Workflow com permissão excessiva: write-all",
+                "severity": severidade,
+                "mensagem": "Workflow with excessive permission: write-all",
                 "recomendacao": SCOPE_PERMISSIONS,
             }
         )
     if isinstance(permissoes, dict):
-        permitidas = set((cfg or {}).get("permissoes_write_permitidas", []))
+        permitidas = set((cfg or {}).get("allowed_write_permissions", []))
         for scope, level in permissoes.items():
             if level in ("write", "write-all") and scope not in permitidas:
                 if _permissao_justificada({scope: level}, workflow):
                     resultados.append(
                         {
-                            "regra": "workflows_inseguros",
+                            "regra": "insecure_workflows",
                             "caminho": caminho_rel,
-                            "severidade": severidade,
-                            "mensagem": f"Permissão justificada: {scope}={level}",
+                            "severity": severidade,
+                            "mensagem": f"Justified permission: {scope}={level}",
                             "recomendacao": ACCEPT_FALSE_POSITIVE,
                         }
                     )
                     continue
                 resultados.append(
                     {
-                        "regra": "workflows_inseguros",
+                        "regra": "insecure_workflows",
                         "caminho": caminho_rel,
-                        "severidade": severidade,
-                        "mensagem": f"Permissão excessiva: {scope}={level}",
+                        "severity": severidade,
+                        "mensagem": f"Excessive permission: {scope}={level}",
                         "recomendacao": SCOPE_PERMISSIONS,
                     }
                 )
@@ -1002,10 +1111,10 @@ def _reportar_pull_request_target(job_name, job, caminho_rel, resultados, severi
     ):
         resultados.append(
             {
-                "regra": "workflows_inseguros",
+                "regra": "insecure_workflows",
                 "caminho": caminho_rel,
-                "severidade": severidade,
-                "mensagem": f"Job '{job_name}' usa pull_request_target sem proteção adicional",
+                "severity": severidade,
+                "mensagem": f"Job '{job_name}' uses pull_request_target without additional protection",
                 "recomendacao": SCOPE_PERMISSIONS,
             }
         )
@@ -1022,10 +1131,10 @@ def _reportar_actions_sem_versao(job_name, job, caminho_rel, resultados, severid
         if uses and _uses_action_sem_versao_fixa(uses):
             resultados.append(
                 {
-                    "regra": "workflows_inseguros",
+                    "regra": "insecure_workflows",
                     "caminho": caminho_rel,
-                    "severidade": severidade,
-                    "mensagem": f"Step {step_idx + 1} em job '{job_name}' usa action sem versão fixa: {uses}",
+                    "severity": severidade,
+                    "mensagem": f"Step {step_idx + 1} in job '{job_name}' uses action without pinned version: {uses}",
                     "recomendacao": PIN_ACTION_VERSION,
                 }
             )
@@ -1052,10 +1161,10 @@ def _verificar_repositorios_aninhados(
             continue
         resultados.append(
             {
-                "regra": "repositorios_aninhados",
+                "regra": "nested_repositories",
                 "caminho": dir_path.rstrip("/"),
-                "severidade": severidade,
-                "mensagem": "Repositório aninhado acidental detectado",
+                "severity": severidade,
+                "mensagem": "Accidental nested repository detected",
                 "recomendacao": REMOVE,
             }
         )

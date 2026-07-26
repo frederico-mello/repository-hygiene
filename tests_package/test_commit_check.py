@@ -63,8 +63,8 @@ def _auditar_apos_commit(repo, regra_config, mensagem):
 
     _fazer_commit(repo, mensagem)
     config = {
-        "versao_configuracao": 1,
-        "regras": {"conventional-commits": regra_config},
+        "config_version": 1,
+        "rules": {"conventional-commits": regra_config},
     }
     return executar_auditoria(str(repo), config)
 
@@ -142,20 +142,20 @@ def test_git_inexistente_retorna_erro(monkeypatch):
     findings = validar_commits("/fake/repo")
     assert len(findings) == 1
     assert findings[0]["regra"] == "conventional-commits"
-    assert findings[0]["severidade"] == "error"
+    assert findings[0]["severity"] == "error"
     assert "git" in findings[0]["mensagem"].lower()
 
 
 def test_nivel_error_por_parametro(git_repo):
     findings = _validar_apos_commit(git_repo, "invalid message", severidade="error")
     assert len(findings) == 1
-    assert findings[0]["severidade"] == "error"
+    assert findings[0]["severity"] == "error"
 
 
 def test_regra_desabilitada_sem_findings(git_repo):
     resultado = _auditar_apos_commit(
         git_repo,
-        {"habilitada": False, "severidade": "warning"},
+        {"enabled": False, "severity": "warning"},
         "invalid message",
     )
     findings = [
@@ -167,7 +167,7 @@ def test_regra_desabilitada_sem_findings(git_repo):
 def test_commit_invalido_gera_finding_via_auditoria(git_repo):
     resultado = _auditar_apos_commit(
         git_repo,
-        {"habilitada": True, "severidade": "warning"},
+        {"enabled": True, "severity": "warning"},
         "invalid message",
     )
     assert resultado["status"] == "sucesso"

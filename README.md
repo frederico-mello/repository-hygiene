@@ -1,150 +1,153 @@
 # repository-hygiene
 
-Auditor de higiene para repositórios Git. Verifica segredos, links quebrados,
-referências inexistentes, artefatos fora do `.gitignore`, segurança de
-workflows GitHub Actions e mais.
+> **Breaking change: v1.0.0 uses English configuration keys.** See
+> [docs/MIGRATION.md](docs/MIGRATION.md) to rename your `auditoria.yaml`.
 
-## Instalação
+Audit hygiene for Git repositories. Checks for secrets, broken links,
+missing references, untracked artifacts, GitHub Actions workflow security,
+and more.
+
+## Installation
 
 ```bash
-# ephemeral (recomendado — sem instalação global)
+# ephemeral (recommended — no global install)
 uvx repository-hygiene install .
 
-# persistente
+# persistent
 uv tool install repository-hygiene
-# ou
+# or
 pip install repository-hygiene
 ```
 
-**Atenção:** após `pip install`, execute `repository-hygiene install .` **no
-repositório alvo** para provisionar a configuração, o workflow CI e a skill
-OpenCode `agent-hygiene-flow`.
+**Note:** after `pip install`, run `repository-hygiene install .` **in the
+target repository** to provision configuration, CI workflow, and the
+`agent-hygiene-flow` OpenCode skill.
 
-Para instalar direto do GitHub (versões não publicadas no PyPI):
+To install directly from GitHub (versions not published on PyPI):
 
 ```bash
 pip install git+https://github.com/frederico-mello/repository-hygiene.git
 ```
 
-## Uso
+## Usage
 
-### Inicializar repositório (`install`)
-
-```bash
-repository-hygiene install .             # cria auditoria.yaml + workflow + skill
-repository-hygiene install --force .     # sobrescreve existentes
-repository-hygiene install --dry-run .   # preview sem gravar
-```
-
-`install` cria:
-- `auditoria.yaml` — configuração de regras e exceções
-- `.github/workflows/repository-hygiene.yml` — workflow CI semanal
-- `.opencode/skills/agent-hygiene-flow/` — skill OpenCode para agentes
-
-### Auditoria (`audit`)
+### Initialize repository (`install`)
 
 ```bash
-repository-hygiene .                        # relatório texto (stdout) + JSON (.repository-hygiene/)
-repository-hygiene . --format json          # só JSON
-repository-hygiene . --format sarif         # só SARIF
-repository-hygiene . --output auditoria.txt # grava em arquivo
+repository-hygiene install .             # create auditoria.yaml + workflow + skill
+repository-hygiene install --force .     # overwrite existing files
+repository-hygiene install --dry-run .   # preview without writing
 ```
 
-### Hook pre-commit
+`install` creates:
+- `auditoria.yaml` — rule configuration and exceptions
+- `.github/workflows/repository-hygiene.yml` — weekly CI workflow
+- `.opencode/skills/agent-hygiene-flow/` — OpenCode skill for agents
+
+### Audit
 
 ```bash
-repository-hygiene install --install-hook .   # hook na primeira vez
+repository-hygiene .                        # text report (stdout) + JSON (.repository-hygiene/)
+repository-hygiene . --format json          # JSON only
+repository-hygiene . --format sarif         # SARIF only
+repository-hygiene . --output audit.txt     # write to file
 ```
 
-Bloqueia commits com erros de severidade `error` no conteúdo staged. Avisos
-(`warning`) são exibidos mas não bloqueiam. Para pular:
+### Pre-commit hook
+
+```bash
+repository-hygiene install --install-hook .   # install hook on first run
+```
+
+Blocks commits with `error`-severity findings in staged content. Warnings
+(`warning`) are displayed but do not block. To skip:
 
 ```bash
 git commit --no-verify
 ```
 
-### Códigos de saída
+### Exit codes
 
-| Código | Auditoria          | Hook pre-commit     |
-|--------|-------------------|---------------------|
-| 0      | limpa             | commit permitido    |
-| 1      | erros encontrados | commit bloqueado    |
-| 2      | config inválida   | falha de execução   |
+| Code | Audit              | Pre-commit hook     |
+|------|-------------------|---------------------|
+| 0    | clean             | commit allowed      |
+| 1    | errors found      | commit blocked      |
+| 2    | invalid config    | execution failure   |
 
-## Configuração
+## Configuration
 
-Arquivo `auditoria.yaml` na raiz:
+`auditoria.yaml` at the repository root:
 
 ```yaml
-versao_configuracao: 1
+config_version: 1
 
-regras:
-  segredos_rastreados:
-    habilitada: true
-    severidade: error
-  links_internos_quebrados:
-    habilitada: true
-    severidade: error
-  referencias_inexistentes:
-    habilitada: true
-    severidade: error
-  artefatos_fora_gitignore:
-    habilitada: true
-    severidade: error
-  gitkeep_sem_conteudo:
-    habilitada: true
-    severidade: warning
-  arquivos_sem_referencia:
-    habilitada: true
-    severidade: warning
-  documentacao_desatualizada:
-    habilitada: true
-    severidade: warning
-  configuracao_sem_integracao:
-    habilitada: true
-    severidade: warning
-  openspec_parada:
-    habilitada: true
-    severidade: warning
-  workflows_inseguros:
-    habilitada: true
-    severidade: warning
+rules:
+  tracked_secrets:
+    enabled: true
+    severity: error
+  broken_internal_links:
+    enabled: true
+    severity: error
+  missing_references:
+    enabled: true
+    severity: error
+  untracked_artifacts:
+    enabled: true
+    severity: error
+  empty_gitkeep_directories:
+    enabled: true
+    severity: warning
+  unreferenced_files:
+    enabled: true
+    severity: warning
+  outdated_documentation:
+    enabled: true
+    severity: warning
+  unintegrated_configurations:
+    enabled: true
+    severity: warning
+  stale_openspec_changes:
+    enabled: true
+    severity: warning
+  insecure_workflows:
+    enabled: true
+    severity: warning
 
-excecoes:
-  segredos_rastreados:
+exceptions:
+  tracked_secrets:
     - .secrets.baseline
     - .env.example
-  artefatos_fora_gitignore:
+  untracked_artifacts:
     - .git
-  arquivos_sem_referencia:
+  unreferenced_files:
     - .gitignore
     - Makefile
 ```
 
-### Regras
+### Rules
 
-| Regra | Severidade | Descrição |
+| Rule | Severity | Description |
 |-------|-----------|-----------|
-| `segredos_rastreados` | error | Senhas, tokens e credenciais em arquivos rastreados |
-| `links_internos_quebrados` | error | Links markdown para arquivos inexistentes |
-| `referencias_inexistentes` | error | Referências a arquivos que não existem no repo |
-| `artefatos_fora_gitignore` | error | Arquivos gerados não cobertos pelo `.gitignore` |
-| `gitkeep_sem_conteudo` | warning | Diretórios com apenas `.gitkeep` |
-| `arquivos_sem_referencia` | warning | Arquivos não referenciados por nenhum outro |
-| `documentacao_desatualizada` | warning | Documentação referenciando arquivos inexistentes |
-| `configuracao_sem_integracao` | warning | Tool config sem workflow, comando ou doc |
-| `openspec_parada` | warning | Mudanças OpenSpec paradas há 30+ dias |
-| `workflows_inseguros` | warning | Permissões excessivas, actions sem versão fixa |
+| `tracked_secrets` | error | Passwords, tokens, and credentials in tracked files |
+| `broken_internal_links` | error | Markdown links pointing to missing files |
+| `missing_references` | error | References to files that do not exist in the repo |
+| `untracked_artifacts` | error | Generated files not covered by `.gitignore` |
+| `empty_gitkeep_directories` | warning | Directories containing only `.gitkeep` |
+| `unreferenced_files` | warning | Files not referenced by any other file |
+| `outdated_documentation` | warning | Documentation referencing nonexistent files |
+| `unintegrated_configurations` | warning | Tool config without workflow, command, or docs |
+| `stale_openspec_changes` | warning | OpenSpec changes stalled for 30+ days |
+| `insecure_workflows` | warning | Excessive permissions, actions without pinned version |
 
 ## GitHub Actions
 
-O workflow gerado (`repository-hygiene.yml`):
+The generated workflow (`repository-hygiene.yml`):
 
-- Executa semanalmente e em push/PR nos caminhos relevantes
-- Publica relatório no `$GITHUB_STEP_SUMMARY`
-- Cria/atualiza issue consolidada com achados (`error`); fecha quando limpa
+- Runs weekly and on push/PR to relevant paths
+- Publishes the report to `$GITHUB_STEP_SUMMARY`
+- Creates/updates a consolidated issue with findings (`error`); closes when clean
 
-Permissões mínimas:
+Minimum permissions:
 
 ```yaml
 permissions:
@@ -153,21 +156,21 @@ permissions:
   pull-requests: read
 ```
 
-## Migração v0.1 → v0.2
+## Migration v0.1 to v0.2
 
-| Comando v0.1 | Equivalente v0.2+ |
+| Command v0.1 | Equivalent v0.2+ |
 |-------------|-------------------|
 | `repository-hygiene audit .` | `repository-hygiene .` |
 | `repository-hygiene install .` | `repository-hygiene install .` |
-| `repository-hygiene update` | removido |
+| `repository-hygiene update` | removed |
 
-## Desenvolvimento
+## Development
 
 ```bash
 uv pip install -e . pytest
 uv run pytest tests_package/
 ```
 
-## Licença
+## License
 
 MIT

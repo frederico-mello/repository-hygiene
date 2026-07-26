@@ -81,7 +81,7 @@ def montar_evidencias(raiz, config):
     if raiz_cache in _EVIDENCIAS_CACHE:
         return _EVIDENCIAS_CACHE[raiz_cache]
     evidencias = {}
-    fontes = config.get("fontes_semanticas", {})
+    fontes = config.get("semantic_sources", {})
     if fontes.get("openspec", True):
         for ref in carregar_referencias_openspec(raiz):
             evidencias[ref] = "referenced in OpenSpec"
