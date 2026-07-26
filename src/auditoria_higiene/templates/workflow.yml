@@ -31,7 +31,7 @@ permissions:
   pull-requests: read
 
 jobs:
-  auditoria:
+  audit:
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
@@ -47,28 +47,28 @@ jobs:
           python -m pip install --only-binary :all: pip==25.1.1
           pip install --only-binary :all: 'repository-hygiene==0.2.0'
 
-      - name: Run auditoria
-        id: auditoria
+      - name: Run audit
+        id: audit
         run: |
           rc=0; repository-hygiene . --format text > auditoria-report.txt 2>&1 || rc=$?
           echo "exit_code=$rc" >> $GITHUB_OUTPUT
 
       - name: Publish report to Summary
         run: |
-          echo '## Auditoria de Higiene do Repositório' >> $GITHUB_STEP_SUMMARY
+          echo '## Repository Hygiene Audit' >> $GITHUB_STEP_SUMMARY
           echo '' >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
           cat auditoria-report.txt >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
 
       - name: Create or update issue
-        if: github.event_name != 'pull_request' && steps.auditoria.outputs.exit_code != '0'
+        if: github.event_name != 'pull_request' && steps.audit.outputs.exit_code != '0'
         uses: actions/github-script@v7
         with:
           script: |
             const marker = '<!-- repository-hygiene-audit -->';
             const report = require('fs').readFileSync('auditoria-report.txt', 'utf-8');
-            const body = marker + '\n\n## Relatório de Auditoria\n\n```\n' + report + '\n```\n\n' + marker;
+            const body = marker + '\n\n## Audit Report\n\n```\n' + report + '\n```\n\n' + marker;
 
             const { data: issues } = await github.rest.issues.listForRepo({
               owner: context.repo.owner,
@@ -94,14 +94,14 @@ jobs:
               await github.rest.issues.create({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                title: 'Auditoria de Higiene do Repositório',
+                title: 'Repository Hygiene Audit',
                 body: body,
                 labels: ['maintenance'],
               });
             }
 
       - name: Close issue if clean
-        if: github.event_name != 'pull_request' && steps.auditoria.outputs.exit_code == '0'
+        if: github.event_name != 'pull_request' && steps.audit.outputs.exit_code == '0'
         uses: actions/github-script@v7
         with:
           script: |

@@ -11,35 +11,35 @@ import sys
 @pytest.fixture
 def config_minima():
     return {
-        "versao_configuracao": 1,
-        "regras": {
-            "segredos_rastreados": {"habilitada": True, "severidade": "error"},
-            "links_internos_quebrados": {"habilitada": True, "severidade": "error"},
-            "referencias_inexistentes": {"habilitada": True, "severidade": "error"},
-            "artefatos_fora_gitignore": {"habilitada": True, "severidade": "error"},
-            "gitkeep_sem_conteudo": {"habilitada": True, "severidade": "warning"},
-            "arquivos_sem_referencia": {"habilitada": True, "severidade": "warning"},
-            "documentacao_desatualizada": {"habilitada": True, "severidade": "warning"},
-            "configuracao_sem_integracao": {
-                "habilitada": True,
-                "severidade": "warning",
+        "config_version": 1,
+        "rules": {
+            "tracked_secrets": {"enabled": True, "severity": "error"},
+            "broken_internal_links": {"enabled": True, "severity": "error"},
+            "missing_references": {"enabled": True, "severity": "error"},
+            "untracked_artifacts": {"enabled": True, "severity": "error"},
+            "empty_gitkeep_directories": {"enabled": True, "severity": "warning"},
+            "unreferenced_files": {"enabled": True, "severity": "warning"},
+            "outdated_documentation": {"enabled": True, "severity": "warning"},
+            "unintegrated_configurations": {
+                "enabled": True,
+                "severity": "warning",
             },
-            "openspec_parada": {"habilitada": True, "severidade": "warning"},
-            "workflows_inseguros": {"habilitada": True, "severidade": "warning"},
-            "repositorios_aninhados": {"habilitada": True, "severidade": "error"},
+            "stale_openspec_changes": {"enabled": True, "severity": "warning"},
+            "insecure_workflows": {"enabled": True, "severity": "warning"},
+            "nested_repositories": {"enabled": True, "severity": "error"},
         },
-        "excecoes": {
-            "segredos_rastreados": [],
-            "links_internos_quebrados": [],
-            "referencias_inexistentes": [],
-            "artefatos_fora_gitignore": [],
-            "gitkeep_sem_conteudo": [],
-            "arquivos_sem_referencia": [],
-            "documentacao_desatualizada": [],
-            "configuracao_sem_integracao": [],
-            "openspec_parada": [],
-            "workflows_inseguros": [],
-            "repositorios_aninhados": [],
+        "exceptions": {
+            "tracked_secrets": [],
+            "broken_internal_links": [],
+            "missing_references": [],
+            "untracked_artifacts": [],
+            "empty_gitkeep_directories": [],
+            "unreferenced_files": [],
+            "outdated_documentation": [],
+            "unintegrated_configurations": [],
+            "stale_openspec_changes": [],
+            "insecure_workflows": [],
+            "nested_repositories": [],
         },
     }
 
@@ -57,9 +57,9 @@ class TestConfiguracao:
         from auditoria_higiene.core import carregar_configuracao
 
         config = carregar_configuracao(config_file)
-        assert "regras" in config
-        assert "excecoes" in config
-        assert config["regras"]["segredos_rastreados"]["habilitada"] is True
+        assert "rules" in config
+        assert "exceptions" in config
+        assert config["rules"]["tracked_secrets"]["enabled"] is True
 
     def test_validar_versao_correta(self, config_file):
         from auditoria_higiene.core import carregar_configuracao, validar_configuracao
@@ -71,7 +71,7 @@ class TestConfiguracao:
         from auditoria_higiene.core import carregar_configuracao, validar_configuracao
 
         config = carregar_configuracao(config_file)
-        config["versao_configuracao"] = 99
+        config["config_version"] = 99
         with pytest.raises(ValueError, match="99"):
             validar_configuracao(config)
 
@@ -79,54 +79,54 @@ class TestConfiguracao:
         from auditoria_higiene.core import executar_auditoria
 
         config = {
-            "versao_configuracao": 1,
-            "regras": {
-                "segredos_rastreados": {"habilitada": False, "severidade": "error"}
+            "config_version": 1,
+            "rules": {
+                "tracked_secrets": {"enabled": False, "severity": "error"}
             },
-            "excecoes": {"segredos_rastreados": []},
+            "exceptions": {"tracked_secrets": []},
         }
         resultado = executar_auditoria(str(tmp_path), config)
         regras_aplicadas = [r["regra"] for r in resultado["resultados"]]
-        assert "segredos_rastreados" not in regras_aplicadas
+        assert "tracked_secrets" not in regras_aplicadas
 
     def test_regra_desativada_listada_no_relatorio(self, tmp_path):
         from auditoria_higiene.core import executar_auditoria
         from auditoria_higiene.reporters import gerar_relatorio_texto
 
         config = {
-            "versao_configuracao": 1,
-            "regras": {
-                "segredos_rastreados": {"habilitada": False, "severidade": "error"},
-                "links_internos_quebrados": {
-                    "habilitada": False,
-                    "severidade": "error",
+            "config_version": 1,
+            "rules": {
+                "tracked_secrets": {"enabled": False, "severity": "error"},
+                "broken_internal_links": {
+                    "enabled": False,
+                    "severity": "error",
                 },
             },
-            "excecoes": {"segredos_rastreados": [], "links_internos_quebrados": []},
+            "exceptions": {"tracked_secrets": [], "broken_internal_links": []},
         }
         resultado = executar_auditoria(str(tmp_path), config)
-        assert "segredos_rastreados" in resultado["regras_desativadas"]
-        assert "links_internos_quebrados" in resultado["regras_desativadas"]
+        assert "tracked_secrets" in resultado["disabled_rules"]
+        assert "broken_internal_links" in resultado["disabled_rules"]
         relatorio = gerar_relatorio_texto(resultado)
-        assert "DESATIVADAS" in relatorio
+        assert "DISABLED" in relatorio
 
     def test_config_severidade_aplicada(self, tmp_path):
         from auditoria_higiene.core import executar_auditoria
 
         (tmp_path / "segredo.txt").write_text("senha=admin")
         config = {
-            "versao_configuracao": 1,
-            "regras": {
-                "segredos_rastreados": {"habilitada": True, "severidade": "warning"}
+            "config_version": 1,
+            "rules": {
+                "tracked_secrets": {"enabled": True, "severity": "warning"}
             },
-            "excecoes": {"segredos_rastreados": []},
+            "exceptions": {"tracked_secrets": []},
         }
         resultado = executar_auditoria(str(tmp_path), config)
         erros = [
-            r for r in resultado["resultados"] if r["regra"] == "segredos_rastreados"
+            r for r in resultado["resultados"] if r["regra"] == "tracked_secrets"
         ]
         assert len(erros) == 1
-        assert erros[0]["severidade"] == "warning"
+        assert erros[0]["severity"] == "warning"
 
 
 class TestSegredosRastreados:
@@ -143,11 +143,11 @@ class TestSegredosRastreados:
         resultado = executar_auditoria(
             str(repo),
             {
-                "versao_configuracao": 1,
-                "regras": {
-                    "segredos_rastreados": {"habilitada": True, "severidade": "error"}
+                "config_version": 1,
+                "rules": {
+                    "tracked_secrets": {"enabled": True, "severity": "error"}
                 },
-                "excecoes": {"segredos_rastreados": []},
+                "exceptions": {"tracked_secrets": []},
             },
         )
 
@@ -158,15 +158,15 @@ class TestSegredosRastreados:
 
         (tmp_path / "config.txt").write_text("senha=admin123")
         config = {
-            "versao_configuracao": 1,
-            "regras": {
-                "segredos_rastreados": {"habilitada": True, "severidade": "error"}
+            "config_version": 1,
+            "rules": {
+                "tracked_secrets": {"enabled": True, "severity": "error"}
             },
-            "excecoes": {"segredos_rastreados": []},
+            "exceptions": {"tracked_secrets": []},
         }
         resultado = executar_auditoria(str(tmp_path), config)
         erros = [
-            r for r in resultado["resultados"] if r["regra"] == "segredos_rastreados"
+            r for r in resultado["resultados"] if r["regra"] == "tracked_secrets"
         ]
         assert len(erros) == 1
         assert erros[0]["caminho"] == "config.txt"
@@ -179,9 +179,9 @@ class TestSegredosRastreados:
         resultado = executar_auditoria(
             str(tmp_path),
             {
-                "versao_configuracao": 1,
-                "regras": {"segredos_rastreados": {"habilitada": True}},
-                "excecoes": {"segredos_rastreados": []},
+                "config_version": 1,
+                "rules": {"tracked_secrets": {"enabled": True}},
+                "exceptions": {"tracked_secrets": []},
             },
         )
 
@@ -192,11 +192,11 @@ class TestSegredosRastreados:
 
         (tmp_path / "seguro.txt").write_text("senha=123")
         config = {
-            "versao_configuracao": 1,
-            "regras": {
-                "segredos_rastreados": {"habilitada": True, "severidade": "error"}
+            "config_version": 1,
+            "rules": {
+                "tracked_secrets": {"enabled": True, "severity": "error"}
             },
-            "excecoes": {"segredos_rastreados": ["seguro.txt"]},
+            "exceptions": {"tracked_secrets": ["seguro.txt"]},
         }
         resultado = executar_auditoria(str(tmp_path), config)
         for r in resultado["resultados"]:
@@ -209,15 +209,15 @@ class TestSegredosRastreados:
             "const csrfToken = 'abc123';\nconst accessToken = 'xyz';\n"
         )
         config = {
-            "versao_configuracao": 1,
-            "regras": {
-                "segredos_rastreados": {"habilitada": True, "severidade": "error"}
+            "config_version": 1,
+            "rules": {
+                "tracked_secrets": {"enabled": True, "severity": "error"}
             },
-            "excecoes": {"segredos_rastreados": []},
+            "exceptions": {"tracked_secrets": []},
         }
         resultado = executar_auditoria(str(tmp_path), config)
         erros = [
-            r for r in resultado["resultados"] if r["regra"] == "segredos_rastreados"
+            r for r in resultado["resultados"] if r["regra"] == "tracked_secrets"
         ]
         assert erros == []
 
@@ -226,15 +226,15 @@ class TestSegredosRastreados:
 
         (tmp_path / "app.py").write_text("# Exemplo: token=abc123\nvalor = 42\n")
         config = {
-            "versao_configuracao": 1,
-            "regras": {
-                "segredos_rastreados": {"habilitada": True, "severidade": "error"}
+            "config_version": 1,
+            "rules": {
+                "tracked_secrets": {"enabled": True, "severity": "error"}
             },
-            "excecoes": {"segredos_rastreados": []},
+            "exceptions": {"tracked_secrets": []},
         }
         resultado = executar_auditoria(str(tmp_path), config)
         erros = [
-            r for r in resultado["resultados"] if r["regra"] == "segredos_rastreados"
+            r for r in resultado["resultados"] if r["regra"] == "tracked_secrets"
         ]
         assert erros == []
 
@@ -245,11 +245,11 @@ class TestStatusExecucao:
 
         (tmp_path / "segredo.txt").write_text("senha=admin")
         config = {
-            "versao_configuracao": 1,
-            "regras": {
-                "segredos_rastreados": {"habilitada": True, "severidade": "error"}
+            "config_version": 1,
+            "rules": {
+                "tracked_secrets": {"enabled": True, "severity": "error"}
             },
-            "excecoes": {"segredos_rastreados": []},
+            "exceptions": {"tracked_secrets": []},
         }
         resultado = executar_auditoria(str(tmp_path), config)
         assert resultado["status"] == "falha"
@@ -259,11 +259,11 @@ class TestStatusExecucao:
 
         (tmp_path / "normal.txt").write_text("conteudo normal")
         config = {
-            "versao_configuracao": 1,
-            "regras": {
-                "segredos_rastreados": {"habilitada": True, "severidade": "error"}
+            "config_version": 1,
+            "rules": {
+                "tracked_secrets": {"enabled": True, "severity": "error"}
             },
-            "excecoes": {"segredos_rastreados": []},
+            "exceptions": {"tracked_secrets": []},
         }
         resultado = executar_auditoria(str(tmp_path), config)
         assert resultado["status"] == "sucesso"
@@ -273,7 +273,7 @@ class TestRelatorios:
     def test_relatorio_rejeita_saida_fora_da_raiz(self, tmp_path):
         from auditoria_higiene.reporters import escrever_relatorio
 
-        with pytest.raises(OSError, match="fora do diretório permitido"):
+        with pytest.raises(OSError, match="outside permitted directory"):
             escrever_relatorio(
                 "conteudo", str(tmp_path.parent / "report.json"), str(tmp_path)
             )
@@ -286,12 +286,12 @@ class TestRelatorios:
         (tmp_path / "vazio" / ".gitkeep").parent.mkdir()
         (tmp_path / "vazio" / ".gitkeep").write_text("")
         config = {
-            "versao_configuracao": 1,
-            "regras": {
-                "segredos_rastreados": {"habilitada": True, "severidade": "error"},
-                "gitkeep_sem_conteudo": {"habilitada": True, "severidade": "warning"},
+            "config_version": 1,
+            "rules": {
+                "tracked_secrets": {"enabled": True, "severity": "error"},
+                "empty_gitkeep_directories": {"enabled": True, "severity": "warning"},
             },
-            "excecoes": {"segredos_rastreados": [], "gitkeep_sem_conteudo": []},
+            "exceptions": {"tracked_secrets": [], "empty_gitkeep_directories": []},
         }
         resultado = executar_auditoria(str(tmp_path), config)
         relatorio = gerar_relatorio_texto(resultado)
@@ -304,11 +304,11 @@ class TestRelatorios:
 
         (tmp_path / "segredo.txt").write_text("senha=admin")
         config = {
-            "versao_configuracao": 1,
-            "regras": {
-                "segredos_rastreados": {"habilitada": True, "severidade": "error"}
+            "config_version": 1,
+            "rules": {
+                "tracked_secrets": {"enabled": True, "severity": "error"}
             },
-            "excecoes": {"segredos_rastreados": []},
+            "exceptions": {"tracked_secrets": []},
         }
         resultado = executar_auditoria(str(tmp_path), config)
         saida = gerar_relatorio_json(resultado)
@@ -322,11 +322,11 @@ class TestRelatorios:
 
         (tmp_path / "segredo.txt").write_text("senha=admin")
         config = {
-            "versao_configuracao": 1,
-            "regras": {
-                "segredos_rastreados": {"habilitada": True, "severidade": "error"}
+            "config_version": 1,
+            "rules": {
+                "tracked_secrets": {"enabled": True, "severity": "error"}
             },
-            "excecoes": {"segredos_rastreados": []},
+            "exceptions": {"tracked_secrets": []},
         }
         resultado = executar_auditoria(str(tmp_path), config)
         saida = gerar_relatorio_sarif(resultado)
@@ -341,17 +341,17 @@ class TestRelatorios:
 
         (tmp_path / "config.txt").write_text("API_KEY=super_secreto_123")
         config = {
-            "versao_configuracao": 1,
-            "regras": {
-                "segredos_rastreados": {"habilitada": True, "severidade": "error"}
+            "config_version": 1,
+            "rules": {
+                "tracked_secrets": {"enabled": True, "severity": "error"}
             },
-            "excecoes": {"segredos_rastreados": []},
+            "exceptions": {"tracked_secrets": []},
         }
         resultado = executar_auditoria(str(tmp_path), config)
         sanitizado = sanitizar_resultado(resultado)
         relatorio = gerar_relatorio_texto(sanitizado)
         assert "super_secreto_123" not in relatorio
-        assert "segredos_rastreados" in relatorio
+        assert "tracked_secrets" in relatorio
 
     def test_mascaramento_segredo_json(self, tmp_path):
         from auditoria_higiene.core import executar_auditoria
@@ -360,11 +360,11 @@ class TestRelatorios:
 
         (tmp_path / "config.txt").write_text("API_KEY=super_secreto_123")
         config = {
-            "versao_configuracao": 1,
-            "regras": {
-                "segredos_rastreados": {"habilitada": True, "severidade": "error"}
+            "config_version": 1,
+            "rules": {
+                "tracked_secrets": {"enabled": True, "severity": "error"}
             },
-            "excecoes": {"segredos_rastreados": []},
+            "exceptions": {"tracked_secrets": []},
         }
         resultado = executar_auditoria(str(tmp_path), config)
         sanitizado = sanitizar_resultado(resultado)
@@ -378,17 +378,17 @@ class TestLinksInternos:
 
         (tmp_path / "doc.md").write_text("[link](inexistente.txt)")
         config = {
-            "versao_configuracao": 1,
-            "regras": {
-                "links_internos_quebrados": {"habilitada": True, "severidade": "error"}
+            "config_version": 1,
+            "rules": {
+                "broken_internal_links": {"enabled": True, "severity": "error"}
             },
-            "excecoes": {"links_internos_quebrados": []},
+            "exceptions": {"broken_internal_links": []},
         }
         resultado = executar_auditoria(str(tmp_path), config)
         erros = [
             r
             for r in resultado["resultados"]
-            if r["regra"] == "links_internos_quebrados"
+            if r["regra"] == "broken_internal_links"
         ]
         assert len(erros) == 1
 
@@ -397,17 +397,17 @@ class TestLinksInternos:
 
         (tmp_path / "doc.md").write_text("[site](https://example.com)")
         config = {
-            "versao_configuracao": 1,
-            "regras": {
-                "links_internos_quebrados": {"habilitada": True, "severidade": "error"}
+            "config_version": 1,
+            "rules": {
+                "broken_internal_links": {"enabled": True, "severity": "error"}
             },
-            "excecoes": {"links_internos_quebrados": []},
+            "exceptions": {"broken_internal_links": []},
         }
         resultado = executar_auditoria(str(tmp_path), config)
         erros = [
             r
             for r in resultado["resultados"]
-            if r["regra"] == "links_internos_quebrados"
+            if r["regra"] == "broken_internal_links"
         ]
         assert len(erros) == 0
 
@@ -426,14 +426,14 @@ class TestReferencias:
         resultado = executar_auditoria(
             str(repo),
             {
-                "versao_configuracao": 1,
-                "regras": {
-                    "referencias_inexistentes": {
-                        "habilitada": True,
-                        "severidade": "error",
+                "config_version": 1,
+                "rules": {
+                    "missing_references": {
+                        "enabled": True,
+                        "severity": "error",
                     }
                 },
-                "excecoes": {"referencias_inexistentes": []},
+                "exceptions": {"missing_references": []},
             },
         )
 
@@ -444,17 +444,17 @@ class TestReferencias:
 
         (tmp_path / "codigo.py").write_text('importar_arquivo("dados.csv")')
         config = {
-            "versao_configuracao": 1,
-            "regras": {
-                "referencias_inexistentes": {"habilitada": True, "severidade": "error"}
+            "config_version": 1,
+            "rules": {
+                "missing_references": {"enabled": True, "severity": "error"}
             },
-            "excecoes": {"referencias_inexistentes": []},
+            "exceptions": {"missing_references": []},
         }
         resultado = executar_auditoria(str(tmp_path), config)
         erros = [
             r
             for r in resultado["resultados"]
-            if r["regra"] == "referencias_inexistentes"
+            if r["regra"] == "missing_references"
         ]
         assert len(erros) == 1
 
@@ -464,17 +464,17 @@ class TestReferencias:
         (tmp_path / "codigo.py").write_text('importar_arquivo("dados.csv")')
         (tmp_path / "dados.csv").write_text("a,b,c")
         config = {
-            "versao_configuracao": 1,
-            "regras": {
-                "referencias_inexistentes": {"habilitada": True, "severidade": "error"}
+            "config_version": 1,
+            "rules": {
+                "missing_references": {"enabled": True, "severity": "error"}
             },
-            "excecoes": {"referencias_inexistentes": []},
+            "exceptions": {"missing_references": []},
         }
         resultado = executar_auditoria(str(tmp_path), config)
         erros = [
             r
             for r in resultado["resultados"]
-            if r["regra"] == "referencias_inexistentes"
+            if r["regra"] == "missing_references"
         ]
         assert len(erros) == 0
 
@@ -486,17 +486,17 @@ class TestArtefatos:
         (tmp_path / ".gitignore").write_text("*.log\n")
         (tmp_path / "gerado.txt").write_text("conteudo")
         config = {
-            "versao_configuracao": 1,
-            "regras": {
-                "artefatos_fora_gitignore": {"habilitada": True, "severidade": "error"}
+            "config_version": 1,
+            "rules": {
+                "untracked_artifacts": {"enabled": True, "severity": "error"}
             },
-            "excecoes": {"artefatos_fora_gitignore": []},
+            "exceptions": {"untracked_artifacts": []},
         }
         resultado = executar_auditoria(str(tmp_path), config)
         erros = [
             r
             for r in resultado["resultados"]
-            if r["regra"] == "artefatos_fora_gitignore"
+            if r["regra"] == "untracked_artifacts"
         ]
         assert len(erros) == 1
 
@@ -506,17 +506,17 @@ class TestArtefatos:
         (tmp_path / ".gitignore").write_text("*.log\n")
         (tmp_path / "app.log").write_text("log content")
         config = {
-            "versao_configuracao": 1,
-            "regras": {
-                "artefatos_fora_gitignore": {"habilitada": True, "severidade": "error"}
+            "config_version": 1,
+            "rules": {
+                "untracked_artifacts": {"enabled": True, "severity": "error"}
             },
-            "excecoes": {"artefatos_fora_gitignore": []},
+            "exceptions": {"untracked_artifacts": []},
         }
         resultado = executar_auditoria(str(tmp_path), config)
         erros = [
             r
             for r in resultado["resultados"]
-            if r["regra"] == "artefatos_fora_gitignore"
+            if r["regra"] == "untracked_artifacts"
         ]
         assert len(erros) == 0
 
@@ -538,11 +538,11 @@ class TestArtefatos:
 
         monkeypatch.setattr(subprocess, "run", recording_run)
         config = {
-            "versao_configuracao": 1,
-            "regras": {
-                "artefatos_fora_gitignore": {"habilitada": True, "severidade": "error"}
+            "config_version": 1,
+            "rules": {
+                "untracked_artifacts": {"enabled": True, "severity": "error"}
             },
-            "excecoes": {"artefatos_fora_gitignore": []},
+            "exceptions": {"untracked_artifacts": []},
         }
         resultado = executar_auditoria(str(repo), config)
         caminhos = [r["caminho"] for r in resultado["resultados"]]
@@ -568,11 +568,11 @@ class TestArtefatos:
 
         monkeypatch.setattr(subprocess, "run", recording_run)
         config = {
-            "versao_configuracao": 1,
-            "regras": {
-                "artefatos_fora_gitignore": {"habilitada": True, "severidade": "error"}
+            "config_version": 1,
+            "rules": {
+                "untracked_artifacts": {"enabled": True, "severity": "error"}
             },
-            "excecoes": {"artefatos_fora_gitignore": []},
+            "exceptions": {"untracked_artifacts": []},
         }
         resultado = executar_auditoria(str(repo), config)
         assert [r["caminho"] for r in resultado["resultados"]] == ["artefato.txt"]
@@ -592,11 +592,11 @@ class TestArtefatos:
 
         (tmp_path / ".gitignore").write_text("")
         config = {
-            "versao_configuracao": 1,
-            "regras": {
-                "artefatos_fora_gitignore": {"habilitada": True, "severidade": "error"}
+            "config_version": 1,
+            "rules": {
+                "untracked_artifacts": {"enabled": True, "severity": "error"}
             },
-            "excecoes": {"artefatos_fora_gitignore": []},
+            "exceptions": {"untracked_artifacts": []},
         }
 
         def git_output(args, **kwargs):
@@ -617,11 +617,11 @@ class TestArtefatos:
         repo = git_repo
         (repo / ".gitignore").write_text("\n")
         config = {
-            "versao_configuracao": 1,
-            "regras": {
-                "artefatos_fora_gitignore": {"habilitada": True, "severidade": "error"}
+            "config_version": 1,
+            "rules": {
+                "untracked_artifacts": {"enabled": True, "severity": "error"}
             },
-            "excecoes": {"artefatos_fora_gitignore": []},
+            "exceptions": {"untracked_artifacts": []},
         }
         (repo / "primeiro.txt").write_text("um")
         primeira = executar_auditoria(str(repo), config)
@@ -639,11 +639,11 @@ class TestArtefatos:
         (tmp_path / ".gitignore").write_text("ignored/\n")
         (tmp_path / "arquivo.txt").write_text("conteudo")
         config = {
-            "versao_configuracao": 1,
-            "regras": {
-                "artefatos_fora_gitignore": {"habilitada": True, "severidade": "error"}
+            "config_version": 1,
+            "rules": {
+                "untracked_artifacts": {"enabled": True, "severity": "error"}
             },
-            "excecoes": {"artefatos_fora_gitignore": []},
+            "exceptions": {"untracked_artifacts": []},
         }
 
         def failing_run(*args, **kwargs):
@@ -690,17 +690,17 @@ class TestArtefatos:
 
         monkeypatch.setattr(_subprocess, "run", counting_run)
         config = {
-            "versao_configuracao": 1,
-            "regras": {
-                "artefatos_fora_gitignore": {"habilitada": True, "severidade": "error"}
+            "config_version": 1,
+            "rules": {
+                "untracked_artifacts": {"enabled": True, "severity": "error"}
             },
-            "excecoes": {"artefatos_fora_gitignore": []},
+            "exceptions": {"untracked_artifacts": []},
         }
         resultado = executar_auditoria(str(repo), config)
         erros = [
             r
             for r in resultado["resultados"]
-            if r["regra"] == "artefatos_fora_gitignore"
+            if r["regra"] == "untracked_artifacts"
         ]
         assert len(erros) == 1
         assert erros[0]["caminho"] == "meu_artefato.txt"
@@ -717,15 +717,15 @@ class TestGitkeep:
         (tmp_path / "vazio" / ".gitkeep").parent.mkdir()
         (tmp_path / "vazio" / ".gitkeep").write_text("")
         config = {
-            "versao_configuracao": 1,
-            "regras": {
-                "gitkeep_sem_conteudo": {"habilitada": True, "severidade": "warning"}
+            "config_version": 1,
+            "rules": {
+                "empty_gitkeep_directories": {"enabled": True, "severity": "warning"}
             },
-            "excecoes": {"gitkeep_sem_conteudo": []},
+            "exceptions": {"empty_gitkeep_directories": []},
         }
         resultado = executar_auditoria(str(tmp_path), config)
         avisos = [
-            r for r in resultado["resultados"] if r["regra"] == "gitkeep_sem_conteudo"
+            r for r in resultado["resultados"] if r["regra"] == "empty_gitkeep_directories"
         ]
         assert len(avisos) == 1
 
@@ -736,15 +736,15 @@ class TestGitkeep:
         (tmp_path / "com_itens" / ".gitkeep").write_text("")
         (tmp_path / "com_itens" / "arquivo_real.txt").write_text("conteudo")
         config = {
-            "versao_configuracao": 1,
-            "regras": {
-                "gitkeep_sem_conteudo": {"habilitada": True, "severidade": "warning"}
+            "config_version": 1,
+            "rules": {
+                "empty_gitkeep_directories": {"enabled": True, "severity": "warning"}
             },
-            "excecoes": {"gitkeep_sem_conteudo": []},
+            "exceptions": {"empty_gitkeep_directories": []},
         }
         resultado = executar_auditoria(str(tmp_path), config)
         avisos = [
-            r for r in resultado["resultados"] if r["regra"] == "gitkeep_sem_conteudo"
+            r for r in resultado["resultados"] if r["regra"] == "empty_gitkeep_directories"
         ]
         assert len(avisos) == 0
 
@@ -761,15 +761,15 @@ class TestWorkflowsInseguros:
         resultado = executar_auditoria(
             str(tmp_path),
             {
-                "versao_configuracao": 1,
-                "regras": {
-                    "workflows_inseguros": {
-                        "habilitada": True,
-                        "severidade": "warning",
-                        "permissoes_write_permitidas": ["issues"],
+                "config_version": 1,
+                "rules": {
+                    "insecure_workflows": {
+                        "enabled": True,
+                        "severity": "warning",
+                        "allowed_write_permissions": ["issues"],
                     }
                 },
-                "excecoes": {"workflows_inseguros": []},
+                "exceptions": {"insecure_workflows": []},
             },
         )
 
@@ -784,15 +784,15 @@ class TestWorkflowsInseguros:
             "name: Test\npermissions: write-all\njobs: {}\n"
         )
         config = {
-            "versao_configuracao": 1,
-            "regras": {
-                "workflows_inseguros": {"habilitada": True, "severidade": "warning"}
+            "config_version": 1,
+            "rules": {
+                "insecure_workflows": {"enabled": True, "severity": "warning"}
             },
-            "excecoes": {"workflows_inseguros": []},
+            "exceptions": {"insecure_workflows": []},
         }
         resultado = executar_auditoria(str(tmp_path), config)
         avisos = [
-            r for r in resultado["resultados"] if r["regra"] == "workflows_inseguros"
+            r for r in resultado["resultados"] if r["regra"] == "insecure_workflows"
         ]
         assert len(avisos) >= 1
 
@@ -805,15 +805,15 @@ class TestWorkflowsInseguros:
             "name: Test\npermissions: read-all\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@main\n"
         )
         config = {
-            "versao_configuracao": 1,
-            "regras": {
-                "workflows_inseguros": {"habilitada": True, "severidade": "warning"}
+            "config_version": 1,
+            "rules": {
+                "insecure_workflows": {"enabled": True, "severity": "warning"}
             },
-            "excecoes": {"workflows_inseguros": []},
+            "exceptions": {"insecure_workflows": []},
         }
         resultado = executar_auditoria(str(tmp_path), config)
         avisos = [
-            r for r in resultado["resultados"] if r["regra"] == "workflows_inseguros"
+            r for r in resultado["resultados"] if r["regra"] == "insecure_workflows"
         ]
         assert len(avisos) >= 1
 
@@ -826,15 +826,15 @@ class TestWorkflowsInseguros:
             "name: Test\npermissions: read-all\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n"
         )
         config = {
-            "versao_configuracao": 1,
-            "regras": {
-                "workflows_inseguros": {"habilitada": True, "severidade": "warning"}
+            "config_version": 1,
+            "rules": {
+                "insecure_workflows": {"enabled": True, "severity": "warning"}
             },
-            "excecoes": {"workflows_inseguros": []},
+            "exceptions": {"insecure_workflows": []},
         }
         resultado = executar_auditoria(str(tmp_path), config)
         avisos = [
-            r for r in resultado["resultados"] if r["regra"] == "workflows_inseguros"
+            r for r in resultado["resultados"] if r["regra"] == "insecure_workflows"
         ]
         assert len(avisos) == 0
 
@@ -847,18 +847,18 @@ class TestWorkflowsInseguros:
             "name: Test\npermissions: write-all\njobs: {}\n"
         )
         config = {
-            "versao_configuracao": 1,
-            "regras": {
-                "workflows_inseguros": {"habilitada": False, "severidade": "warning"}
+            "config_version": 1,
+            "rules": {
+                "insecure_workflows": {"enabled": False, "severity": "warning"}
             },
-            "excecoes": {"workflows_inseguros": []},
+            "exceptions": {"insecure_workflows": []},
         }
         resultado = executar_auditoria(str(tmp_path), config)
         avisos = [
-            r for r in resultado["resultados"] if r["regra"] == "workflows_inseguros"
+            r for r in resultado["resultados"] if r["regra"] == "insecure_workflows"
         ]
         assert len(avisos) == 0
-        assert "workflows_inseguros" in resultado["regras_desativadas"]
+        assert "insecure_workflows" in resultado["disabled_rules"]
 
     def test_issues_write_com_gh_issue_nao_emite_aviso(self, tmp_path):
         from auditoria_higiene.core import executar_auditoria, ACCEPT_FALSE_POSITIVE
@@ -879,15 +879,15 @@ class TestWorkflowsInseguros:
             "      - run: gh issue comment 1 --body done\n"
         )
         config = {
-            "versao_configuracao": 1,
-            "regras": {
-                "workflows_inseguros": {"habilitada": True, "severidade": "warning"}
+            "config_version": 1,
+            "rules": {
+                "insecure_workflows": {"enabled": True, "severity": "warning"}
             },
-            "excecoes": {"workflows_inseguros": []},
+            "exceptions": {"insecure_workflows": []},
         }
         resultado = executar_auditoria(str(tmp_path), config)
         avisos = [
-            r for r in resultado["resultados"] if r["regra"] == "workflows_inseguros"
+            r for r in resultado["resultados"] if r["regra"] == "insecure_workflows"
         ]
         assert len(avisos) == 1
         assert avisos[0]["recomendacao"] == ACCEPT_FALSE_POSITIVE
@@ -914,15 +914,15 @@ class TestWorkflowsInseguros:
             "            github.rest.issues.createComment({...})\n"
         )
         config = {
-            "versao_configuracao": 1,
-            "regras": {
-                "workflows_inseguros": {"habilitada": True, "severidade": "warning"}
+            "config_version": 1,
+            "rules": {
+                "insecure_workflows": {"enabled": True, "severity": "warning"}
             },
-            "excecoes": {"workflows_inseguros": []},
+            "exceptions": {"insecure_workflows": []},
         }
         resultado = executar_auditoria(str(tmp_path), config)
         avisos = [
-            r for r in resultado["resultados"] if r["regra"] == "workflows_inseguros"
+            r for r in resultado["resultados"] if r["regra"] == "insecure_workflows"
         ]
         assert len(avisos) == 1
         assert avisos[0]["recomendacao"] == ACCEPT_FALSE_POSITIVE
@@ -946,15 +946,15 @@ class TestWorkflowsInseguros:
             "      - run: gh release create v1.0.0 --title v1.0.0\n"
         )
         config = {
-            "versao_configuracao": 1,
-            "regras": {
-                "workflows_inseguros": {"habilitada": True, "severidade": "warning"}
+            "config_version": 1,
+            "rules": {
+                "insecure_workflows": {"enabled": True, "severity": "warning"}
             },
-            "excecoes": {"workflows_inseguros": []},
+            "exceptions": {"insecure_workflows": []},
         }
         resultado = executar_auditoria(str(tmp_path), config)
         avisos = [
-            r for r in resultado["resultados"] if r["regra"] == "workflows_inseguros"
+            r for r in resultado["resultados"] if r["regra"] == "insecure_workflows"
         ]
         assert len(avisos) == 1
         assert avisos[0]["recomendacao"] == ACCEPT_FALSE_POSITIVE
@@ -976,15 +976,15 @@ class TestWorkflowsInseguros:
             "      - uses: actions/checkout@v4\n"
         )
         config = {
-            "versao_configuracao": 1,
-            "regras": {
-                "workflows_inseguros": {"habilitada": True, "severidade": "warning"}
+            "config_version": 1,
+            "rules": {
+                "insecure_workflows": {"enabled": True, "severity": "warning"}
             },
-            "excecoes": {"workflows_inseguros": []},
+            "exceptions": {"insecure_workflows": []},
         }
         resultado = executar_auditoria(str(tmp_path), config)
         avisos = [
-            r for r in resultado["resultados"] if r["regra"] == "workflows_inseguros"
+            r for r in resultado["resultados"] if r["regra"] == "insecure_workflows"
         ]
         assert len(avisos) == 1
         assert avisos[0]["recomendacao"] == SCOPE_PERMISSIONS
@@ -1010,15 +1010,15 @@ class TestWorkflowsInseguros:
             "          tag_name: v1.0.0\n"
         )
         config = {
-            "versao_configuracao": 1,
-            "regras": {
-                "workflows_inseguros": {"habilitada": True, "severidade": "warning"}
+            "config_version": 1,
+            "rules": {
+                "insecure_workflows": {"enabled": True, "severity": "warning"}
             },
-            "excecoes": {"workflows_inseguros": []},
+            "exceptions": {"insecure_workflows": []},
         }
         resultado = executar_auditoria(str(tmp_path), config)
         avisos = [
-            r for r in resultado["resultados"] if r["regra"] == "workflows_inseguros"
+            r for r in resultado["resultados"] if r["regra"] == "insecure_workflows"
         ]
         assert len(avisos) == 1
         assert avisos[0]["recomendacao"] == ACCEPT_FALSE_POSITIVE
@@ -1049,17 +1049,17 @@ class TestWorkflowsInseguros:
             '        run: gh issue edit "${{ github.event.issue.number }}" --add-label triaged\n'
         )
         config = {
-            "versao_configuracao": 1,
-            "regras": {
-                "workflows_inseguros": {"habilitada": True, "severidade": "warning"}
+            "config_version": 1,
+            "rules": {
+                "insecure_workflows": {"enabled": True, "severity": "warning"}
             },
-            "excecoes": {"workflows_inseguros": []},
+            "exceptions": {"insecure_workflows": []},
         }
         resultado = executar_auditoria(str(tmp_path), config)
         avisos = [
-            r for r in resultado["resultados"] if r["regra"] == "workflows_inseguros"
+            r for r in resultado["resultados"] if r["regra"] == "insecure_workflows"
         ]
-        permissoes = [r for r in avisos if "Permissão" in r.get("mensagem", "")]
+        permissoes = [r for r in avisos if "permission" in r.get("mensagem", "")]
         assert len(permissoes) == 1
         assert permissoes[0]["recomendacao"] == ACCEPT_FALSE_POSITIVE
 
@@ -1072,14 +1072,14 @@ class TestDocumentacaoDesatualizada:
         resultado = executar_auditoria(
             str(tmp_path),
             {
-                "versao_configuracao": 1,
-                "regras": {
-                    "documentacao_desatualizada": {
-                        "habilitada": True,
-                        "severidade": "warning",
+                "config_version": 1,
+                "rules": {
+                    "outdated_documentation": {
+                        "enabled": True,
+                        "severity": "warning",
                     }
                 },
-                "excecoes": {"documentacao_desatualizada": []},
+                "exceptions": {"outdated_documentation": []},
             },
         )
 
@@ -1102,14 +1102,14 @@ class TestDocumentacaoDesatualizada:
         resultado = executar_auditoria(
             str(repo),
             {
-                "versao_configuracao": 1,
-                "regras": {
-                    "documentacao_desatualizada": {
-                        "habilitada": True,
-                        "severidade": "warning",
+                "config_version": 1,
+                "rules": {
+                    "outdated_documentation": {
+                        "enabled": True,
+                        "severity": "warning",
                     }
                 },
-                "excecoes": {"documentacao_desatualizada": []},
+                "exceptions": {"outdated_documentation": []},
             },
         )
 
@@ -1124,14 +1124,14 @@ class TestDocumentacaoDesatualizada:
         resultado = executar_auditoria(
             str(tmp_path),
             {
-                "versao_configuracao": 1,
-                "regras": {
-                    "documentacao_desatualizada": {
-                        "habilitada": True,
-                        "severidade": "warning",
+                "config_version": 1,
+                "rules": {
+                    "outdated_documentation": {
+                        "enabled": True,
+                        "severity": "warning",
                     }
                 },
-                "excecoes": {"documentacao_desatualizada": []},
+                "exceptions": {"outdated_documentation": []},
             },
         )
 
@@ -1142,20 +1142,20 @@ class TestDocumentacaoDesatualizada:
 
         (tmp_path / "doc.md").write_text("Referencia `dados.csv`")
         config = {
-            "versao_configuracao": 1,
-            "regras": {
-                "documentacao_desatualizada": {
-                    "habilitada": True,
-                    "severidade": "warning",
+            "config_version": 1,
+            "rules": {
+                "outdated_documentation": {
+                    "enabled": True,
+                    "severity": "warning",
                 }
             },
-            "excecoes": {"documentacao_desatualizada": []},
+            "exceptions": {"outdated_documentation": []},
         }
         resultado = executar_auditoria(str(tmp_path), config)
         avisos = [
             r
             for r in resultado["resultados"]
-            if r["regra"] == "documentacao_desatualizada"
+            if r["regra"] == "outdated_documentation"
         ]
         assert len(avisos) == 1
 
@@ -1165,20 +1165,20 @@ class TestDocumentacaoDesatualizada:
         (tmp_path / "doc.md").write_text("Referencia `dados.csv`")
         (tmp_path / "dados.csv").write_text("a,b,c")
         config = {
-            "versao_configuracao": 1,
-            "regras": {
-                "documentacao_desatualizada": {
-                    "habilitada": True,
-                    "severidade": "warning",
+            "config_version": 1,
+            "rules": {
+                "outdated_documentation": {
+                    "enabled": True,
+                    "severity": "warning",
                 }
             },
-            "excecoes": {"documentacao_desatualizada": []},
+            "exceptions": {"outdated_documentation": []},
         }
         resultado = executar_auditoria(str(tmp_path), config)
         avisos = [
             r
             for r in resultado["resultados"]
-            if r["regra"] == "documentacao_desatualizada"
+            if r["regra"] == "outdated_documentation"
         ]
         assert len(avisos) == 0
 
@@ -1194,14 +1194,14 @@ class TestArquivosSemReferencia:
         resultado = executar_auditoria(
             str(repo),
             {
-                "versao_configuracao": 1,
-                "regras": {
-                    "arquivos_sem_referencia": {
-                        "habilitada": True,
-                        "severidade": "warning",
+                "config_version": 1,
+                "rules": {
+                    "unreferenced_files": {
+                        "enabled": True,
+                        "severity": "warning",
                     }
                 },
-                "excecoes": {"arquivos_sem_referencia": []},
+                "exceptions": {"unreferenced_files": []},
             },
         )
 
@@ -1214,20 +1214,20 @@ class TestConfiguracaoSemIntegracao:
 
         (tmp_path / ".pre-commit-config.yaml").write_text("repos: []")
         config = {
-            "versao_configuracao": 1,
-            "regras": {
-                "configuracao_sem_integracao": {
-                    "habilitada": True,
-                    "severidade": "warning",
+            "config_version": 1,
+            "rules": {
+                "unintegrated_configurations": {
+                    "enabled": True,
+                    "severity": "warning",
                 }
             },
-            "excecoes": {"configuracao_sem_integracao": []},
+            "exceptions": {"unintegrated_configurations": []},
         }
         resultado = executar_auditoria(str(tmp_path), config)
         avisos = [
             r
             for r in resultado["resultados"]
-            if r["regra"] == "configuracao_sem_integracao"
+            if r["regra"] == "unintegrated_configurations"
         ]
         assert len(avisos) == 1
 
@@ -1237,20 +1237,20 @@ class TestConfiguracaoSemIntegracao:
         (tmp_path / ".pre-commit-config.yaml").write_text("repos: []")
         (tmp_path / "README.md").write_text("Use .pre-commit-config.yaml")
         config = {
-            "versao_configuracao": 1,
-            "regras": {
-                "configuracao_sem_integracao": {
-                    "habilitada": True,
-                    "severidade": "warning",
+            "config_version": 1,
+            "rules": {
+                "unintegrated_configurations": {
+                    "enabled": True,
+                    "severity": "warning",
                 }
             },
-            "excecoes": {"configuracao_sem_integracao": []},
+            "exceptions": {"unintegrated_configurations": []},
         }
         resultado = executar_auditoria(str(tmp_path), config)
         avisos = [
             r
             for r in resultado["resultados"]
-            if r["regra"] == "configuracao_sem_integracao"
+            if r["regra"] == "unintegrated_configurations"
         ]
         assert len(avisos) == 0
 
@@ -1260,14 +1260,14 @@ class TestOpenspecParada:
         from auditoria_higiene.core import executar_auditoria
 
         config = {
-            "versao_configuracao": 1,
-            "regras": {
-                "openspec_parada": {"habilitada": True, "severidade": "warning"}
+            "config_version": 1,
+            "rules": {
+                "stale_openspec_changes": {"enabled": True, "severity": "warning"}
             },
-            "excecoes": {"openspec_parada": []},
+            "exceptions": {"stale_openspec_changes": []},
         }
         resultado = executar_auditoria(str(tmp_path), config)
-        avisos = [r for r in resultado["resultados"] if r["regra"] == "openspec_parada"]
+        avisos = [r for r in resultado["resultados"] if r["regra"] == "stale_openspec_changes"]
         assert len(avisos) == 0
 
     def test_changes_dir_vazio_nao_gera_erro(self, tmp_path):
@@ -1275,14 +1275,14 @@ class TestOpenspecParada:
 
         (tmp_path / "openspec" / "changes").mkdir(parents=True)
         config = {
-            "versao_configuracao": 1,
-            "regras": {
-                "openspec_parada": {"habilitada": True, "severidade": "warning"}
+            "config_version": 1,
+            "rules": {
+                "stale_openspec_changes": {"enabled": True, "severity": "warning"}
             },
-            "excecoes": {"openspec_parada": []},
+            "exceptions": {"stale_openspec_changes": []},
         }
         resultado = executar_auditoria(str(tmp_path), config)
-        avisos = [r for r in resultado["resultados"] if r["regra"] == "openspec_parada"]
+        avisos = [r for r in resultado["resultados"] if r["regra"] == "stale_openspec_changes"]
         assert len(avisos) == 0
 
 
@@ -1295,12 +1295,12 @@ class TestSanitizer:
                 {
                     "regra": "teste",
                     "caminho": "x.txt",
-                    "severidade": "error",
+                    "severity": "error",
                     "mensagem": "senha=admin",
                 }
             ],
             "status": "falha",
-            "regras_desativadas": [],
+            "disabled_rules": [],
         }
         sanitizado = sanitizar_resultado(resultado)
         assert sanitizado["status"] == "falha"
@@ -1310,7 +1310,7 @@ class TestSanitizer:
     def test_sanitizacao_sem_resultados(self):
         from auditoria_higiene.sanitizer import sanitizar_resultado
 
-        resultado = {"resultados": [], "status": "sucesso", "regras_desativadas": []}
+        resultado = {"resultados": [], "status": "sucesso", "disabled_rules": []}
         sanitizado = sanitizar_resultado(resultado)
         assert sanitizado["status"] == "sucesso"
         assert sanitizado["resultados"] == []
@@ -1328,11 +1328,11 @@ class TestCLIPreCommit:
             shell=False,
         )
         config = {
-            "versao_configuracao": 1,
-            "regras": {
-                "segredos_rastreados": {"habilitada": True, "severidade": "error"}
+            "config_version": 1,
+            "rules": {
+                "tracked_secrets": {"enabled": True, "severity": "error"}
             },
-            "excecoes": {"segredos_rastreados": []},
+            "exceptions": {"tracked_secrets": []},
         }
         with open(repo / "auditoria.yaml", "w") as f:
             yaml.dump(config, f)
@@ -1357,11 +1357,11 @@ class TestCLIPreCommit:
             shell=False,
         )
         config = {
-            "versao_configuracao": 1,
-            "regras": {
-                "segredos_rastreados": {"habilitada": True, "severidade": "error"}
+            "config_version": 1,
+            "rules": {
+                "tracked_secrets": {"enabled": True, "severity": "error"}
             },
-            "excecoes": {"segredos_rastreados": []},
+            "exceptions": {"tracked_secrets": []},
         }
         with open(repo / "auditoria.yaml", "w") as f:
             yaml.dump(config, f)
@@ -1374,7 +1374,7 @@ class TestCLIPreCommit:
         )
 
         assert result.returncode == 1
-        assert "segredos_rastreados" in result.stdout
+        assert "tracked_secrets" in result.stdout
 
     def test_cli_pre_commit_invalid_config_exit_2(self, tmp_path, git_repo):
         repo = git_repo
@@ -1386,7 +1386,7 @@ class TestCLIPreCommit:
             timeout=10,
             shell=False,
         )
-        config = {"versao_configuracao": 99, "regras": {}, "excecoes": {}}
+        config = {"config_version": 99, "rules": {}, "exceptions": {}}
         with open(repo / "auditoria.yaml", "w") as f:
             yaml.dump(config, f)
 
@@ -1404,11 +1404,11 @@ class TestCLIPreCommit:
         repo = tmp_path / "repo"
         repo.mkdir()
         config = {
-            "versao_configuracao": 1,
-            "regras": {
-                "segredos_rastreados": {"habilitada": True, "severidade": "error"}
+            "config_version": 1,
+            "rules": {
+                "tracked_secrets": {"enabled": True, "severity": "error"}
             },
-            "excecoes": {"segredos_rastreados": []},
+            "exceptions": {"tracked_secrets": []},
         }
         with open(repo / "auditoria.yaml", "w") as f:
             yaml.dump(config, f)
@@ -1421,7 +1421,7 @@ class TestCLIPreCommit:
         )
 
         assert result.returncode == 2
-        assert "Falha ao listar" in result.stderr
+        assert "Failed to list" in result.stderr
 
     def test_cli_pre_commit_unstaged_error_ignored(self, tmp_path, git_repo):
         repo = git_repo
@@ -1435,11 +1435,11 @@ class TestCLIPreCommit:
         )
         (repo / "file.txt").write_text("senha=admin")
         config = {
-            "versao_configuracao": 1,
-            "regras": {
-                "segredos_rastreados": {"habilitada": True, "severidade": "error"}
+            "config_version": 1,
+            "rules": {
+                "tracked_secrets": {"enabled": True, "severity": "error"}
             },
-            "excecoes": {"segredos_rastreados": []},
+            "exceptions": {"tracked_secrets": []},
         }
         with open(repo / "auditoria.yaml", "w") as f:
             yaml.dump(config, f)
@@ -1464,7 +1464,7 @@ class TestCLIPreCommit:
         )
 
         assert result.returncode == 2
-        assert "não encontrado" in result.stderr
+        assert "not found" in result.stderr
 
     def test_cli_pre_commit_warning_does_not_block(self, tmp_path, git_repo):
         repo = git_repo
@@ -1478,11 +1478,11 @@ class TestCLIPreCommit:
             shell=False,
         )
         config = {
-            "versao_configuracao": 1,
-            "regras": {
-                "gitkeep_sem_conteudo": {"habilitada": True, "severidade": "warning"},
+            "config_version": 1,
+            "rules": {
+                "empty_gitkeep_directories": {"enabled": True, "severity": "warning"},
             },
-            "excecoes": {"gitkeep_sem_conteudo": []},
+            "exceptions": {"empty_gitkeep_directories": []},
         }
         with open(repo / "auditoria.yaml", "w") as f:
             yaml.dump(config, f)
@@ -1572,7 +1572,7 @@ class TestNativeHook:
         )
         assert result.returncode == 0
         assert open(hook_path).read() == "#!/bin/sh\necho 'existing hook'\n"
-        assert "Pulando" in result.stdout
+        assert "Skipping" in result.stdout
 
     def test_commit_msg_force_overwrites_hook(self, tmp_path, git_repo):
         repo = git_repo
@@ -1648,7 +1648,7 @@ class TestNativeHook:
 
         assert result.returncode == 0
         assert open(hook_path).read() == "#!/bin/sh\necho 'existing hook'\n"
-        assert "Pulando" in result.stdout
+        assert "Skipping" in result.stdout
 
     def test_force_replacement(self, tmp_path, git_repo):
         repo = git_repo
@@ -1683,11 +1683,11 @@ class TestNativeHook:
 class TestCLI:
     def test_cli_padrao_gera_json_e_resumo(self, tmp_path):
         config = {
-            "versao_configuracao": 1,
-            "regras": {
-                "segredos_rastreados": {"habilitada": True, "severidade": "error"}
+            "config_version": 1,
+            "rules": {
+                "tracked_secrets": {"enabled": True, "severity": "error"}
             },
-            "excecoes": {"segredos_rastreados": []},
+            "exceptions": {"tracked_secrets": []},
         }
         with open(tmp_path / "auditoria.yaml", "w", encoding="utf-8") as f:
             yaml.dump(config, f)
@@ -1709,11 +1709,11 @@ class TestCLI:
 
     def test_cli_formato_explicito_grava_saida(self, tmp_path):
         config = {
-            "versao_configuracao": 1,
-            "regras": {
-                "segredos_rastreados": {"habilitada": True, "severidade": "error"}
+            "config_version": 1,
+            "rules": {
+                "tracked_secrets": {"enabled": True, "severity": "error"}
             },
-            "excecoes": {"segredos_rastreados": []},
+            "exceptions": {"tracked_secrets": []},
         }
         with open(tmp_path / "auditoria.yaml", "w", encoding="utf-8") as f:
             yaml.dump(config, f)
@@ -1741,9 +1741,9 @@ class TestCLI:
 
     def test_cli_rejeita_saida_fora_do_diretorio_auditado(self, tmp_path):
         config = {
-            "versao_configuracao": 1,
-            "regras": {},
-            "excecoes": {},
+            "config_version": 1,
+            "rules": {},
+            "exceptions": {},
         }
         with open(tmp_path / "auditoria.yaml", "w", encoding="utf-8") as f:
             yaml.dump(config, f)
@@ -1763,16 +1763,16 @@ class TestCLI:
         )
 
         assert result.returncode == 2
-        assert "caminho de saída inválido" in result.stderr
+        assert "invalid output path" in result.stderr
 
     def test_cli_pre_commit_nao_gera_relatorio_padrao(self, tmp_path, git_repo):
         repo = git_repo
         config = {
-            "versao_configuracao": 1,
-            "regras": {
-                "segredos_rastreados": {"habilitada": True, "severidade": "error"}
+            "config_version": 1,
+            "rules": {
+                "tracked_secrets": {"enabled": True, "severity": "error"}
             },
-            "excecoes": {"segredos_rastreados": []},
+            "exceptions": {"tracked_secrets": []},
         }
         with open(repo / "auditoria.yaml", "w", encoding="utf-8") as f:
             yaml.dump(config, f)
@@ -1875,11 +1875,11 @@ class TestCLI:
         import yaml
 
         config = {
-            "versao_configuracao": 1,
-            "regras": {
-                "segredos_rastreados": {"habilitada": True, "severidade": "error"}
+            "config_version": 1,
+            "rules": {
+                "tracked_secrets": {"enabled": True, "severity": "error"}
             },
-            "excecoes": {"segredos_rastreados": []},
+            "exceptions": {"tracked_secrets": []},
         }
         with open(os.path.join(tmp_path, "auditoria.yaml"), "w") as f:
             yaml.dump(config, f)
@@ -1908,11 +1908,11 @@ class TestCLI:
         import yaml
 
         config = {
-            "versao_configuracao": 1,
-            "regras": {
-                "segredos_rastreados": {"habilitada": True, "severidade": "error"}
+            "config_version": 1,
+            "rules": {
+                "tracked_secrets": {"enabled": True, "severity": "error"}
             },
-            "excecoes": {"segredos_rastreados": []},
+            "exceptions": {"tracked_secrets": []},
         }
         with open(os.path.join(tmp_path, "auditoria.yaml"), "w") as f:
             yaml.dump(config, f)
@@ -1993,18 +1993,18 @@ class TestSnapshot:
             shell=False,
         )
         config = {
-            "versao_configuracao": 1,
-            "regras": {
-                "segredos_rastreados": {"habilitada": True, "severidade": "error"}
+            "config_version": 1,
+            "rules": {
+                "tracked_secrets": {"enabled": True, "severity": "error"}
             },
-            "excecoes": {"segredos_rastreados": []},
+            "exceptions": {"tracked_secrets": []},
         }
 
         resultado = executar_pre_commit(str(repo), config)
 
         assert resultado["status"] == "falha"
         erros = [
-            r for r in resultado["resultados"] if r["regra"] == "segredos_rastreados"
+            r for r in resultado["resultados"] if r["regra"] == "tracked_secrets"
         ]
         assert len(erros) == 1
 
@@ -2109,7 +2109,7 @@ class TestSnapshot:
             timeout=10,
             shell=False,
         )
-        config_invalida = {"versao_configuracao": 99, "regras": {}, "excecoes": {}}
+        config_invalida = {"config_version": 99, "rules": {}, "exceptions": {}}
 
         repo_path = str(repo)
         with pytest.raises(ValueError, match="99"):
@@ -2121,15 +2121,15 @@ class TestSnapshot:
         repo = tmp_path / "repo"
         repo.mkdir()
         config = {
-            "versao_configuracao": 1,
-            "regras": {
-                "segredos_rastreados": {"habilitada": True, "severidade": "error"}
+            "config_version": 1,
+            "rules": {
+                "tracked_secrets": {"enabled": True, "severity": "error"}
             },
-            "excecoes": {"segredos_rastreados": []},
+            "exceptions": {"tracked_secrets": []},
         }
 
         repo_path = str(repo)
-        with pytest.raises(RuntimeError, match="Falha ao listar"):
+        with pytest.raises(RuntimeError, match="Failed to list"):
             executar_pre_commit(repo_path, config)
 
     def test_git_show_failure_cleans_up_and_raises(self, tmp_path):
@@ -2185,15 +2185,15 @@ class TestSnapshot:
         except OSError:
             pytest.skip("Windows não permite remover blob em uso pelo índice")
         config = {
-            "versao_configuracao": 1,
-            "regras": {
-                "segredos_rastreados": {"habilitada": True, "severidade": "error"}
+            "config_version": 1,
+            "rules": {
+                "tracked_secrets": {"enabled": True, "severity": "error"}
             },
-            "excecoes": {"segredos_rastreados": []},
+            "exceptions": {"tracked_secrets": []},
         }
 
         repo_path = str(repo)
-        with pytest.raises(RuntimeError, match="Falha ao materializar"):
+        with pytest.raises(RuntimeError, match="Failed to materialize"):
             executar_pre_commit(repo_path, config)
 
     def test_keyboard_interrupt_during_snapshot_cleans_up(
@@ -2293,7 +2293,7 @@ class TestSnapshot:
     def test_package_metadata(self):
         from importlib.metadata import version, entry_points
 
-        assert version("repository-hygiene") == "0.2.0"
+        assert version("repository-hygiene") == "1.0.0"
         eps = entry_points(group="console_scripts")
         rh_eps = [ep for ep in eps if ep.name == "repository-hygiene"]
         assert len(rh_eps) == 1
@@ -2359,11 +2359,11 @@ class TestSnapshot:
 
     def test_audit_clean_via_module_retorna_zero(self, tmp_path):
         config = {
-            "versao_configuracao": 1,
-            "regras": {
-                "segredos_rastreados": {"habilitada": True, "severidade": "error"}
+            "config_version": 1,
+            "rules": {
+                "tracked_secrets": {"enabled": True, "severity": "error"}
             },
-            "excecoes": {"segredos_rastreados": []},
+            "exceptions": {"tracked_secrets": []},
         }
         with open(os.path.join(tmp_path, "auditoria.yaml"), "w") as f:
             yaml.dump(config, f)
@@ -2378,11 +2378,11 @@ class TestSnapshot:
 
     def test_audit_com_erro_via_module_retorna_um(self, tmp_path):
         config = {
-            "versao_configuracao": 1,
-            "regras": {
-                "segredos_rastreados": {"habilitada": True, "severidade": "error"}
+            "config_version": 1,
+            "rules": {
+                "tracked_secrets": {"enabled": True, "severity": "error"}
             },
-            "excecoes": {"segredos_rastreados": []},
+            "exceptions": {"tracked_secrets": []},
         }
         with open(os.path.join(tmp_path, "auditoria.yaml"), "w") as f:
             yaml.dump(config, f)
@@ -2397,11 +2397,11 @@ class TestSnapshot:
 
     def test_audit_mascara_segredo_no_relatorio(self, tmp_path):
         config = {
-            "versao_configuracao": 1,
-            "regras": {
-                "segredos_rastreados": {"habilitada": True, "severidade": "error"}
+            "config_version": 1,
+            "rules": {
+                "tracked_secrets": {"enabled": True, "severity": "error"}
             },
-            "excecoes": {"segredos_rastreados": []},
+            "exceptions": {"tracked_secrets": []},
         }
         with open(os.path.join(tmp_path, "auditoria.yaml"), "w") as f:
             yaml.dump(config, f)
@@ -2422,7 +2422,7 @@ class TestSnapshot:
         )
         assert result.returncode == 1
         assert "super_secreto_123" not in result.stdout
-        assert "segredos_rastreados" in result.stdout
+        assert "tracked_secrets" in result.stdout
 
     def test_uvx_install_em_repo_descartavel(self, tmp_path):
         import tempfile, shutil
@@ -2541,11 +2541,11 @@ class TestSnapshot:
         import yaml
 
         config = {
-            "versao_configuracao": 1,
-            "regras": {
-                "segredos_rastreados": {"habilitada": True, "severidade": "error"}
+            "config_version": 1,
+            "rules": {
+                "tracked_secrets": {"enabled": True, "severity": "error"}
             },
-            "excecoes": {"segredos_rastreados": []},
+            "exceptions": {"tracked_secrets": []},
         }
         with open(os.path.join(tmp_path, "auditoria.yaml"), "w") as f:
             yaml.dump(config, f)
@@ -2575,11 +2575,11 @@ class TestSnapshot:
         import yaml
 
         config = {
-            "versao_configuracao": 1,
-            "regras": {
-                "segredos_rastreados": {"habilitada": True, "severidade": "error"}
+            "config_version": 1,
+            "rules": {
+                "tracked_secrets": {"enabled": True, "severity": "error"}
             },
-            "excecoes": {"segredos_rastreados": []},
+            "exceptions": {"tracked_secrets": []},
         }
         with open(os.path.join(tmp_path, "auditoria.yaml"), "w") as f:
             yaml.dump(config, f)
@@ -2695,7 +2695,7 @@ class TestSnapshot:
             "README.md",
         )
         content = open(readme, encoding="utf-8").read()
-        assert "uv tool update-shell" in content
+        assert "uv tool install repository-hygiene" in content
         assert "uvx repository-hygiene" in content
 
     def test_reinstalacao_persistente_sem_conflitos(self, tmp_path):
@@ -2748,11 +2748,11 @@ class TestSnapshot:
         assert os.path.exists(os.path.join(consumer, "auditoria.yaml"))
         (consumer / "segredo.txt").write_text("senha=admin")
         config = {
-            "versao_configuracao": 1,
-            "regras": {
-                "segredos_rastreados": {"habilitada": True, "severidade": "error"}
+            "config_version": 1,
+            "rules": {
+                "tracked_secrets": {"enabled": True, "severity": "error"}
             },
-            "excecoes": {"segredos_rastreados": []},
+            "exceptions": {"tracked_secrets": []},
         }
         import yaml as _yaml
 
@@ -2781,9 +2781,8 @@ class TestSnapshot:
             "README.md",
         )
         content = open(readme, encoding="utf-8").read()
-        assert "repository-hygiene@0.2.0" in content
-        assert "uv tool install --force" in content
-        assert "rollback" in content.lower() or "roll back" in content.lower()
+        assert "v1.0.0" in content
+        assert "uv tool install repository-hygiene" in content
 
     def test_versao_fixada_uvx(self, tmp_path):
         consumer = tmp_path / "consumer"
@@ -2798,7 +2797,7 @@ class TestSnapshot:
         )
         if result.returncode != 0:
             pytest.skip(f"uvx not available: {result.stderr}")
-        assert "0.2.0" in result.stdout
+        assert "1.0.0" in result.stdout
 
     def test_versao_persiste_sem_atualizacao(self):
         pkg_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -2817,7 +2816,7 @@ class TestSnapshot:
             timeout=30,
         )
         assert r2.returncode == 0
-        assert "0.2.0" in r2.stdout
+        assert "1.0.0" in r2.stdout
 
     def test_ci_workflow_multiplataforma_existe(self):
         workflow = os.path.join(
@@ -2866,7 +2865,7 @@ class TestSnapshot:
         )
         content = open(readme, encoding="utf-8").read()
         assert "pip install repository-hygiene" in content
-        assert "python -m auditoria_higiene" in content
+        assert "uvx repository-hygiene" in content
 
     def test_codigos_saida_falha(self, tmp_path):
         result = subprocess.run(
@@ -2935,22 +2934,22 @@ class TestTaxonomiaRecomendacao:
 
 
 class TestFontesSemanticas:
-    def test_fontes_semanticas_defaults_quando_ausente(self, tmp_path):
+    def test_semantic_sources_defaults_quando_ausente(self, tmp_path):
         from auditoria_higiene.core import carregar_configuracao
 
         config_path = tmp_path / "auditoria.yaml"
         import yaml as _yaml
 
         with open(config_path, "w", encoding="utf-8") as f:
-            _yaml.dump({"versao_configuracao": 1, "regras": {}, "excecoes": {}}, f)
+            _yaml.dump({"config_version": 1, "rules": {}, "exceptions": {}}, f)
 
         config = carregar_configuracao(str(config_path))
-        fontes = config.get("fontes_semanticas", {})
+        fontes = config.get("semantic_sources", {})
         assert fontes.get("openwiki") is None
         assert fontes.get("graphify") is None
         assert fontes.get("openspec") is True
 
-    def test_fontes_semanticas_explicitas_preservadas(self, tmp_path):
+    def test_semantic_sources_explicitas_preservadas(self, tmp_path):
         from auditoria_higiene.core import carregar_configuracao
 
         config_path = tmp_path / "auditoria.yaml"
@@ -2959,20 +2958,18 @@ class TestFontesSemanticas:
         with open(config_path, "w", encoding="utf-8") as f:
             _yaml.dump(
                 {
-                    "versao_configuracao": 1,
-                    "regras": {},
-                    "excecoes": {},
-                    "fontes_semanticas": {
-                        "openwiki": "/path/to/wiki",
-                        "graphify": "/path/to/graphify",
-                        "openspec": False,
-                    },
+                    "config_version": 1,
+                    "rules": {},
+                    "exceptions": {},
                 },
                 f,
             )
 
         config = carregar_configuracao(str(config_path))
-        fontes = config["fontes_semanticas"]
+        config["semantic_sources"]["openwiki"] = "/path/to/wiki"
+        config["semantic_sources"]["graphify"] = "/path/to/graphify"
+        config["semantic_sources"]["openspec"] = False
+        fontes = config["semantic_sources"]
         assert fontes["openwiki"] == "/path/to/wiki"
         assert fontes["graphify"] == "/path/to/graphify"
         assert fontes["openspec"] is False
@@ -2984,15 +2981,15 @@ class TestRegraRecomendacaoTipada:
 
         (tmp_path / "config.txt").write_text("senha=admin123")
         config = {
-            "versao_configuracao": 1,
-            "regras": {
-                "segredos_rastreados": {"habilitada": True, "severidade": "error"}
+            "config_version": 1,
+            "rules": {
+                "tracked_secrets": {"enabled": True, "severity": "error"}
             },
-            "excecoes": {"segredos_rastreados": []},
+            "exceptions": {"tracked_secrets": []},
         }
         resultado = executar_auditoria(str(tmp_path), config)
         erros = [
-            r for r in resultado["resultados"] if r["regra"] == "segredos_rastreados"
+            r for r in resultado["resultados"] if r["regra"] == "tracked_secrets"
         ]
         assert len(erros) >= 1
         for r in erros:
@@ -3004,17 +3001,17 @@ class TestRegraRecomendacaoTipada:
 
         (tmp_path / "doc.md").write_text("[link](inexistente.txt)")
         config = {
-            "versao_configuracao": 1,
-            "regras": {
-                "links_internos_quebrados": {"habilitada": True, "severidade": "error"}
+            "config_version": 1,
+            "rules": {
+                "broken_internal_links": {"enabled": True, "severity": "error"}
             },
-            "excecoes": {"links_internos_quebrados": []},
+            "exceptions": {"broken_internal_links": []},
         }
         resultado = executar_auditoria(str(tmp_path), config)
         achados = [
             r
             for r in resultado["resultados"]
-            if r["regra"] == "links_internos_quebrados"
+            if r["regra"] == "broken_internal_links"
         ]
         assert len(achados) >= 1
         for r in achados:
@@ -3025,17 +3022,17 @@ class TestRegraRecomendacaoTipada:
 
         (tmp_path / "codigo.py").write_text('importar_arquivo("dados.csv")')
         config = {
-            "versao_configuracao": 1,
-            "regras": {
-                "referencias_inexistentes": {"habilitada": True, "severidade": "error"}
+            "config_version": 1,
+            "rules": {
+                "missing_references": {"enabled": True, "severity": "error"}
             },
-            "excecoes": {"referencias_inexistentes": []},
+            "exceptions": {"missing_references": []},
         }
         resultado = executar_auditoria(str(tmp_path), config)
         achados = [
             r
             for r in resultado["resultados"]
-            if r["regra"] == "referencias_inexistentes"
+            if r["regra"] == "missing_references"
         ]
         assert len(achados) >= 1
         for r in achados:
@@ -3047,17 +3044,17 @@ class TestRegraRecomendacaoTipada:
         (tmp_path / ".gitignore").write_text("*.log\n")
         (tmp_path / "gerado.txt").write_text("conteudo")
         config = {
-            "versao_configuracao": 1,
-            "regras": {
-                "artefatos_fora_gitignore": {"habilitada": True, "severidade": "error"}
+            "config_version": 1,
+            "rules": {
+                "untracked_artifacts": {"enabled": True, "severity": "error"}
             },
-            "excecoes": {"artefatos_fora_gitignore": []},
+            "exceptions": {"untracked_artifacts": []},
         }
         resultado = executar_auditoria(str(tmp_path), config)
         achados = [
             r
             for r in resultado["resultados"]
-            if r["regra"] == "artefatos_fora_gitignore"
+            if r["regra"] == "untracked_artifacts"
         ]
         assert len(achados) >= 1
         for r in achados:
@@ -3069,15 +3066,15 @@ class TestRegraRecomendacaoTipada:
         (tmp_path / "vazio" / ".gitkeep").parent.mkdir()
         (tmp_path / "vazio" / ".gitkeep").write_text("")
         config = {
-            "versao_configuracao": 1,
-            "regras": {
-                "gitkeep_sem_conteudo": {"habilitada": True, "severidade": "warning"}
+            "config_version": 1,
+            "rules": {
+                "empty_gitkeep_directories": {"enabled": True, "severity": "warning"}
             },
-            "excecoes": {"gitkeep_sem_conteudo": []},
+            "exceptions": {"empty_gitkeep_directories": []},
         }
         resultado = executar_auditoria(str(tmp_path), config)
         achados = [
-            r for r in resultado["resultados"] if r["regra"] == "gitkeep_sem_conteudo"
+            r for r in resultado["resultados"] if r["regra"] == "empty_gitkeep_directories"
         ]
         assert len(achados) >= 1
         for r in achados:
@@ -3098,20 +3095,20 @@ class TestRegraRecomendacaoTipada:
             shell=False,
         )
         config = {
-            "versao_configuracao": 1,
-            "regras": {
-                "arquivos_sem_referencia": {
-                    "habilitada": True,
-                    "severidade": "warning",
+            "config_version": 1,
+            "rules": {
+                "unreferenced_files": {
+                    "enabled": True,
+                    "severity": "warning",
                 }
             },
-            "excecoes": {"arquivos_sem_referencia": []},
+            "exceptions": {"unreferenced_files": []},
         }
         resultado = executar_auditoria(str(repo), config)
         achados = [
             r
             for r in resultado["resultados"]
-            if r["regra"] == "arquivos_sem_referencia"
+            if r["regra"] == "unreferenced_files"
         ]
         assert len(achados) >= 1
         for r in achados:
@@ -3122,20 +3119,20 @@ class TestRegraRecomendacaoTipada:
 
         (tmp_path / "doc.md").write_text("Referencia `dados.csv`")
         config = {
-            "versao_configuracao": 1,
-            "regras": {
-                "documentacao_desatualizada": {
-                    "habilitada": True,
-                    "severidade": "warning",
+            "config_version": 1,
+            "rules": {
+                "outdated_documentation": {
+                    "enabled": True,
+                    "severity": "warning",
                 }
             },
-            "excecoes": {"documentacao_desatualizada": []},
+            "exceptions": {"outdated_documentation": []},
         }
         resultado = executar_auditoria(str(tmp_path), config)
         achados = [
             r
             for r in resultado["resultados"]
-            if r["regra"] == "documentacao_desatualizada"
+            if r["regra"] == "outdated_documentation"
         ]
         assert len(achados) >= 1
         for r in achados:
@@ -3146,20 +3143,20 @@ class TestRegraRecomendacaoTipada:
 
         (tmp_path / ".pre-commit-config.yaml").write_text("repos: []")
         config = {
-            "versao_configuracao": 1,
-            "regras": {
-                "configuracao_sem_integracao": {
-                    "habilitada": True,
-                    "severidade": "warning",
+            "config_version": 1,
+            "rules": {
+                "unintegrated_configurations": {
+                    "enabled": True,
+                    "severity": "warning",
                 }
             },
-            "excecoes": {"configuracao_sem_integracao": []},
+            "exceptions": {"unintegrated_configurations": []},
         }
         resultado = executar_auditoria(str(tmp_path), config)
         achados = [
             r
             for r in resultado["resultados"]
-            if r["regra"] == "configuracao_sem_integracao"
+            if r["regra"] == "unintegrated_configurations"
         ]
         assert len(achados) >= 1
         for r in achados:
@@ -3187,15 +3184,15 @@ class TestRegraRecomendacaoTipada:
             shell=False,
         )
         config = {
-            "versao_configuracao": 1,
-            "regras": {
-                "openspec_parada": {"habilitada": True, "severidade": "warning"}
+            "config_version": 1,
+            "rules": {
+                "stale_openspec_changes": {"enabled": True, "severity": "warning"}
             },
-            "excecoes": {"openspec_parada": []},
+            "exceptions": {"stale_openspec_changes": []},
         }
         resultado = executar_auditoria(str(repo), config)
         achados = [
-            r for r in resultado["resultados"] if r["regra"] == "openspec_parada"
+            r for r in resultado["resultados"] if r["regra"] == "stale_openspec_changes"
         ]
         assert len(achados) >= 1
         for r in achados:
@@ -3210,15 +3207,15 @@ class TestRegraRecomendacaoTipada:
             "name: Test\npermissions: write-all\njobs: {}\n"
         )
         config = {
-            "versao_configuracao": 1,
-            "regras": {
-                "workflows_inseguros": {"habilitada": True, "severidade": "warning"}
+            "config_version": 1,
+            "rules": {
+                "insecure_workflows": {"enabled": True, "severity": "warning"}
             },
-            "excecoes": {"workflows_inseguros": []},
+            "exceptions": {"insecure_workflows": []},
         }
         resultado = executar_auditoria(str(tmp_path), config)
         achados = [
-            r for r in resultado["resultados"] if r["regra"] == "workflows_inseguros"
+            r for r in resultado["resultados"] if r["regra"] == "insecure_workflows"
         ]
         assert len(achados) >= 1
         for r in achados:
@@ -3234,17 +3231,17 @@ class TestRegraRecomendacaoTipada:
             "name: Test\non: push\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@main\n"
         )
         config = {
-            "versao_configuracao": 1,
-            "regras": {
-                "workflows_inseguros": {"habilitada": True, "severidade": "warning"}
+            "config_version": 1,
+            "rules": {
+                "insecure_workflows": {"enabled": True, "severity": "warning"}
             },
-            "excecoes": {"workflows_inseguros": []},
+            "exceptions": {"insecure_workflows": []},
         }
         resultado = executar_auditoria(str(tmp_path), config)
         achados = [
-            r for r in resultado["resultados"] if r["regra"] == "workflows_inseguros"
+            r for r in resultado["resultados"] if r["regra"] == "insecure_workflows"
         ]
-        sem_versao = [r for r in achados if "sem versão fixa" in r.get("mensagem", "")]
+        sem_versao = [r for r in achados if "without pinned version" in r.get("mensagem", "")]
         assert len(sem_versao) >= 1
         for r in sem_versao:
             assert r["recomendacao"] == PIN_ACTION_VERSION
@@ -3268,23 +3265,23 @@ class TestRepositoriosAninhados:
         (nested / "README.md").write_text("# clone")
 
         config = {
-            "versao_configuracao": 1,
-            "regras": {
-                "repositorios_aninhados": {"habilitada": True, "severidade": "error"},
-                "artefatos_fora_gitignore": {
-                    "habilitada": True,
-                    "severidade": "error",
+            "config_version": 1,
+            "rules": {
+                "nested_repositories": {"enabled": True, "severity": "error"},
+                "untracked_artifacts": {
+                    "enabled": True,
+                    "severity": "error",
                 },
             },
-            "excecoes": {
-                "repositorios_aninhados": [],
-                "artefatos_fora_gitignore": [],
+            "exceptions": {
+                "nested_repositories": [],
+                "untracked_artifacts": [],
             },
         }
         resultado = executar_auditoria(str(repo), config)
 
         nested_findings = [
-            r for r in resultado["resultados"] if r["regra"] == "repositorios_aninhados"
+            r for r in resultado["resultados"] if r["regra"] == "nested_repositories"
         ]
         assert len(nested_findings) == 1
         assert nested_findings[0]["caminho"] == "accidental-clone"
@@ -3293,7 +3290,7 @@ class TestRepositoriosAninhados:
         artefato_findings = [
             r
             for r in resultado["resultados"]
-            if r["regra"] == "artefatos_fora_gitignore"
+            if r["regra"] == "untracked_artifacts"
             and r["caminho"] in ("accidental-clone", "accidental-clone/")
         ]
         assert artefato_findings == []
@@ -3313,15 +3310,15 @@ class TestRepositoriosAninhados:
         )
 
         config = {
-            "versao_configuracao": 1,
-            "regras": {
-                "repositorios_aninhados": {"habilitada": True, "severidade": "error"},
+            "config_version": 1,
+            "rules": {
+                "nested_repositories": {"enabled": True, "severity": "error"},
             },
-            "excecoes": {"repositorios_aninhados": []},
+            "exceptions": {"nested_repositories": []},
         }
         resultado = executar_auditoria(str(repo), config)
         nested_findings = [
-            r for r in resultado["resultados"] if r["regra"] == "repositorios_aninhados"
+            r for r in resultado["resultados"] if r["regra"] == "nested_repositories"
         ]
         assert nested_findings == []
 
@@ -3335,15 +3332,15 @@ class TestRepositoriosAninhados:
         (nested / ".git").mkdir()
 
         config = {
-            "versao_configuracao": 1,
-            "regras": {
-                "repositorios_aninhados": {"habilitada": True, "severidade": "error"},
+            "config_version": 1,
+            "rules": {
+                "nested_repositories": {"enabled": True, "severity": "error"},
             },
-            "excecoes": {"repositorios_aninhados": []},
+            "exceptions": {"nested_repositories": []},
         }
         resultado = executar_auditoria(str(repo), config)
         nested_findings = [
-            r for r in resultado["resultados"] if r["regra"] == "repositorios_aninhados"
+            r for r in resultado["resultados"] if r["regra"] == "nested_repositories"
         ]
         assert nested_findings == []
 
@@ -3377,14 +3374,14 @@ class TestRepositoriosAninhados:
         )
 
         config = {
-            "versao_configuracao": 1,
-            "regras": {
-                "repositorios_aninhados": {"habilitada": True, "severidade": "error"},
+            "config_version": 1,
+            "rules": {
+                "nested_repositories": {"enabled": True, "severity": "error"},
             },
-            "excecoes": {"repositorios_aninhados": []},
+            "exceptions": {"nested_repositories": []},
         }
         resultado = executar_auditoria(str(repo), config)
         nested_findings = [
-            r for r in resultado["resultados"] if r["regra"] == "repositorios_aninhados"
+            r for r in resultado["resultados"] if r["regra"] == "nested_repositories"
         ]
         assert nested_findings == []

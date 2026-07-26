@@ -1,4 +1,4 @@
-"""Validação de mensagens de commit contra o padrão Conventional Commits."""
+"""Commit message validation against the Conventional Commits standard."""
 
 import re
 import subprocess
@@ -27,7 +27,7 @@ def validar_commits(repo_path, severidade="warning"):
             {
                 "regra": "conventional-commits",
                 "caminho": repo_path,
-                "severidade": "error",
+                "severity": "error",
                 "mensagem": "git não disponível no PATH — auditoria de commits não executada",
             }
         ]
@@ -47,7 +47,7 @@ def validar_commits(repo_path, severidade="warning"):
                 {
                     "regra": "conventional-commits",
                     "caminho": hash_commit,
-                    "severidade": severidade,
+                    "severity": severidade,
                     "mensagem": f"Commit não segue Conventional Commits: {mensagem!r}",
                 }
             )

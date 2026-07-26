@@ -49,7 +49,7 @@ class TestInstallSkill:
         segundo = _run_cli("install", cwd=tmp_path)
         assert segundo.returncode == 0
         assert destino.read_text() == "conteudo local do usuario"
-        assert "Pulando" in segundo.stdout
+        assert "Skipping" in segundo.stdout
 
     def test_install_force_sobrescreve_skill(self, tmp_path):
         _run_cli("install", cwd=tmp_path)
