@@ -2,45 +2,51 @@
 
 ## Purpose
 
-Garantir que a documentação de uso, exemplos de configuração e templates de integração permaneçam coerentes com a implementação atual da CLI e do pacote.
+Ensure that user-facing documentation, configuration examples, and integration templates stay consistent with the current implementation of the CLI and the package.
 
 ## Requirements
 
 ### Requirement: Documented onboarding flow
-O README SHALL apresentar `repository-hygiene --init .` antes da auditoria como fluxo recomendado para um repositório ainda não configurado, incluindo revisão de `auditoria.yaml` antes da primeira auditoria. O README SHALL documentar que a reconciliação semântica utiliza documentos OpenSpec, documentação OpenWiki e grafo de conhecimento quando disponíveis para reduzir falsos-positivos.
+
+The README SHALL present `repository-hygiene --init .` (or `repository-hygiene install .` if that subcommand is canonical at release time) before running the audit as the recommended flow for a repository that is not yet configured, including a review of `auditoria.yaml` before the first audit. The README SHALL document that semantic reconciliation uses OpenSpec documents, OpenWiki documentation, and the knowledge graph when available to reduce false positives.
 
 #### Scenario: New repository follows documented setup
-- **WHEN** um usuário instala o pacote e segue o fluxo recomendado do README
-- **THEN** ele encontra inicialização, revisão da configuração e execução de `repository-hygiene .` nessa ordem
+- **WHEN** a user installs the package and follows the recommended flow in the README
+- **THEN** they encounter installation, configuration review, and `repository-hygiene .` execution in that order
 
 #### Scenario: User understands semantic reconciliation sources
-- **WHEN** um usuário consulta o README sobre como a auditoria classifica conteúdo
-- **THEN** o README descreve que documentos OpenSpec, documentação OpenWiki e o grafo de conhecimento são usados como evidência semântica quando disponíveis
+- **WHEN** a user consults the README about how the audit classifies content
+- **THEN** the README describes that OpenSpec documents, OpenWiki documentation, and the knowledge graph are used as semantic evidence when available
 
 ### Requirement: CLI documentation matches implementation
-O README SHALL document somente opções e comportamentos presentes na CLI atual, incluindo relatório padrão, formatos explícitos, `--output`, `--force`, `--install-hook` e `--pre-commit` quando aplicável.
+
+The README SHALL document only options and behaviors present in the current CLI, including the default report, explicit formats, `--output`, `--force`, `--install-hook`, and `--pre-commit` when applicable.
 
 #### Scenario: User selects an explicit report format
-- **WHEN** o usuário executa a CLI com `--format text`, `--format json` ou `--format sarif`
-- **THEN** o README descreve que o formato selecionado é emitido no terminal e pode ser salvo com `--output`
+- **WHEN** the user runs the CLI with `--format text`, `--format json`, or `--format sarif`
+- **THEN** the README describes that the selected format is emitted on the terminal and can be saved with `--output`
 
 ### Requirement: Generated workflow handles audit failures
-O template de workflow SHALL preservar o código de saída da auditoria, publicar o relatório mesmo quando a auditoria retorna código 1 ou 2 e executar a gestão de issue conforme as condições documentadas.
+
+The workflow template SHALL preserve the audit exit code, publish the report even when the audit returns code 1 or 2, and execute issue management per the documented conditions.
 
 #### Scenario: Audit finds errors in generated workflow
-- **WHEN** o workflow gerado executa uma auditoria que retorna código 1
-- **THEN** a etapa de auditoria registra `exit_code=1`, a etapa de resumo publica o relatório e a etapa de issue pode criar ou atualizar a issue fora de pull requests
+- **WHEN** the generated workflow runs an audit that returns code 1
+- **THEN** the audit step records `exit_code=1`, the summary step publishes the report, and the issue step can create or update the issue outside pull requests
 
 #### Scenario: Audit fails due to configuration or execution
-- **WHEN** o workflow gerado executa uma auditoria que retorna código 2
-- **THEN** o relatório ainda é publicado e o código 2 permanece disponível para as condições posteriores do workflow
+- **WHEN** the generated workflow runs an audit that returns code 2
+- **THEN** the report is still published and the code 2 remains available for downstream workflow conditions
 
 ### Requirement: Configuration examples match template
-O exemplo de `auditoria.yaml` no README SHALL incluir ou explicar as opções de configuração suportadas pelo template oficial quando elas alterarem o comportamento das regras, incluindo padrões de artefatos e permissões write permitidas.
+
+The `auditoria.yaml` example in the README SHALL include or explain the configuration options supported by the official template when those options change rule behavior, including artifact patterns and permitted write permissions. The example SHALL use English keys, including the canonical English key for permitted write permissions inside `insecure_workflows`.
 
 #### Scenario: User configures workflow permission exception
-- **WHEN** o usuário consulta o exemplo de configuração para permitir uma permissão write necessária
-- **THEN** o README apresenta `permissoes_write_permitidas` dentro de `workflows_inseguros` ou explica seu uso
+- **GIVEN** the README contains a configuration example
+- **WHEN** the user consults the example to permit a required write permission
+- **THEN** the example uses `permitted_write_permissions` inside `insecure_workflows` (or its canonical English equivalent)
+- **AND** the example explicitly references the canonical English key name
 
 ### Requirement: Documentation verification includes planning documents and knowledge graph
 
@@ -60,3 +66,20 @@ The auditor SHALL verify documentation consistency against OpenSpec documents in
 - **WHEN** the knowledge graph contains a node for a symbol that is not present in the current repository state
 - **THEN** the auditor SHALL report stale knowledge
 - **AND** the auditor SHALL recommend regenerating the knowledge graph
+
+### Requirement: Documentation and config examples use English identifiers
+
+Documentation surfaces (`README.md`, `docs/`) and config examples SHALL use English identifiers for any rule names, configuration keys, CLI flag names, or workflow step names referenced in the text. Idiomatic prose SHALL also be English.
+
+#### Scenario: README references an English config key
+- **WHEN** the user reads the README and finds an `auditoria.yaml` example or rule discussion
+- **THEN** every key name, rule identifier, and CLI flag in that prose is English
+
+#### Scenario: README mentions an English exception class name
+- **WHEN** the README references an exception class from `auditoria_higiene.core`
+- **THEN** the reference uses the English class name, not a translated or descriptive paraphrase
+
+#### Scenario: README contains an English link to MIGRATION.md
+- **WHEN** the README references schema migration guidance
+- **THEN** the link points to `docs/MIGRATION.md`
+- **AND** the link text is in English
