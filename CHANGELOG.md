@@ -1,13 +1,14 @@
 # CHANGELOG
 
 
-## v1.0.0 (2026-07-26)
+## v0.6.0 (2026-07-26)
 
-### BREAKING CHANGE
+### Features
 
-- Rename all Portuguese configuration keys to English in `auditoria.yaml` — see
-  [Migration Guide](docs/MIGRATION.md) for the key translation table.
-  Existing configurations using Portuguese keys must be updated.
+- English only localization
+  ([`b27a8b8`](https://github.com/frederico-mello/repository-hygiene/commit/b27a8b855d4fca0f97510f9600f64b4834cbfdd2))
+
+- Implements change `` - Archived to openspec/changes/archive/
 
 
 ## v0.5.0 (2026-07-25)
