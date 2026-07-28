@@ -38,6 +38,9 @@ regras:
     severidade: warning
     # Permissões write necessárias ao workflow podem ser explicitamente permitidas.
     permissoes_write_permitidas: [issues]
+  commits_convencionais:
+    habilitada: true
+    severidade: warning
 
 excecoes:
   segredos_rastreados:
@@ -56,3 +59,4 @@ excecoes:
   configuracao_sem_integracao: []
   openspec_parada: []
   workflows_inseguros: []
+  commits_convencionais: []

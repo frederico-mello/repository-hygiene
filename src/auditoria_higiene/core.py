@@ -7,6 +7,8 @@ from datetime import datetime, timezone
 
 import yaml
 
+from auditoria_higiene.commit_check import validar_commits
+
 CONFIG_VERSION = 1
 
 _DIR_ARCHIVE = ".archive/"
@@ -121,6 +123,8 @@ def _avaliar_regra(nome_regra, cfg, raiz, caminhos_excluidos, resultados):
         _verificar_workflows_inseguros(
             raiz, caminhos_excluidos, resultados, severidade, cfg
         )
+    elif nome_regra == "commits_convencionais":
+        resultados.extend(validar_commits(raiz, severidade))
 
 
 def _esta_excluido(caminho, caminhos_excluidos):

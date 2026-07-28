@@ -1,0 +1,28 @@
+#!/usr/bin/env python3
+"""Validate commit messages before Git creates a commit."""
+
+import re
+import sys
+
+
+PATTERN = re.compile(
+    r"^(feat|fix|docs|style|refactor|perf|test|chore|ci|build)"
+    r"(?:\([^()]+\))?!?: .+\S$"
+)
+
+
+def main():
+    with open(sys.argv[1], encoding="utf-8") as message_file:
+        message = message_file.readline().rstrip("\r\n")
+    if PATTERN.fullmatch(message):
+        return 0
+    print(
+        "Commit message must follow Conventional Commits "
+        "(type: description).",
+        file=sys.stderr,
+    )
+    return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -16,6 +16,8 @@ def cmd_init(directory, force=False, install_hook=False):
     print(f"Arquivos gerados em {raiz}")
     print("Execute 'repository-hygiene .' para auditar o repositório.")
 
+    _instalar_commit_msg(raiz, force)
+
     if install_hook:
         _instalar_hook(raiz, force)
 
@@ -39,6 +41,27 @@ def _instalar_hook(raiz, force):
         f.write(dados)
     os.chmod(hook_path, 0o700)
     print("  Criado: .git/hooks/pre-commit")
+
+
+def _instalar_commit_msg(raiz, force):
+    git_dir = _caminho_no_diretorio(raiz, ".git")
+    if not os.path.isdir(git_dir):
+        print(f"  Aviso: {raiz} não é um repositório Git; hook commit-msg não instalado")
+        return
+    hook_dir = _caminho_no_diretorio(git_dir, "hooks")
+    hook_path = _caminho_no_diretorio(hook_dir, "commit-msg")
+    if os.path.exists(hook_path) and not force:
+        print("  Pulando (já existe): .git/hooks/commit-msg")
+        return
+    os.makedirs(hook_dir, exist_ok=True)
+    dados = pkgutil.get_data(__package__, "templates/commit-msg")
+    if dados is None:
+        print("  Erro: template não encontrado: templates/commit-msg", file=sys.stderr)
+        return
+    with open(hook_path, "wb") as f:
+        f.write(dados)
+    os.chmod(hook_path, 0o700)
+    print("  Criado: .git/hooks/commit-msg")
 
 
 def _gerar_arquivo(raiz, caminho_rel, template_recurso, force):

@@ -1318,6 +1318,34 @@ class TestCLIPreCommit:
 
 
 class TestNativeHook:
+    def test_init_installs_commit_msg_hook_by_default(self, git_repo):
+        result = subprocess.run(
+            [sys.executable, "-m", "auditoria_higiene.cli", "--init", str(git_repo)],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+
+        assert result.returncode == 0
+        hook_path = git_repo / ".git" / "hooks" / "commit-msg"
+        assert hook_path.exists()
+        assert os.access(hook_path, os.X_OK)
+
+
+def test_workflow_template_does_not_pin_old_package_version():
+    template = os.path.join(
+        os.path.dirname(__file__),
+        "..",
+        "src",
+        "auditoria_higiene",
+        "templates",
+        "workflow.yml",
+    )
+    content = open(template, encoding="utf-8").read()
+
+    assert "repository-hygiene==0.2.0" not in content
+    assert "pip install repository-hygiene" in content
+
     def test_install_hook_in_repo_without_hook(self, tmp_path, git_repo):
         repo = git_repo
 
@@ -2035,7 +2063,8 @@ class TestDistribuicao:
         cmd_init(str(tmp_path))
         wf_path = tmp_path / ".github" / "workflows" / "repository-hygiene.yml"
         content = wf_path.read_text()
-        assert "pip install repository-hygiene==" in content
+        assert "pip install repository-hygiene" in content
+        assert "pip install repository-hygiene==" not in content
         assert "git+https://github.com" not in content
 
     def test_workflow_template_captura_exit_code_1(self, tmp_path):
