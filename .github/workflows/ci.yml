@@ -35,7 +35,9 @@ jobs:
         run: uv build
 
       - name: Run tests
-        run: uv run --no-project --no-build --find-links dist --with-requirements .github/workflows/requirements-ci.txt python -m pytest tests_package/ -q
+        run: |
+          uv pip install --require-hashes --only-binary :all: --find-links dist -r .github/workflows/requirements-ci.lock
+          uv run --no-project --no-build python -m pytest tests_package/ -q
 
   install-flow:
     name: install flow (${{ matrix.os }})
