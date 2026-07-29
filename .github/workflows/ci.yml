@@ -35,7 +35,7 @@ jobs:
         run: uv build
 
       - name: Install package
-        run: "uv pip install --only-binary=:all: --no-build --find-links dist repository-hygiene==1.0.0"
+        run: "uv pip install --only-binary :all: --find-links dist repository-hygiene==1.0.0"
 
       - name: Run tests
         env:
