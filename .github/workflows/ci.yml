@@ -27,7 +27,7 @@ jobs:
         run: uv venv
 
       - name: Install test runner
-        run: uv pip install --only-binary :all: 'pytest==8.3.4'
+        run: "uv pip install --only-binary :all: 'pytest==8.3.4'"
 
       - name: Install package
         run: uv pip install -e .
