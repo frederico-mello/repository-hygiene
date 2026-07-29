@@ -7,7 +7,124 @@ from datetime import datetime, timezone
 
 import yaml
 
-from auditoria_higiene.commit_check import validar_commits
+_MIGRATION_GUIDE_PATH = "docs/MIGRATION.md"
+
+
+class ConfigError(ValueError):
+    """Raised when a configuration file violates the localization contract."""
+
+
+_PT_TO_EN: dict[str, str] = {
+    "versao_configuracao": "config_version",
+    "regras": "rules",
+    "excecoes": "exceptions",
+    "segredos_rastreados": "tracked_secrets",
+    "links_internos_quebrados": "broken_internal_links",
+    "referencias_inexistentes": "missing_references",
+    "artefatos_fora_gitignore": "untracked_artifacts",
+    "gitkeep_sem_conteudo": "empty_gitkeep_directories",
+    "arquivos_sem_referencia": "unreferenced_files",
+    "documentacao_desatualizada": "outdated_documentation",
+    "configuracao_sem_integracao": "unintegrated_configurations",
+    "openspec_parada": "stale_openspec_changes",
+    "workflows_inseguros": "insecure_workflows",
+    "repositorios_aninhados": "nested_repositories",
+    "conventional-commits": "conventional_commits",
+    "fontes_semanticas": "semantic_sources",
+    "padroes_artefatos": "artifact_patterns",
+    "permissoes_write_permitidas": "allowed_write_permissions",
+    "habilitada": "enabled",
+    "severidade": "severity",
+    "openwiki": "openwiki",
+    "graphify": "graphify",
+    "openspec": "openspec",
+}
+
+_LOCALIZED_CONFIG_KEYS: frozenset[str] = frozenset(_PT_TO_EN.values())
+
+
+def _visitar_chaves(no):
+    if isinstance(no, dict):
+        for chave, valor in no.items():
+            if isinstance(chave, str):
+                yield chave
+            yield from _visitar_chaves(valor)
+    elif isinstance(no, list):
+        for item in no:
+            yield from _visitar_chaves(item)
+
+
+def _distancia_edicao(a, b):
+    if a == b:
+        return 0
+    if not a:
+        return len(b)
+    if not b:
+        return len(a)
+    anterior = list(range(len(b) + 1))
+    for i, ca in enumerate(a, 1):
+        atual = [i]
+        for j, cb in enumerate(b, 1):
+            insercao = atual[j - 1] + 1
+            delecao = anterior[j] + 1
+            sub = anterior[j - 1] + (0 if ca == cb else 1)
+            atual.append(min(insercao, delecao, sub))
+        anterior = atual
+    return anterior[-1]
+
+
+def _chave_mais_proxima(chave, max_dist=2):
+    melhor = None
+    melhor_dist = max_dist + 1
+    for en in _LOCALIZED_CONFIG_KEYS:
+        d = _distancia_edicao(chave, en)
+        if d < melhor_dist:
+            melhor_dist = d
+            melhor = en
+    return melhor
+
+
+def _validar_chave_localizada(config) -> None:
+    if not isinstance(config, dict):
+        return
+    chaves = sorted(set(_visitar_chaves(config)))
+    pt_chaves = [c for c in chaves if c in _PT_TO_EN]
+    unknown_chaves = [
+        c for c in chaves if c not in _PT_TO_EN and c not in _LOCALIZED_CONFIG_KEYS
+    ]
+    if not pt_chaves and not unknown_chaves:
+        return
+    linhas = [
+        "Configuration rejected: invalid keys detected in auditoria.yaml."
+    ]
+    if pt_chaves:
+        linhas.append("Portuguese keys detected (rename to the English equivalent):")
+        for chave in pt_chaves:
+            linhas.append(f"  - {chave} -> {_PT_TO_EN[chave]}")
+    if unknown_chaves:
+        linhas.append("Unknown keys detected:")
+        for chave in unknown_chaves:
+            sugestao = _chave_mais_proxima(chave)
+            if sugestao:
+                linhas.append(f"  - {chave} (did you mean: {sugestao}?)")
+            else:
+                linhas.append(f"  - {chave}")
+    linhas.append(
+        f"See {_MIGRATION_GUIDE_PATH} for the canonical English key table."
+    )
+    raise ConfigError("\n".join(linhas))
+
+
+REMOVE = "remove"
+ADD_TO_GITIGNORE = "add-to-gitignore"
+FIX_REFERENCE = "fix-reference"
+UPDATE_DOCS = "update-documentation"
+ADD_CI = "add-ci-integration"
+ARCHIVE_CHANGE = "archive-change"
+SCOPE_PERMISSIONS = "scope-permissions"
+INVESTIGATE = "investigate"
+ACCEPT_FALSE_POSITIVE = "accept-false-positive"
+PIN_ACTION_VERSION = "pin-action-version"
 
 CONFIG_VERSION = 1
 
@@ -137,8 +254,15 @@ def _avaliar_regra(nome_regra, cfg, raiz, caminhos_excluidos, resultados, config
         _verificar_workflows_inseguros(
             raiz, caminhos_excluidos, resultados, severidade, cfg
         )
-    elif nome_regra == "commits_convencionais":
-        resultados.extend(validar_commits(raiz, severidade))
+    elif nome_regra == "nested_repositories":
+        _verificar_repositorios_aninhados(
+            raiz, caminhos_excluidos, resultados, severidade, config
+        )
+    elif nome_regra == "conventional-commits":
+        from auditoria_higiene.commit_check import validar_commits
+
+        findings = validar_commits(raiz, severidade)
+        resultados.extend(findings)
 
 
 def _esta_excluido(caminho, caminhos_excluidos):
@@ -700,7 +824,8 @@ def _processar_ref_doc(match, raiz, caminho_rel, resultados, severidade, evidenc
     except ValueError:
         return
     if not os.path.exists(caminho_abs_ref):
-        if caminho_ref in evidencias:
+        evidencia_ref = caminho_ref.replace(os.sep, "/")
+        if caminho_ref in evidencias or evidencia_ref in evidencias:
             return
         resultados.append(
             {

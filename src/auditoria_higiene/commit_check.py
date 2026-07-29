@@ -1,21 +1,25 @@
-"""Validação de mensagens de commit no padrão Conventional Commits."""
+"""Commit message validation against the Conventional Commits standard."""
 
 import re
 import subprocess
 
 
-_TIPOS_VALIDOS = "feat|fix|docs|style|refactor|perf|test|chore|ci|build"
-_PADRAO_MENSAGEM = re.compile(rf"^(?:{_TIPOS_VALIDOS})(?:\([^()]+\))?!?: .+\S$")
+_PADRAO_CONVENCIONAL = re.compile(
+    r"^(?:feat|fix|docs|style|refactor|perf|test|chore|ci|build)"
+    r"(?:\([^)]+\))?"
+    r"!?"
+    r": \S.*$"
+)
 
 
 def validar_commits(repo_path, severidade="warning"):
     try:
-        result = subprocess.run(
-            ["git", "log", "--all", "--format=%H%x00%P%x00%s"],
+        resultado = subprocess.run(
+            ["git", "log", "--no-merges", "--format=%H%x00%s"],
             cwd=repo_path,
             capture_output=True,
             text=True,
-            check=False,
+            timeout=30,
             shell=False,
         )
     except FileNotFoundError:
@@ -23,25 +27,34 @@ def validar_commits(repo_path, severidade="warning"):
             {
                 "regra": "conventional-commits",
                 "caminho": repo_path,
-                "severidade": "error",
-                "mensagem": "git não está disponível no ambiente",
+                "severity": "error",
+                "mensagem": "git não disponível no PATH — auditoria de commits não executada",
             }
         ]
-    if result.returncode != 0:
+    except subprocess.SubprocessError:
+        return []
+
+    if resultado.returncode != 0:
         return []
 
     findings = []
-    for line in result.stdout.splitlines():
-        commit_hash, parents, message = line.split("\x00", 2)
-        if len(parents.split()) > 1:
+    for linha in resultado.stdout.splitlines():
+        if "\x00" not in linha:
             continue
-        if not _PADRAO_MENSAGEM.fullmatch(message):
+        hash_commit, _, mensagem = linha.partition("\x00")
+        if not _mensagem_conventional(mensagem):
             findings.append(
                 {
-                    "regra": "commits_convencionais",
-                    "caminho": commit_hash,
-                    "severidade": severidade,
-                    "mensagem": "Mensagem não segue Conventional Commits",
+                    "regra": "conventional-commits",
+                    "caminho": hash_commit,
+                    "severity": severidade,
+                    "mensagem": f"Commit não segue Conventional Commits: {mensagem!r}",
                 }
             )
     return findings
+
+
+def _mensagem_conventional(mensagem):
+    if not mensagem:
+        return False
+    return bool(_PADRAO_CONVENCIONAL.match(mensagem))

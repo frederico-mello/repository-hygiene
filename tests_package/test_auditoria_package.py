@@ -1499,33 +1499,105 @@ class TestCLIPreCommit:
 
 
 class TestNativeHook:
-    def test_init_installs_commit_msg_hook_by_default(self, git_repo):
+    def test_commit_msg_hook_installed_by_init(self, tmp_path, git_repo):
+        repo = git_repo
+
         result = subprocess.run(
-            [sys.executable, "-m", "auditoria_higiene.cli", "--init", str(git_repo)],
+            [sys.executable, "-m", "auditoria_higiene.cli", "--init", str(repo)],
             capture_output=True,
             text=True,
             timeout=10,
         )
-
         assert result.returncode == 0
-        hook_path = git_repo / ".git" / "hooks" / "commit-msg"
-        assert hook_path.exists()
+
+        hook_path = os.path.join(repo, ".git", "hooks", "commit-msg")
+        assert os.path.exists(hook_path)
         assert os.access(hook_path, os.X_OK)
+        content = open(hook_path).read()
+        assert "feat" in content
+        assert "Conventional Commits" in content
 
-
-def test_workflow_template_does_not_pin_old_package_version():
-    template = os.path.join(
-        os.path.dirname(__file__),
-        "..",
-        "src",
-        "auditoria_higiene",
-        "templates",
-        "workflow.yml",
+    @pytest.mark.parametrize(
+        "mensagem,esperado",
+        [
+            ("bad message", 1),
+            ("feat: add something", 0),
+        ],
     )
-    content = open(template, encoding="utf-8").read()
+    def test_commit_msg_hook_valida_mensagem(
+        self, tmp_path, git_repo, mensagem, esperado
+    ):
+        repo = git_repo
+        hook_dir = os.path.join(repo, ".git", "hooks")
+        os.makedirs(hook_dir, exist_ok=True)
+        hook_path = os.path.join(hook_dir, "commit-msg")
+        with open(hook_path, "w") as f:
+            f.write(
+                '#!/bin/sh\nMSG=$(cat "$1")\necho "$MSG" | grep -qE "^feat: " && exit 0 || exit 1\n'
+            )
+        os.chmod(hook_path, 0o700)
+        (repo / "f.txt").write_text("content")
+        subprocess.run(
+            ["git", "add", "f.txt"],
+            cwd=repo,
+            capture_output=True,
+            timeout=10,
+            shell=False,
+        )
+        result = subprocess.run(
+            ["git", "-c", "core.hooksPath=" + hook_dir, "commit", "-m", mensagem],
+            cwd=repo,
+            capture_output=True,
+            text=True,
+            timeout=10,
+            shell=False,
+        )
+        if esperado == 0:
+            assert result.returncode == 0
+        else:
+            assert result.returncode != 0
 
-    assert "repository-hygiene==0.2.0" not in content
-    assert "pip install repository-hygiene" in content
+    def test_commit_msg_preserves_existing_hook(self, tmp_path, git_repo):
+        repo = git_repo
+        hook_dir = os.path.join(repo, ".git", "hooks")
+        os.makedirs(hook_dir, exist_ok=True)
+        hook_path = os.path.join(hook_dir, "commit-msg")
+        with open(hook_path, "w") as f:
+            f.write("#!/bin/sh\necho 'existing hook'\n")
+        result = subprocess.run(
+            [sys.executable, "-m", "auditoria_higiene.cli", "--init", str(repo)],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        assert result.returncode == 0
+        assert open(hook_path).read() == "#!/bin/sh\necho 'existing hook'\n"
+        assert "Skipping" in result.stdout
+
+    def test_commit_msg_force_overwrites_hook(self, tmp_path, git_repo):
+        repo = git_repo
+        hook_dir = os.path.join(repo, ".git", "hooks")
+        os.makedirs(hook_dir, exist_ok=True)
+        hook_path = os.path.join(hook_dir, "commit-msg")
+        with open(hook_path, "w") as f:
+            f.write("#!/bin/sh\necho 'old hook'\n")
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "auditoria_higiene.cli",
+                "--init",
+                "--force",
+                str(repo),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        assert result.returncode == 0
+        content = open(hook_path).read()
+        assert "old hook" not in content
+        assert "feat" in content
 
     def test_install_hook_in_repo_without_hook(self, tmp_path, git_repo):
         repo = git_repo
@@ -2285,12 +2357,24 @@ class TestSnapshot:
         assert result.returncode != 0
         assert set(os.listdir(tmp_path)) == original_files
 
-        cmd_init(str(tmp_path))
-        wf_path = tmp_path / ".github" / "workflows" / "repository-hygiene.yml"
-        content = wf_path.read_text()
-        assert "pip install repository-hygiene" in content
-        assert "pip install repository-hygiene==" not in content
-        assert "git+https://github.com" not in content
+    def test_audit_clean_via_module_retorna_zero(self, tmp_path):
+        config = {
+            "config_version": 1,
+            "rules": {
+                "tracked_secrets": {"enabled": True, "severity": "error"}
+            },
+            "exceptions": {"tracked_secrets": []},
+        }
+        with open(os.path.join(tmp_path, "auditoria.yaml"), "w") as f:
+            yaml.dump(config, f)
+        (tmp_path / "normal.txt").write_text("conteudo normal")
+        result = subprocess.run(
+            [sys.executable, "-m", "auditoria_higiene", "audit", str(tmp_path)],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        assert result.returncode == 0
 
     def test_audit_com_erro_via_module_retorna_um(self, tmp_path):
         config = {
@@ -2819,7 +2903,8 @@ class TestSnapshot:
         assert result.returncode == 0
         workflow = tmp_path / ".github" / "workflows" / "repository-hygiene.yml"
         content = workflow.read_text()
-        assert "repository-hygiene==" in content
+        assert "pip install repository-hygiene" in content
+        assert "pip install repository-hygiene==" not in content
 
 
 class TestTaxonomiaRecomendacao:

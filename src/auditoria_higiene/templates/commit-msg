@@ -1,28 +1,18 @@
-#!/usr/bin/env python3
-"""Validate commit messages before Git creates a commit."""
+#!/bin/sh
+COMMIT_MSG_FILE=$1
+COMMIT_MSG=$(cat "$COMMIT_MSG_FILE")
 
-import re
-import sys
+echo "$COMMIT_MSG" | grep -qE "^Merge" && exit 0
 
-
-PATTERN = re.compile(
-    r"^(feat|fix|docs|style|refactor|perf|test|chore|ci|build)"
-    r"(?:\([^()]+\))?!?: .+\S$"
-)
-
-
-def main():
-    with open(sys.argv[1], encoding="utf-8") as message_file:
-        message = message_file.readline().rstrip("\r\n")
-    if PATTERN.fullmatch(message):
-        return 0
-    print(
-        "Commit message must follow Conventional Commits "
-        "(type: description).",
-        file=sys.stderr,
-    )
-    return 1
-
-
-if __name__ == "__main__":
-    sys.exit(main())
+if echo "$COMMIT_MSG" | grep -qE "^(feat|fix|docs|style|refactor|perf|test|chore|ci|build)(\([a-zA-Z0-9._-]+\))?!?: .+$"; then
+    exit 0
+else
+    echo "ERROR: Commit message must follow Conventional Commits format:"
+    echo "  type(optional-scope)!?: description"
+    echo "  Valid types: feat, fix, docs, style, refactor, perf, test, chore, ci, build"
+    echo "  Examples:"
+    echo "    feat: add new feature"
+    echo "    fix(auth): fix login bug"
+    echo "    feat!: breaking change"
+    exit 1
+fi
