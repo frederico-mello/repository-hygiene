@@ -35,7 +35,7 @@ jobs:
         run: uv build
 
       - name: Run tests
-        run: uv run --no-project --no-build --find-links dist --with repository-hygiene==1.0.0 --with pytest==8.3.4 --with PyYAML==6.0.3 python -m pytest tests_package/ -q
+        run: uv run --no-project --no-build --find-links dist --with-requirements .github/workflows/requirements-ci.txt python -m pytest tests_package/ -q
 
   install-flow:
     name: install flow (${{ matrix.os }})
