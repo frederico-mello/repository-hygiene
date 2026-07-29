@@ -54,15 +54,17 @@ jobs:
           else
             exit_code=$?
           fi
-          echo "exit_code=$exit_code" >> $GITHUB_OUTPUT
+          echo "exit_code=$exit_code" >> "$GITHUB_OUTPUT"
 
       - name: Publish report to Summary
         run: |
-          echo '## Auditoria de Higiene do Repositório' >> $GITHUB_STEP_SUMMARY
-          echo '' >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          cat auditoria-report.txt >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
+          {
+            echo '## Auditoria de Higiene do Repositório'
+            echo ''
+            echo '```'
+            cat auditoria-report.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Create or update issue
         if: github.event_name != 'pull_request' && steps.auditoria.outputs.exit_code != '0'
