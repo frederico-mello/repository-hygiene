@@ -35,8 +35,10 @@ jobs:
         run: uv build
 
       - name: Run tests
+        env:
+          PYTHONPATH: src
         run: |
-          uv pip install --require-hashes --only-binary :all: --find-links dist -r .github/workflows/requirements-ci.lock
+          uv pip install --require-hashes --only-binary :all: -r .github/workflows/requirements-ci.lock
           uv run --no-project --no-build python -m pytest tests_package/ -q
 
   install-flow:

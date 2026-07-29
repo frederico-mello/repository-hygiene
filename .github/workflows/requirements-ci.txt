@@ -1,3 +1,2 @@
-repository-hygiene==1.0.0
 pytest==8.3.4
 PyYAML==6.0.3
