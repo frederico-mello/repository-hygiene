@@ -21,7 +21,7 @@ def validar_commits(repo_path, severidade="warning"):
     except FileNotFoundError:
         return [
             {
-                "regra": "commits_convencionais",
+                "regra": "conventional-commits",
                 "caminho": repo_path,
                 "severidade": "error",
                 "mensagem": "git não está disponível no ambiente",

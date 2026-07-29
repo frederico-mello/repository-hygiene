@@ -8,3 +8,4 @@ dist/
 auditoria-report.txt
 .opencode/node_modules/
 graphify-out/
+build/

@@ -1,4 +1,4 @@
-"""CLI do auditor de higiene."""
+"""Repository hygiene auditor CLI."""
 
 import argparse
 import sys
@@ -20,7 +20,7 @@ from auditoria_higiene.reporters import (
     gerar_resumo,
     escrever_relatorio,
 )
-from auditoria_higiene.init import cmd_init
+from auditoria_higiene.init import cmd_init, cmd_install, cmd_update
 from auditoria_higiene.snapshot import (
     executar_pre_commit as executar_pre_commit_snapshot,
 )
@@ -30,11 +30,11 @@ def _resolver_config(directory, config_path):
     try:
         config_path_resolved = caminho_seguro(directory, config_path)
     except ValueError:
-        print(f"Erro: caminho de configuração inválido: {config_path}", file=sys.stderr)
+        print(f"Error: invalid config path: {config_path}", file=sys.stderr)
         sys.exit(2)
     if not os.path.exists(config_path_resolved):
         print(
-            f"Erro: arquivo de configuração não encontrado em {config_path_resolved}",
+            f"Error: configuration file not found at {config_path_resolved}",
             file=sys.stderr,
         )
         sys.exit(2)
@@ -47,10 +47,10 @@ def _carregar_config(config_path_resolved):
         validar_configuracao(config)
         return config
     except ValueError as e:
-        print(f"Erro de configuração: {e}", file=sys.stderr)
+        print(f"Configuration error: {e}", file=sys.stderr)
         sys.exit(2)
     except Exception as e:
-        print(f"Erro ao carregar configuração: {e}", file=sys.stderr)
+        print(f"Error loading configuration: {e}", file=sys.stderr)
         sys.exit(2)
 
 
@@ -74,7 +74,7 @@ def _processar_resultado(
                 directory,
             )
         except OSError as e:
-            print(f"Erro ao persistir relatório: {e}", file=sys.stderr)
+            print(f"Error persisting report: {e}", file=sys.stderr)
             sys.exit(2)
         if resumo:
             print(
@@ -105,7 +105,7 @@ def _gravar_se_solicitado(conteudo, output, directory):
     try:
         escrever_relatorio(conteudo, output, directory)
     except OSError as e:
-        print(f"Erro ao persistir relatório: {e}", file=sys.stderr)
+        print(f"Error persisting report: {e}", file=sys.stderr)
         sys.exit(2)
 
 
@@ -113,87 +113,120 @@ def _resolver_saida(directory, output):
     try:
         return caminho_seguro(directory, output)
     except ValueError:
-        print(f"Erro: caminho de saída inválido: {output}", file=sys.stderr)
+        print(f"Error: invalid output path: {output}", file=sys.stderr)
         sys.exit(2)
 
 
 def main():
+    argv = sys.argv[1:] if len(sys.argv) > 1 else []
+    if not argv or argv[0] in ("install", "audit", "update", "--help", "-h"):
+        _run_subcommand(argv if argv else ["--help"])
+    else:
+        _run_legacy(argv)
+
+
+def _run_subcommand(argv):
     parser = argparse.ArgumentParser(
         prog="repository-hygiene",
-        description="Auditor de higiene para repositórios Git",
-    )
-    parser.add_argument(
-        "directory",
-        nargs="?",
-        default=".",
-        help="Diretório raiz do repositório a auditar (padrão: .)",
-    )
-    parser.add_argument(
-        "--config",
-        default="auditoria.yaml",
-        help="Caminho do arquivo de configuração (padrão: auditoria.yaml)",
-    )
-    parser.add_argument(
-        "--format",
-        choices=["text", "json", "sarif"],
-        default=None,
-        help="Formato do relatório (padrão: resumo + JSON)",
-    )
-    parser.add_argument(
-        "--output",
-        help="Caminho do relatório; sem --format, grava JSON",
+        description="Repository hygiene auditor for Git repositories",
     )
     parser.add_argument(
         "--version",
         action="version",
         version=f"repository-hygiene {__version__}",
     )
-    parser.add_argument(
-        "--init",
-        action="store_true",
-        help="Inicializar configuração e workflow no diretório",
-    )
-    parser.add_argument(
-        "--force",
-        action="store_true",
-        help="Sobrescrever arquivos existentes sem confirmação (usado com --init)",
-    )
-    parser.add_argument(
-        "--install-hook",
-        action="store_true",
-        help="Instalar hook pre-commit nativo (usado com --init)",
-    )
-    parser.add_argument(
-        "--pre-commit",
-        action="store_true",
-        help="Modo pre-commit: audita apenas o conteúdo staged",
-    )
+    subparsers = parser.add_subparsers(dest="command", required=True)
 
-    args = parser.parse_args()
+    p = subparsers.add_parser("install", help="Install configuration and workflow in a repository")
+    p.add_argument("directory", nargs="?", default=".",
+                   help="Repository root directory (default: .)")
+    p.add_argument("--force", action="store_true",
+                   help="Overwrite existing files without confirmation")
+    p.add_argument("--dry-run", action="store_true",
+                   help="Show planned operations without modifying files")
+
+    p = subparsers.add_parser("audit", help="Run audit on a repository")
+    p.add_argument("directory", nargs="?", default=".",
+                   help="Repository root directory (default: .)")
+    p.add_argument("--config", default="auditoria.yaml",
+                   help="Configuration file path (default: auditoria.yaml)")
+    p.add_argument("--format", choices=["text", "json", "sarif"], default=None,
+                   help="Report format (default: summary + JSON)")
+    p.add_argument("--mode", choices=["pre-commit", "ci"], default=None,
+                   help="Execution mode")
+
+    p = subparsers.add_parser("update", help="Update configuration to a specific version")
+    p.add_argument("directory", nargs="?", default=".",
+                   help="Repository root directory (default: .)")
+    p.add_argument("--version", default=None,
+                   help="Target version (default: latest)")
+    p.add_argument("--dry-run", action="store_true",
+                   help="Show planned changes without modifying files")
+
+    args = parser.parse_args(argv)
+
+    if args.command == "install":
+        cmd_install(args.directory, force=args.force, dry_run=args.dry_run)
+    elif args.command == "audit":
+        _executar_auditoria(args.directory, config_path=args.config,
+                            formato=args.format, mode=args.mode)
+    elif args.command == "update":
+        cmd_update(args.directory, version=args.version, dry_run=args.dry_run)
+
+
+def _run_legacy(argv):
+    parser = argparse.ArgumentParser(
+        prog="repository-hygiene",
+        description="Repository hygiene auditor for Git repositories",
+    )
+    parser.add_argument("directory", nargs="?", default=".",
+                        help="Repository root directory (default: .)")
+    parser.add_argument("--config", default="auditoria.yaml",
+                        help="Configuration file path (default: auditoria.yaml)")
+    parser.add_argument("--format", choices=["text", "json", "sarif"], default=None,
+                        help="Report format (default: summary + JSON)")
+    parser.add_argument("--output", help="Report output path")
+    parser.add_argument("--version", action="version",
+                        version=f"repository-hygiene {__version__}")
+    parser.add_argument("--init", action="store_true",
+                        help="Initialize configuration and workflow in the directory")
+    parser.add_argument("--force", action="store_true",
+                        help="Overwrite existing files without confirmation")
+    parser.add_argument("--install-hook", action="store_true",
+                        help="Install native pre-commit hook")
+    parser.add_argument("--pre-commit", action="store_true",
+                        help="Pre-commit mode: audit staged content only")
+
+    args = parser.parse_args(argv)
 
     if args.init:
         cmd_init(args.directory, force=args.force, install_hook=args.install_hook)
-        return
-
-    if args.pre_commit:
+    elif args.pre_commit:
         _executar_pre_commit(args.directory, args.config, args.format, args.output)
-        return
+    else:
+        _executar_auditoria(args.directory, config_path=args.config,
+                            formato=args.format, output=args.output)
 
-    config_path = _resolver_config(args.directory, args.config)
+
+def _executar_auditoria(directory, config_path="auditoria.yaml",
+                        formato=None, output=None, mode=None):
+    config_path = _resolver_config(directory, config_path)
     config = _carregar_config(config_path)
 
+    if mode is not None:
+        config["modo"] = mode
+
     try:
-        resultado = executar_auditoria(args.directory, config)
+        resultado = executar_auditoria(directory, config)
     except Exception as e:
-        print(f"Erro durante auditoria: {e}", file=sys.stderr)
+        print(f"Error during audit: {e}", file=sys.stderr)
         sys.exit(2)
 
-    output = args.output
     if output and not os.path.isabs(output):
-        output = os.path.join(args.directory, output)
+        output = os.path.join(directory, output)
     if output:
-        output = _resolver_saida(args.directory, output)
-    _processar_resultado(resultado, args.format, args.directory, output)
+        output = _resolver_saida(directory, output)
+    _processar_resultado(resultado, formato, directory, output)
 
 
 def _executar_pre_commit(directory, config_path, formato=None, output=None):
@@ -203,7 +236,7 @@ def _executar_pre_commit(directory, config_path, formato=None, output=None):
     try:
         resultado = executar_pre_commit_snapshot(directory, config)
     except Exception as e:
-        print(f"Erro durante auditoria pre-commit: {e}", file=sys.stderr)
+        print(f"Error during pre-commit audit: {e}", file=sys.stderr)
         sys.exit(2)
 
     if output and not os.path.isabs(output):

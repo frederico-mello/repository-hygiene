@@ -1,7 +1,7 @@
-# Configuração do auditor de higiene do repositório
-# Regras, severidades e exceções para verificações automáticas
+# Repository hygiene auditor configuration
+# Rules, severities, and exceptions for automated checks
 
-versao_configuracao: 1
+config_version: 1
 
 regras:
   segredos_rastreados:
@@ -42,17 +42,17 @@ regras:
     habilitada: true
     severidade: warning
 
-excecoes:
-  segredos_rastreados:
+exceptions:
+  tracked_secrets:
     - .secrets.baseline
     - .env.example
-  links_internos_quebrados: []
-  referencias_inexistentes:
+  broken_internal_links: []
+  missing_references:
     - auditoria-report.txt
-  artefatos_fora_gitignore:
+  untracked_artifacts:
     - .git
-  gitkeep_sem_conteudo: []
-  arquivos_sem_referencia:
+  empty_gitkeep_directories: []
+  unreferenced_files:
     - .gitignore
     - Makefile
   documentacao_desatualizada: []

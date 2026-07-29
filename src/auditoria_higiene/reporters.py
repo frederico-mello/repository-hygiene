@@ -1,4 +1,4 @@
-"""Renderizadores de relatório: texto, JSON e SARIF."""
+"""Report renderers: text, JSON, and SARIF."""
 
 import json
 import os
@@ -7,14 +7,14 @@ from datetime import datetime, timezone
 
 
 def gerar_resumo(resultado, report_path):
-    erros = len([r for r in resultado["resultados"] if r["severidade"] == "error"])
-    avisos = len([r for r in resultado["resultados"] if r["severidade"] == "warning"])
+    erros = len([r for r in resultado["resultados"] if r["severity"] == "error"])
+    avisos = len([r for r in resultado["resultados"] if r["severity"] == "warning"])
     status = resultado["status"]
     linhas = []
     linhas.append(f"Status: {status}")
-    linhas.append(f"Erros: {erros}")
-    linhas.append(f"Avisos: {avisos}")
-    linhas.append(f"Relatório: {report_path}")
+    linhas.append(f"Errors: {erros}")
+    linhas.append(f"Warnings: {avisos}")
+    linhas.append(f"Report: {report_path}")
     return "\n".join(linhas)
 
 
@@ -24,7 +24,7 @@ def escrever_relatorio(conteudo, caminho, raiz_permitida, criar_pai=True):
     if criar_pai:
         os.makedirs(diretorio, exist_ok=True)  # NOSONAR
     elif not os.path.isdir(diretorio):
-        raise OSError(f"Diretório de saída não encontrado: {diretorio}")
+        raise OSError(f"Output directory not found: {diretorio}")
     fd, tmp = tempfile.mkstemp(prefix=".auditoria-", dir=diretorio, text=True)
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as f:
@@ -43,22 +43,22 @@ def _validar_caminho_saida(caminho, raiz_permitida):
     raiz = os.path.realpath(raiz_permitida)
     destino = os.path.realpath(caminho)
     if destino != raiz and not destino.startswith(raiz + os.sep):
-        raise OSError(f"Caminho de saída fora do diretório permitido: {caminho}")
+        raise OSError(f"Output path outside permitted directory: {caminho}")
 
 
 def gerar_relatorio_texto(resultado):
-    erros = [r for r in resultado["resultados"] if r["severidade"] == "error"]
-    avisos = [r for r in resultado["resultados"] if r["severidade"] == "warning"]
-    regras_desativadas = resultado.get("regras_desativadas", [])
+    erros = [r for r in resultado["resultados"] if r["severity"] == "error"]
+    avisos = [r for r in resultado["resultados"] if r["severity"] == "warning"]
+    regras_desativadas = resultado.get("disabled_rules", [])
     linhas = []
     linhas.append("=" * 60)
-    linhas.append("RELATORIO DE AUDITORIA DE HIGIENE")
+    linhas.append("REPOSITORY HYGIENE AUDIT REPORT")
     linhas.append("=" * 60)
     linhas.append("")
     _adicionar_secao(linhas, "ERROR", erros)
     _adicionar_secao(linhas, "WARNING", avisos)
     if regras_desativadas:
-        linhas.append(f"--- DESATIVADAS ({len(regras_desativadas)} regra(s)) ---")
+        linhas.append(f"--- DISABLED ({len(regras_desativadas)} rule(s)) ---")
         for nome in regras_desativadas:
             linhas.append(f"  [{nome}]")
         linhas.append("")
@@ -70,16 +70,16 @@ def gerar_relatorio_texto(resultado):
 def _adicionar_secao(linhas, titulo, itens):
     if not itens:
         return
-    linhas.append(f"--- {titulo} ({len(itens)} ocorrencia(s)) ---")
+    linhas.append(f"--- {titulo} ({len(itens)} occurrence(s)) ---")
     for r in itens:
         linhas.append(f"  [{r['regra']}] {r['caminho']}")
         linhas.append(f"    {r['mensagem']}")
         if "confianca" in r:
-            linhas.append(f"    Confianca: {r['confianca']}")
+            linhas.append(f"    Confidence: {r['confianca']}")
         if "evidencias" in r:
-            linhas.append(f"    Evidencias: {r['evidencias']}")
+            linhas.append(f"    Evidence: {r['evidencias']}")
         if "recomendacao" in r:
-            linhas.append(f"    Recomendacao: {r['recomendacao']}")
+            linhas.append(f"    Recommendation: {r['recomendacao']}")
     linhas.append("")
 
 
@@ -116,16 +116,16 @@ def _run_sarif(resultado):
             regras_unicas[nome] = {
                 "id": nome,
                 "name": nome,
-                "shortDescription": {"text": f"Regra de auditoria: {nome}"},
+                "shortDescription": {"text": f"Audit rule: {nome}"},
                 "defaultConfiguration": {
-                    "level": "error" if r["severidade"] == "error" else "warning"
+                    "level": "error" if r["severity"] == "error" else "warning"
                 },
             }
     results = []
     for r in resultado["resultados"]:
         result = {
             "ruleId": r["regra"],
-            "level": "error" if r["severidade"] == "error" else "warning",
+            "level": "error" if r["severity"] == "error" else "warning",
             "message": {"text": r["mensagem"]},
         }
         if "caminho" in r:
@@ -153,6 +153,6 @@ def _run_sarif(resultado):
         "results": results,
         "properties": {
             "status": resultado.get("status", "sucesso"),
-            "regras_desativadas": resultado.get("regras_desativadas", []),
+            "disabled_rules": resultado.get("disabled_rules", []),
         },
     }
