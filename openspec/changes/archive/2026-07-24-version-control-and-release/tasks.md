@@ -6,7 +6,7 @@
 
 ## 2. Hook Pre-commit + Init Integration
 
-- [x] 2.1 Create `commit-msg` hook in `src/auditoria_higiene/templates/commit-msg` that validates commit message against Conventional Commits and blocks invalid commits with clear error message
+- [x] 2.1 Create `commit-msg` hook in `src/auditoria_higiene/templates/pre-commit` that validates commit message against Conventional Commits and blocks invalid commits with clear error message
 - [x] 2.2 Update `init.py` to install `commit-msg` hook by default on `--init`, preserving existing hooks (warn + skip) unless `--force` is used
 - [x] 2.3 Add tests for hook behavior — blocks non-conventional commit, allows conventional commit, preserves existing hook, `--force` overwrites
 

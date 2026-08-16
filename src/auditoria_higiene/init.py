@@ -59,7 +59,8 @@ def cmd_update(directory, version=None, dry_run=False):
 
 
 def _dry_run_msg(raiz, caminho_rel, _template_recurso):
-    print(f"  dry-run: {os.path.join(raiz, caminho_rel)}")
+    caminho = os.path.join(raiz, caminho_rel).replace(os.sep, "/")
+    print(f"  dry-run: {caminho}")
 
 
 def _skills_root():
@@ -80,7 +81,8 @@ def _listar_skills():
 def _dry_run_msg_skills(raiz):
     for skill_name in _listar_skills():
         skill_dir_rel = os.path.join(".opencode", "skills", skill_name)
-        print(f"  dry-run: {os.path.join(raiz, skill_dir_rel)}")
+        caminho = os.path.join(raiz, skill_dir_rel).replace(os.sep, "/")
+        print(f"  dry-run: {caminho}")
 
 
 def _instalar_skills(raiz, force):

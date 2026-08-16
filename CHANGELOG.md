@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## Unreleased
+
+### Features
+
+- Add the semantic release workflow and keep generated audit workflows on the current PyPI package.
+- Publish oversized audit reports as artifacts while truncating GitHub Issue bodies safely.
+
 
 ## v0.6.0 (2026-07-26)
 

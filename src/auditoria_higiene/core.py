@@ -824,7 +824,8 @@ def _processar_ref_doc(match, raiz, caminho_rel, resultados, severidade, evidenc
     except ValueError:
         return
     if not os.path.exists(caminho_abs_ref):
-        if caminho_ref in evidencias:
+        evidencia_ref = caminho_ref.replace(os.sep, "/")
+        if caminho_ref in evidencias or evidencia_ref in evidencias:
             return
         resultados.append(
             {
