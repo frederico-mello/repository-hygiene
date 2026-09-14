@@ -1,0 +1,240 @@
+# Mira Code Review — reusable workflow
+#
+# Central review workflow for every repo. Callers stay short:
+#
+#   jobs:
+#     mira:
+#       uses: frederico-mello/repository-hygiene/.github/workflows/mira-review-reusable.yml@main
+#       permissions:
+#         contents: read
+#         pull-requests: write
+#         issues: write
+#       secrets:
+#         OPENCODE_GO_API_KEY: ${{ secrets.OPENCODE_GO_API_KEY }}
+#
+# Requirements in the CALLER repo:
+#   - secret OPENCODE_GO_API_KEY (Settings -> Secrets and variables -> Actions)
+#   - optional: a .mira.yaml at the repo root to tune review behaviour for that
+#     repo. It is merged over this workflow's defaults; the repo file does NOT
+#     need to carry LLM/provider settings.
+#
+# Two things this workflow works around, both verified against Mira 0.8.0/0.9.0:
+#
+# 1. Provider profile. Mira bundles only an `openrouter` profile. OpenCode Go
+#    (Zen) requires an `x-opencode-session` header on every request and answers
+#    HTTP 400 MissingSessionID without it. We generate providers.json in the
+#    runner and point MIRA_PROVIDERS_JSON_PATH at it.
+#
+# 2. Config layering. `mira review --config FILE` uses that file ALONE —
+#    auto-discovery of a per-repo .mira.yaml only runs when --config is absent,
+#    so passing a fixed deployment file would silently discard repo-local tuning.
+#    We therefore merge defaults + the repo's .mira.yaml and pass the result.
+#
+# Advisory by default: blockers appear in the review but do not fail the job.
+# Pass `block-on-blocker: true` from a caller to gate merges instead.
+
+name: Mira Code Review
+
+on:
+  workflow_call:
+    inputs:
+      block-on-blocker:
+        description: "Fail the job when Mira reports a blocker (merge gate)."
+        type: boolean
+        default: false
+      model:
+        description: "Model id served by the OpenCode Go endpoint."
+        type: string
+        default: "qwen3.8-max"
+      mira-ref:
+        description: "Git ref of miracodeai/mira to install (pin a release tag)."
+        type: string
+        default: "v0.9.0"
+      max-comments:
+        description: "Cap on inline comments posted per review."
+        type: number
+        default: 5
+      trust-execution-settings:
+        description: "Pass --trust-execution-settings when reading the repo's .mira.yaml. Only enable for repos whose .mira.yaml is reviewed like code: it lets that file pick the Codex command/auth home/sandbox."
+        type: boolean
+        default: false
+    secrets:
+      OPENCODE_GO_API_KEY:
+        required: true
+
+jobs:
+  review:
+    if: github.event_name == 'pull_request' || github.event_name == 'issue_comment'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0 # full history: Mira builds context from the repo
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.12"
+
+      - name: Resolve review target
+        id: ctx
+        env:
+          EVENT: ${{ github.event_name }}
+          COMMENT_BODY: ${{ github.event.comment.body || '' }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT" = "issue_comment" ]; then
+            # Re-review on demand: "@mira-review" in a PR comment.
+            case "$COMMENT_BODY" in
+              *"@mira-review"*) ;;
+              *) echo "comment has no @mira-review mention — nothing to do"; exit 0 ;;
+            esac
+            url="${{ github.event.issue.pull_request.html_url }}"
+            num="${{ github.event.issue.number }}"
+          else
+            url="${{ github.event.pull_request.html_url }}"
+            num="${{ github.event.pull_request.number }}"
+          fi
+          echo "pr_url=$url" >> "$GITHUB_OUTPUT"
+          # One stable session id per repo+PR: Zen uses it for routing and prompt
+          # caching, so a re-review of the same PR reuses the cached prefix.
+          echo "session=mira-$(echo "${{ github.repository }}-$num" | tr '/._' '---')" >> "$GITHUB_OUTPUT"
+
+      - name: Install Mira
+        if: steps.ctx.outputs.pr_url != ''
+        run: |
+          # NOTE: `pip install mira` resolves to an unrelated object-detection
+          # package. The miracodeai reviewer is only published on git.
+          pip install --quiet --disable-pip-version-check \
+            "mira-reviewer @ git+https://github.com/miracodeai/mira.git@${{ inputs.mira-ref }}"
+          mira --version
+
+      - name: Build effective config and provider profile
+        if: steps.ctx.outputs.pr_url != ''
+        env:
+          SESSION: ${{ steps.ctx.outputs.session }}
+          MODEL: ${{ inputs.model }}
+          MAX_COMMENTS: ${{ inputs.max-comments }}
+        run: |
+          set -euo pipefail
+          python - "$RUNNER_TEMP/mira-effective.yaml" <<'PY'
+          import json, os, pathlib, sys
+          import yaml
+
+          out = pathlib.Path(sys.argv[1])
+          repo_cfg = pathlib.Path(".mira.yaml")
+
+          base = {
+              "llm": {
+                  "base_url": "https://opencode.ai/zen/go/v1",
+                  "api_key_env": "OPENCODE_GO_API_KEY",
+                  "model": os.environ["MODEL"],
+                  "review_model": os.environ["MODEL"],
+                  "indexing_model": os.environ["MODEL"],
+                  "temperature": 0.2,
+                  "max_tokens": 8192,
+              },
+              "filter": {
+                  "confidence_threshold": 0.5,
+                  "max_comments": int(os.environ["MAX_COMMENTS"]),
+              },
+              "review": {
+                  "context_lines": 5,
+                  "include_summary": True,
+                  "walkthrough": True,
+              },
+          }
+
+          def deep_merge(b, o):
+              out_ = dict(b)
+              for k, v in o.items():
+                  if isinstance(out_.get(k), dict) and isinstance(v, dict):
+                      out_[k] = deep_merge(out_[k], v)
+                  else:
+                      out_[k] = v
+              return out_
+
+          if repo_cfg.is_file():
+              overlay = yaml.safe_load(repo_cfg.read_text()) or {}
+              if not isinstance(overlay, dict):
+                  raise SystemExit("repo .mira.yaml must be a mapping")
+              # The repo file must not silently repoint the endpoint or key.
+              for key in ("base_url", "api_key_env"):
+                  if key in (overlay.get("llm") or {}):
+                      print(f"::warning::ignoring llm.{key} from repo .mira.yaml")
+                      overlay["llm"].pop(key)
+              cfg = deep_merge(base, overlay)
+              print(f"merged repo .mira.yaml over workflow defaults: {sorted(overlay)}")
+          else:
+              cfg = base
+              print("no repo .mira.yaml — using workflow defaults")
+
+          out.write_text(yaml.safe_dump(cfg, sort_keys=False))
+          print(out.read_text())
+
+          profile = {
+              "opencode-go": {
+                  "base_url": "https://opencode.ai/zen/go/v1",
+                  "api_key_env": "OPENCODE_GO_API_KEY",
+                  "model_prefix": "strip",
+                  "extra_headers": {"x-opencode-session": os.environ["SESSION"]},
+                  "reasoning_effort_map": {},
+              }
+          }
+          p = pathlib.Path(os.environ["RUNNER_TEMP"]) / "providers.json"
+          p.write_text(json.dumps(profile, indent=2))
+          print("session id:", os.environ["SESSION"])
+          PY
+          echo "MIRA_PROVIDERS_JSON_PATH=$RUNNER_TEMP/providers.json" >> "$GITHUB_ENV"
+
+      - name: Review pull request
+        id: review
+        if: steps.ctx.outputs.pr_url != ''
+        env:
+          OPENCODE_GO_API_KEY: ${{ secrets.OPENCODE_GO_API_KEY }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set +e
+          extra=""
+          if [ "${{ inputs.trust-execution-settings }}" = "true" ]; then
+            extra="--trust-execution-settings"
+          fi
+          mira review \
+            --pr "${{ steps.ctx.outputs.pr_url }}" \
+            --config "$RUNNER_TEMP/mira-effective.yaml" \
+            --github-token "$GITHUB_TOKEN" \
+            --output text \
+            $extra
+          code=$?
+          set -e
+          echo "exit_code=$code" >> "$GITHUB_OUTPUT"
+          # 0 = clean, 1 = Mira reported blockers (review was still posted).
+          # Anything else means Mira itself failed and must not pass silently.
+          if [ "$code" -gt 1 ]; then
+            echo "::error::Mira failed to run (exit $code) — see the log above"
+            exit "$code"
+          fi
+
+      - name: Summarize result
+        if: always() && steps.review.outputs.exit_code != ''
+        run: |
+          {
+            echo "## Mira code review"
+            echo ""
+            echo "| field | value |"
+            echo "|---|---|"
+            echo "| model | \`${{ inputs.model }}\` |"
+            echo "| mira | \`${{ inputs.mira-ref }}\` |"
+            echo "| result | \`${{ steps.review.outputs.exit_code }}\` (1 = blockers found) |"
+            echo "| mode | ${{ inputs.block-on-blocker && 'gate' || 'advisory' }} |"
+            echo ""
+            echo "Inline comments are posted on the pull request. Comment \`@mira-review\` to re-run."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Fail on blockers
+        if: inputs.block-on-blocker && steps.review.outputs.exit_code == '1'
+        run: |
+          echo "::error::Mira reported at least one blocker finding."
+          exit 1
