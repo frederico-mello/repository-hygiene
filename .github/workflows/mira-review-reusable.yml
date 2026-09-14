@@ -254,9 +254,25 @@ jobs:
               # NOT a usable signal: blockers (sys.exit(1)) and operational
               # errors (click.ClickException) both exit 1. Fail loudly rather
               # than reporting a review that never happened.
-              print(f"::error::Mira produced no review payload (exit {exit_code}) — see logs above")
-              with open(out, "a") as fh:
-                  fh.write("status=failed\n")
+              #
+              # Quota exhaustion is a routine, self-inflicted-able condition:
+              # OpenCode Go enforces 5-hour and weekly windows per model, and a
+              # burst of reviews trips it. Distinguish it so a red check reads
+              # as "could not review (quota)", not "the reviewer is broken".
+              low = raw.lower()
+              quota = "gousagelimiterror" in low or "usage limit" in low or "http 429" in low
+              if quota:
+                  print(
+                      "::error::Mira could not run — inference quota exhausted "
+                      "(OpenCode Go 5-hour/weekly limit). Not a code finding. "
+                      "Re-run after the window resets."
+                  )
+                  with open(out, "a") as fh:
+                      fh.write("status=quota\n")
+              else:
+                  print(f"::error::Mira produced no review payload (exit {exit_code}) — see logs above")
+                  with open(out, "a") as fh:
+                      fh.write("status=failed\n")
               sys.exit(1)
 
           comments = result.get("comments") or []
@@ -281,6 +297,10 @@ jobs:
             echo "| model | \`${{ inputs.model }}\` (fallback \`${{ inputs.fallback-model }}\`) |"
             echo "| mira | \`${{ inputs.mira-ref }}\` |"
             echo "| result | \`${{ steps.review.outputs.status }}\` — ${{ steps.review.outputs.comments }} comment(s), ${{ steps.review.outputs.blockers }} blocker(s) |"
+            if [ "${{ steps.review.outputs.status }}" = "quota" ]; then
+              echo ""
+              echo "> Inference quota exhausted for the 5-hour/weekly window. This is **not** a code finding — re-run after the window resets."
+            fi
             echo "| mode | ${{ inputs.block-on-blocker && 'gate' || 'advisory' }} |"
             echo ""
             echo "Inline comments are posted on the pull request. Comment \`@mira-review\` to re-run."
