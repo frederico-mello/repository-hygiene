@@ -1,0 +1,31 @@
+# Mira Code Review — caller for repository-hygiene
+#
+# The review logic lives in the reusable workflow so all repos stay in sync:
+#   frederico-mello/repository-hygiene/.github/workflows/mira-review-reusable.yml@ci/mira-reusable-workflow
+#
+# Needs the repo secret OPENCODE_GO_API_KEY. Review behaviour is tuned in
+# .mira.yaml at the repo root (optional — the workflow has defaults).
+# Comment `@mira-review` on a PR to re-run the review.
+
+name: Mira Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: mira-${{ github.event.pull_request.number || github.event.issue.number }}
+  cancel-in-progress: true
+
+jobs:
+  mira:
+    uses: frederico-mello/repository-hygiene/.github/workflows/mira-review-reusable.yml@ci/mira-reusable-workflow
+    secrets:
+      OPENCODE_GO_API_KEY: ${{ secrets.OPENCODE_GO_API_KEY }}
