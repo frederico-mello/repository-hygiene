@@ -51,6 +51,10 @@ on:
         description: "Model id served by the OpenCode Go endpoint."
         type: string
         default: "qwen3.8-max"
+      fallback-model:
+        description: "Model used when the primary fails (timeout, 5xx, unparseable tool call). Measured failure modes: slow endpoints exceed the request timeout on large tool-call payloads, so a fallback is not optional."
+        type: string
+        default: "minimax-m3"
       mira-ref:
         description: "Git ref of miracodeai/mira to install (pin a release tag)."
         type: string
@@ -121,6 +125,7 @@ jobs:
         env:
           SESSION: ${{ steps.ctx.outputs.session }}
           MODEL: ${{ inputs.model }}
+          FALLBACK_MODEL: ${{ inputs.fallback-model }}
           MAX_COMMENTS: ${{ inputs.max-comments }}
         run: |
           set -euo pipefail
@@ -138,8 +143,17 @@ jobs:
                   "model": os.environ["MODEL"],
                   "review_model": os.environ["MODEL"],
                   "indexing_model": os.environ["MODEL"],
+                  "fallback_model": os.environ["FALLBACK_MODEL"],
                   "temperature": 0.2,
                   "max_tokens": 8192,
+                  # Mira's default request_timeout is 120s, which a slow endpoint
+                  # exceeds on large tool-call payloads. The failure surfaces as
+                  # "LLM tool-call failed ... : " with an EMPTY message, because
+                  # httpx's TimeoutError stringifies to nothing — easy to
+                  # misdiagnose as a schema problem. Raise it and keep retries.
+                  "request_timeout": 300,
+                  "max_retries": 5,
+                  "retry_max_wait": 60,
               },
               "filter": {
                   "confidence_threshold": 0.5,
@@ -264,7 +278,7 @@ jobs:
             echo ""
             echo "| field | value |"
             echo "|---|---|"
-            echo "| model | \`${{ inputs.model }}\` |"
+            echo "| model | \`${{ inputs.model }}\` (fallback \`${{ inputs.fallback-model }}\`) |"
             echo "| mira | \`${{ inputs.mira-ref }}\` |"
             echo "| result | \`${{ steps.review.outputs.status }}\` — ${{ steps.review.outputs.comments }} comment(s), ${{ steps.review.outputs.blockers }} blocker(s) |"
             echo "| mode | ${{ inputs.block-on-blocker && 'gate' || 'advisory' }} |"
