@@ -31,6 +31,11 @@
 #    We therefore merge defaults + the repo's .mira.yaml and pass the result.
 #
 # Advisory by default: blockers appear in the review but do not fail the job.
+#
+# Never gate on Mira's exit code: `sys.exit(1)` (blockers) and
+# `click.ClickException` (LLM/operational failure) both exit 1, so exit 1 alone
+# cannot tell "found problems" from "did not run". This workflow reads the
+# JSON payload instead and fails the step when no review was produced.
 # Pass `block-on-blocker: true` from a caller to gate merges instead.
 
 name: Mira Code Review
@@ -205,20 +210,54 @@ jobs:
             --pr "${{ steps.ctx.outputs.pr_url }}" \
             --config "$RUNNER_TEMP/mira-effective.yaml" \
             --github-token "$GITHUB_TOKEN" \
-            --output text \
-            $extra
+            --output json \
+            $extra > "$RUNNER_TEMP/mira-out.txt" 2> "$RUNNER_TEMP/mira-err.txt"
           code=$?
           set -e
-          echo "exit_code=$code" >> "$GITHUB_OUTPUT"
-          # 0 = clean, 1 = Mira reported blockers (review was still posted).
-          # Anything else means Mira itself failed and must not pass silently.
-          if [ "$code" -gt 1 ]; then
-            echo "::error::Mira failed to run (exit $code) — see the log above"
-            exit "$code"
-          fi
+          echo "--- mira stdout ---"; cat "$RUNNER_TEMP/mira-out.txt"
+          echo "--- mira stderr ---"; cat "$RUNNER_TEMP/mira-err.txt"
+          python - "$RUNNER_TEMP/mira-out.txt" "$code" <<'PY'
+          import json, os, sys
+
+          raw = open(sys.argv[1], encoding="utf-8", errors="replace").read()
+          exit_code = int(sys.argv[2])
+
+          # Mira logs to stdout (logging.basicConfig(stream=sys.stdout)), so the
+          # JSON payload is interleaved with WARNING lines. Scan every "{" and
+          # keep the candidate that parses AND has a "comments" key.
+          result = None
+          for start in [i for i, ch in enumerate(raw) if ch == "{"]:
+              try:
+                  cand = json.loads(raw[start:])
+              except Exception:
+                  continue
+              if isinstance(cand, dict) and "comments" in cand:
+                  result = cand
+
+          out = os.environ["GITHUB_OUTPUT"]
+          if result is None:
+              # No parseable payload => Mira did not complete. The exit code is
+              # NOT a usable signal: blockers (sys.exit(1)) and operational
+              # errors (click.ClickException) both exit 1. Fail loudly rather
+              # than reporting a review that never happened.
+              print(f"::error::Mira produced no review payload (exit {exit_code}) — see logs above")
+              with open(out, "a") as fh:
+                  fh.write("status=failed\n")
+              sys.exit(1)
+
+          comments = result.get("comments") or []
+          blockers = [
+              c for c in comments if (c.get("severity") or "").lower() == "blocker"
+          ]
+          with open(out, "a") as fh:
+              fh.write("status=ok\n")
+              fh.write(f"comments={len(comments)}\n")
+              fh.write(f"blockers={len(blockers)}\n")
+          print(f"review parsed: {len(comments)} comment(s), {len(blockers)} blocker(s)")
+          PY
 
       - name: Summarize result
-        if: always() && steps.review.outputs.exit_code != ''
+        if: always() && steps.review.outputs.status != ''
         run: |
           {
             echo "## Mira code review"
@@ -227,14 +266,14 @@ jobs:
             echo "|---|---|"
             echo "| model | \`${{ inputs.model }}\` |"
             echo "| mira | \`${{ inputs.mira-ref }}\` |"
-            echo "| result | \`${{ steps.review.outputs.exit_code }}\` (1 = blockers found) |"
+            echo "| result | \`${{ steps.review.outputs.status }}\` — ${{ steps.review.outputs.comments }} comment(s), ${{ steps.review.outputs.blockers }} blocker(s) |"
             echo "| mode | ${{ inputs.block-on-blocker && 'gate' || 'advisory' }} |"
             echo ""
             echo "Inline comments are posted on the pull request. Comment \`@mira-review\` to re-run."
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Fail on blockers
-        if: inputs.block-on-blocker && steps.review.outputs.exit_code == '1'
+        if: inputs.block-on-blocker && steps.review.outputs.status == 'ok' && steps.review.outputs.blockers != '0'
         run: |
           echo "::error::Mira reported at least one blocker finding."
           exit 1
