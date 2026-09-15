@@ -1,6 +1,22 @@
 # CHANGELOG
 
 
+## v0.7.1 (2026-09-15)
+
+### Bug Fixes
+
+- **mira-ci**: The retry never fired (verdict captured log output)
+  ([`1e18141`](https://github.com/frederico-mello/repository-hygiene/commit/1e181416c4eca7b83a045eaef169b475a696afb0))
+
+Caught in production on the first run of the retry code: the loop broke with 'attempt 1 verdict:
+  partial' and still did not retry. Assigning $(python ...) captured the parser's whole stdout,
+  which includes log lines besides the verdict, so the multi-line string never equalled 'partial'
+  and the retry was silently dead code.
+
+The parser now writes the verdict to its own one-line file and the loop reads that file. Verified
+  directly: ok/failed/quota break, partial retries.
+
+
 ## v0.7.0 (2026-09-15)
 
 ### Features
