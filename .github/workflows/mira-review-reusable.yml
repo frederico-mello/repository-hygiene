@@ -14,6 +14,9 @@
 #
 # Requirements in the CALLER repo:
 #   - secret OPENCODE_GO_API_KEY (Settings -> Secrets and variables -> Actions)
+#
+# The Mira version is pinned inline to a commit SHA so it is visible in review
+# and cannot be redirected by a caller.
 #   - optional: a .mira.yaml at the repo root to tune review behaviour for that
 #     repo. It is merged over this workflow's defaults; the repo file does NOT
 #     need to carry LLM/provider settings.
@@ -55,10 +58,6 @@ on:
         description: "Model used when the primary fails (timeout, 5xx, unparseable tool call). Prefer a different family: OpenCode Go enforces quota per model, so a same-family fallback can be exhausted alongside the primary."
         type: string
         default: "qwen3.8-flash"
-      mira-ref:
-        description: "Git ref of miracodeai/mira to install. Prefer the 40-char commit SHA that the release tag points at: a tag can be moved, and SonarQube flags an unpinned git dependency (githubactions:S8544). v0.9.0 = 6410f596251ccc7df86fbf10234aff1a9225fa80."
-        type: string
-        default: "6410f596251ccc7df86fbf10234aff1a9225fa80"
       max-comments:
         description: "Cap on inline comments posted per review."
         type: number
@@ -116,11 +115,17 @@ jobs:
         run: |
           # NOTE: `pip install mira` resolves to an unrelated object-detection
           # package. The miracodeai reviewer is only published on git, so the
-          # dependency is pinned by commit SHA (see the mira-ref input). SHA
+          # dependency is pinned inline by commit SHA (see the note below). SHA
           # beats tag here: a tag can be moved after review, and an unpinned
           # git dependency trips SonarQube githubactions:S8544.
+          # Version is a literal commit SHA, not an input: reviewers must be
+          # able to see exactly what runs, and a caller-supplied ref could point
+          # at a branch and silently defeat the pin. To update Mira, resolve the
+          # new release tag to its commit and change the SHA here in a reviewed
+          # PR. v0.9.0 = 6410f596251ccc7df86fbf10234aff1a9225fa80 (its tree
+          # still reports mira 0.8.0 — the tag was cut without a version bump).
           pip install --quiet --disable-pip-version-check \
-            "mira-reviewer @ git+https://github.com/miracodeai/mira.git@${{ inputs.mira-ref }}"
+            "mira-reviewer @ git+https://github.com/miracodeai/mira.git@6410f596251ccc7df86fbf10234aff1a9225fa80"
           mira --version
 
       - name: Build effective config and provider profile
@@ -306,7 +311,7 @@ jobs:
             echo "| field | value |"
             echo "|---|---|"
             echo "| model | \`${{ inputs.model }}\` (fallback \`${{ inputs.fallback-model }}\`) |"
-            echo "| mira | \`${{ inputs.mira-ref }}\` |"
+            echo "| mira | \`6410f596\` (commit SHA) |"
             echo "| result | \`${{ steps.review.outputs.status }}\` — ${{ steps.review.outputs.comments }} comment(s), ${{ steps.review.outputs.blockers }} blocker(s) |"
             if [ "${{ steps.review.outputs.status }}" = "quota" ]; then
               echo ""
