@@ -1,0 +1,380 @@
+# Mira Push Review — reusable workflow (commits diretos no main)
+#
+# Cobre o fluxo que o review de PR não alcança: commits empurrados direto para a
+# branch default, sem PR. Revisa o diff do push e, se houver blocker, abre ou
+# atualiza uma issue. Não tenta bloquear o push (já aconteceu) — o objetivo é
+# não deixar código sem revisão passar em silêncio.
+#
+# Diferenças de desenho em relação ao review de PR:
+#   - usa `mira review --stdin`, que lê o diff do stdin. Sem posting, sem
+#     indexação e sem passe de PR: medido ~8-20s contra 78-286s do caminho --pr,
+#     então é a via barata o bastante para rodar a cada push.
+#   - NÃO bloqueia nada. Publica evidência: issue com marcador, aberta ou
+#     atualizada, fechada quando o último push está limpo.
+#   - pula pushes de merge, porque o conteúdo já foi revisado no PR de origem.
+#
+# Requisitos no repo chamador:
+#   - secret OPENCODE_GO_API_KEY
+#   - permissões: contents read, issues write
+
+name: Mira Push Review
+
+on:
+  workflow_call:
+    inputs:
+      model:
+        description: "Model id served by the OpenCode Go endpoint."
+        type: string
+        default: "minimax-m3"
+      fallback-model:
+        description: "Model used when the primary fails. Prefer a different family: OpenCode Go quota is per model."
+        type: string
+        default: "qwen3.8-flash"
+      max-comments:
+        description: "Cap on findings reported in the issue."
+        type: number
+        default: 5
+      skip-merge-pushes:
+        description: "Skip pushes whose head commit is a merge (already reviewed in the origin PR)."
+        type: boolean
+        default: true
+      max-diff-lines:
+        description: "Ignore pushes whose diff exceeds this many lines (avoids reviewing huge regenerations)."
+        type: number
+        default: 4000
+    secrets:
+      OPENCODE_GO_API_KEY:
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  push-review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.12"
+
+      - name: Build the pushed diff
+        id: diff
+        env:
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.event.after }}
+          SKIP_MERGE: ${{ inputs.skip-merge-pushes }}
+          MAX_LINES: ${{ inputs.max-diff-lines }}
+        run: |
+          set -euo pipefail
+          EMPTY_TREE=4b825dc642cb6eb9a060e54bf8d69288fbee4904
+
+          if [ -z "${AFTER:-}" ] || [ "$AFTER" = "0000000000000000000000000000000000000000" ]; then
+            echo "no head sha on this event — nothing to review"
+            echo "skip=1" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # A branch creation reports an all-zero `before`; diff the whole tree.
+          if [ -z "${BEFORE:-}" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ] \
+             || ! git cat-file -e "${BEFORE}^{commit}" 2>/dev/null; then
+            echo "no usable before sha — diffing the full tree"
+            range="$EMPTY_TREE $AFTER"
+          else
+            range="$BEFORE $AFTER"
+          fi
+
+          if [ "$SKIP_MERGE" = "true" ] && [ -n "$(git rev-list --merges "${range%% *}..$AFTER" 2>/dev/null)" ]; then
+            merges=$(git rev-list --merges "${range%% *}..$AFTER" | wc -l)
+            total=$(git rev-list --count "${range%% *}..$AFTER")
+            if [ "$merges" -eq "$total" ] && [ "$total" -gt 0 ]; then
+              echo "push contains only merge commit(s) — already reviewed via their PRs"
+              echo "skip=1" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          fi
+
+          git diff $range > "$RUNNER_TEMP/push.diff"
+          lines=$(wc -l < "$RUNNER_TEMP/push.diff")
+          echo "diff lines: $lines"
+          if [ "$lines" -eq 0 ]; then
+            echo "empty diff (whitespace or mode-only) — nothing to review"
+            echo "skip=1" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ "$lines" -gt "$MAX_LINES" ]; then
+            # Reviewing a mass regeneration is noise, and a real finding would be
+            # an artifact of size rather than of the change.
+            echo "::warning::push diff is $lines lines (limit $MAX_LINES) — skipping review"
+            echo "skip=1" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "skip=0" >> "$GITHUB_OUTPUT"
+          echo "lines=$lines" >> "$GITHUB_OUTPUT"
+
+      - name: Install Mira
+        if: steps.diff.outputs.skip == '0'
+        run: |
+          pip install --quiet --disable-pip-version-check \
+            "mira-reviewer @ git+https://github.com/miracodeai/mira.git@6410f596251ccc7df86fbf10234aff1a9225fa80"
+          mira --version
+
+      - name: Configure provider and effective config
+        if: steps.diff.outputs.skip == '0'
+        env:
+          SESSION: mira-push-${{ github.repository }}
+          MODEL: ${{ inputs.model }}
+          FALLBACK_MODEL: ${{ inputs.fallback-model }}
+          MAX_COMMENTS: ${{ inputs.max-comments }}
+        run: |
+          set -euo pipefail
+          SESSION=$(echo "$SESSION" | tr '/._' '---')
+          export SESSION
+          python - "$RUNNER_TEMP/mira-effective.yaml" <<'PY'
+          import json, os, pathlib, sys
+          import yaml
+
+          out = pathlib.Path(sys.argv[1])
+          base = {
+              "llm": {
+                  "base_url": "https://opencode.ai/zen/go/v1",
+                  "api_key_env": "OPENCODE_GO_API_KEY",
+                  "model": os.environ["MODEL"],
+                  "review_model": os.environ["MODEL"],
+                  "indexing_model": os.environ["MODEL"],
+                  "fallback_model": os.environ["FALLBACK_MODEL"],
+                  "temperature": 0.2,
+                  "max_tokens": 8192,
+                  "request_timeout": 300,
+                  "max_retries": 5,
+                  "retry_max_wait": 60,
+              },
+              "filter": {
+                  "confidence_threshold": 0.5,
+                  "max_comments": int(os.environ["MAX_COMMENTS"]),
+              },
+              "review": {"context_lines": 5, "include_summary": True, "walkthrough": False},
+          }
+
+          def deep_merge(b, o):
+              merged = dict(b)
+              for k, v in o.items():
+                  if isinstance(merged.get(k), dict) and isinstance(v, dict):
+                      merged[k] = deep_merge(merged[k], v)
+                  else:
+                      merged[k] = v
+              return merged
+
+          repo_cfg = pathlib.Path(".mira.yaml")
+          if repo_cfg.is_file():
+              overlay = yaml.safe_load(repo_cfg.read_text()) or {}
+              if isinstance(overlay, dict):
+                  # Endpoint and credential are owned by this workflow, never by
+                  # the repo file.
+                  for key in ("base_url", "api_key_env"):
+                      (overlay.get("llm") or {}).pop(key, None)
+                  base = deep_merge(base, overlay)
+          out.write_text(yaml.safe_dump(base, sort_keys=False))
+
+          profile = {
+              "opencode-go": {
+                  "base_url": "https://opencode.ai/zen/go/v1",
+                  "api_key_env": "OPENCODE_GO_API_KEY",
+                  "model_prefix": "strip",
+                  "extra_headers": {"x-opencode-session": os.environ["SESSION"]},
+                  "reasoning_effort_map": {},
+              }
+          }
+          p = pathlib.Path(os.environ["RUNNER_TEMP"]) / "providers.json"
+          p.write_text(json.dumps(profile, indent=2))
+          PY
+          echo "MIRA_PROVIDERS_JSON_PATH=$RUNNER_TEMP/providers.json" >> "$GITHUB_ENV"
+
+      - name: Review the pushed diff
+        id: review
+        if: steps.diff.outputs.skip == '0'
+        env:
+          OPENCODE_GO_API_KEY: ${{ secrets.OPENCODE_GO_API_KEY }}
+        run: |
+          set +e
+          mira review --stdin --dry-run \
+            --config "$RUNNER_TEMP/mira-effective.yaml" \
+            --output json < "$RUNNER_TEMP/push.diff" \
+            > "$RUNNER_TEMP/out.txt" 2> "$RUNNER_TEMP/err.txt"
+          code=$?
+          set -e
+          echo "--- stdout"; cat "$RUNNER_TEMP/out.txt"
+          echo "--- stderr"; cat "$RUNNER_TEMP/err.txt"
+          python - "$RUNNER_TEMP/out.txt" "$RUNNER_TEMP/err.txt" "$code" <<'PY'
+          import json, os, sys
+
+          raw = open(sys.argv[1], encoding="utf-8", errors="replace").read()
+          err = open(sys.argv[2], encoding="utf-8", errors="replace").read()
+          exit_code = int(sys.argv[3])
+
+          result = None
+          for start in [i for i, ch in enumerate(raw) if ch == "{"]:
+              try:
+                  cand = json.loads(raw[start:])
+              except Exception:
+                  continue
+              if isinstance(cand, dict) and "comments" in cand:
+                  result = cand
+
+          out = os.environ["GITHUB_OUTPUT"]
+          blob = (raw + err).lower()
+
+          def emit(status, blockers=0, comments=0, dropped=0, body=""):
+              with open(out, "a") as fh:
+                  fh.write(f"status={status}\ncomments={comments}\nblockers={blockers}\n")
+                  fh.write(f"dropped_chunks={dropped}\n")
+                  fh.write("findings<<MIRAEOF\n" + body + "\nMIRAEOF\n")
+
+          if result is None:
+              if "gousagelimiterror" in blob or "usage limit" in blob or "http 429" in blob:
+                  print(
+                      "::warning::Mira could not review this push — inference quota "
+                      "exhausted. Not a code finding: re-run after the window resets."
+                  )
+                  emit("quota")
+                  sys.exit(0)
+              print(f"::error::Mira produced no review payload (exit {exit_code})")
+              emit("failed")
+              sys.exit(1)
+
+          comments = result.get("comments") or []
+          blockers = [c for c in comments if (c.get("severity") or "").lower() == "blocker"]
+          dropped = raw.count("failed to parse, skipping")
+
+          # Mirror the PR path: a payload with no comments is not evidence of a
+          # clean change when a chunk was discarded.
+          if dropped and not comments:
+              status = "partial"
+          else:
+              status = "ok"
+
+          lines = []
+          for c in comments:
+              sev = (c.get("severity") or "?").upper()
+              path = c.get("file_path") or c.get("path") or "?"
+              line = c.get("line") or c.get("start_line") or ""
+              title = c.get("title") or ""
+              body = (c.get("body") or "").strip()
+              entry = f"**[{sev}] {path}{':' + str(line) if line else ''} — {title}**"
+              if body:
+                  entry += f"\n\n> {body[:700]}"
+              lines.append(entry)
+          emit(status, blockers=len(blockers), comments=len(comments),
+               dropped=dropped, body="\n\n---\n\n".join(lines) or "_No findings._")
+
+          print(f"push review: {len(comments)} comment(s), {len(blockers)} blocker(s), {dropped} chunk(s) discarded")
+          if status == "partial":
+              print(f"::warning::{dropped} chunk(s) discarded — this push was not fully reviewed")
+          PY
+
+      - name: Publish result as an issue
+        if: steps.diff.outputs.skip == '0' && steps.review.outputs.status != 'quota' && steps.review.outputs.status != 'failed'
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        env:
+          STATUS: ${{ steps.review.outputs.status }}
+          BLOCKERS: ${{ steps.review.outputs.blockers }}
+          COMMENTS: ${{ steps.review.outputs.comments }}
+          DROPPED: ${{ steps.review.outputs.dropped_chunks }}
+          FINDINGS: ${{ steps.review.outputs.findings }}
+          HEAD_SHA: ${{ github.event.after }}
+          COMMIT_URL: ${{ github.event.head_commit.url }}
+        with:
+          script: |
+            const marker = '<!-- mira-push-review -->';
+            const status = process.env.STATUS;
+            const blockers = process.env.BLOCKERS;
+            const comments = process.env.COMMENTS;
+            const dropped = process.env.DROPPED;
+            const findings = process.env.FINDINGS || '_No findings._';
+            const sha = (process.env.HEAD_SHA || '').slice(0, 8);
+            const url = process.env.COMMIT_URL || '';
+
+            const issues = await github.paginate(github.rest.issues.listForRepo, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'all',
+              labels: 'maintenance',
+              per_page: 100,
+            });
+            const existing = issues.find(i => i.body && i.body.includes(marker));
+
+            // A clean push closes the open issue; anything else opens or updates
+            // it. Silence is never treated as clean.
+            if (status === 'ok' && comments === '0' && dropped === '0') {
+              if (existing && existing.state === 'open') {
+                await github.rest.issues.update({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: existing.number,
+                  state: 'closed',
+                  state_reason: 'completed',
+                });
+              }
+              core.info('push review clean — no issue needed');
+              return;
+            }
+
+            const headline =
+              status === 'partial'
+                ? `Review incompleta: ${dropped} chunk(s) descartado(s) — o push não foi revisado por inteiro`
+                : `${blockers} blocker(s), ${comments} achado(s) no push \`${sha}\``;
+
+            const body = [
+              marker,
+              '',
+              `## Mira: revisão do push \`${sha}\``,
+              '',
+              `- resultado: \`${status}\``,
+              `- blockers: **${blockers}**`,
+              `- achados: ${comments}`,
+              `- chunks descartados: ${dropped}`,
+              url ? `- commit: ${url}` : '',
+              '',
+              status === 'partial'
+                ? '> A revisão não cobriu o diff inteiro (o modelo respondeu em prosa e o Mira descartou o chunk). Trate a ausência de achados como incompleta, não como limpo.'
+                : '',
+              '',
+              findings,
+              '',
+              '_Revisão automática de commit direto na branch default. Não bloqueia o push — registra o achado._',
+            ].filter(Boolean).join('\n');
+
+            if (existing) {
+              const update = {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existing.number,
+                body,
+                title: `Mira push review: ${headline}`,
+              };
+              if (existing.state === 'closed') update.state = 'open';
+              await github.rest.issues.update(update);
+            } else {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: `Mira push review: ${headline}`,
+                body,
+                labels: ['maintenance'],
+              });
+            }
+
+      - name: Fail on unusable review
+        if: steps.review.outputs.status == 'failed'
+        run: |
+          echo "::error::Mira could not review this push and produced no payload."
+          exit 1
