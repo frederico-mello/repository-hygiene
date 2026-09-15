@@ -1,0 +1,12 @@
+{
+  "_comment": "Provider overrides for Mira, loaded via MIRA_PROVIDERS_JSON_PATH. Profiles are matched by exact base_url. Mira bundles only an 'openrouter' profile, so without this override every request to OpenCode Go (Zen) fails with HTTP 400 MissingSessionID — Zen requires an x-opencode-session header on every chat-completions request. The CI workflow generates its own copy with a per-PR session id (better prompt-cache routing); this file is for local runs. See https://opencode.ai/docs/go/#where-can-i-use-it",
+  "opencode-go": {
+    "base_url": "https://opencode.ai/zen/go/v1",
+    "api_key_env": "OPENCODE_GO_API_KEY",
+    "model_prefix": "strip",
+    "extra_headers": {
+      "x-opencode-session": "mira-local-review"
+    },
+    "reasoning_effort_map": {}
+  }
+}
