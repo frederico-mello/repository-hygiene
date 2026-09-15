@@ -48,13 +48,13 @@ on:
         type: boolean
         default: false
       model:
-        description: "Model id served by the OpenCode Go endpoint."
-        type: string
-        default: "qwen3.8-max"
-      fallback-model:
-        description: "Model used when the primary fails (timeout, 5xx, unparseable tool call). Measured failure modes: slow endpoints exceed the request timeout on large tool-call payloads, so a fallback is not optional."
+        description: "Model id served by the OpenCode Go endpoint. Pick from a model with enough 5-hour request budget: on OpenCode Go the per-model windows differ by ~20x (minimax-m3 = 3,200 req/5h, qwen3.8-max = 160 req/5h), and a review costs many calls because Mira retries forced tool_choice as auto."
         type: string
         default: "minimax-m3"
+      fallback-model:
+        description: "Model used when the primary fails (timeout, 5xx, unparseable tool call). Prefer a different family: OpenCode Go enforces quota per model, so a same-family fallback can be exhausted alongside the primary."
+        type: string
+        default: "qwen3.8-flash"
       mira-ref:
         description: "Git ref of miracodeai/mira to install (pin a release tag)."
         type: string
