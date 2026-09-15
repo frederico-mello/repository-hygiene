@@ -295,11 +295,32 @@ jobs:
           blockers = [
               c for c in comments if (c.get("severity") or "").lower() == "blocker"
           ]
+
+          # A payload carrying zero comments is NOT the same as a clean review.
+          # When a model answers in prose instead of calling the tool, Mira logs
+          # "Chunk N/M failed to parse, skipping" and drops that chunk entirely,
+          # so the review silently covers less than the diff and still exits 0.
+          # Measured on a real run: a green job reporting 0 comments where the
+          # only chunk had been discarded. Count the drops so "nothing found" can
+          # be told apart from "never actually reviewed".
+          dropped = raw.count("failed to parse, skipping")
+          status = "partial" if dropped else "ok"
+
           with open(out, "a") as fh:
-              fh.write("status=ok\n")
+              fh.write(f"status={status}\n")
               fh.write(f"comments={len(comments)}\n")
               fh.write(f"blockers={len(blockers)}\n")
-          print(f"review parsed: {len(comments)} comment(s), {len(blockers)} blocker(s)")
+              fh.write(f"dropped_chunks={dropped}\n")
+          print(
+              f"review parsed: {len(comments)} comment(s), {len(blockers)} blocker(s), "
+              f"{dropped} chunk(s) discarded"
+          )
+          if dropped:
+              print(
+                  f"::warning::{dropped} diff chunk(s) discarded: the model answered in "
+                "prose instead of calling the tool, so this review covered less than "
+                "the full diff. Not a clean result — re-run to get a full review."
+              )
           PY
 
       - name: Summarize result
@@ -313,6 +334,11 @@ jobs:
             echo "| model | \`${{ inputs.model }}\` (fallback \`${{ inputs.fallback-model }}\`) |"
             echo "| mira | \`6410f596\` (commit SHA) |"
             echo "| result | \`${{ steps.review.outputs.status }}\` — ${{ steps.review.outputs.comments }} comment(s), ${{ steps.review.outputs.blockers }} blocker(s) |"
+            echo "| diff chunks discarded | ${{ steps.review.outputs.dropped_chunks }} |"
+            if [ "${{ steps.review.outputs.status }}" = "partial" ]; then
+              echo ""
+              echo "> ${{ steps.review.outputs.dropped_chunks }} diff chunk(s) were discarded (the model answered in prose instead of calling the tool). This review covered **less than the full diff** — treat the 0-comment result as incomplete, not clean, and re-run."
+            fi
             if [ "${{ steps.review.outputs.status }}" = "quota" ]; then
               echo ""
               echo "> Inference quota exhausted for the 5-hour/weekly window. This is **not** a code finding — re-run after the window resets."
