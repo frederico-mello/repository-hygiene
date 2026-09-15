@@ -233,6 +233,8 @@ jobs:
           set -e
           echo "--- mira stdout ---"; cat "$RUNNER_TEMP/mira-out.txt"
           echo "--- mira stderr ---"; cat "$RUNNER_TEMP/mira-err.txt"
+          # Do not let Mira's own non-zero exit fail the step: it exits 1 for
+          # blockers too, and the parser below is the authority on outcome.
           python - "$RUNNER_TEMP/mira-out.txt" "$code" <<'PY'
           import json, os, sys
 
@@ -265,17 +267,23 @@ jobs:
               low = raw.lower()
               quota = "gousagelimiterror" in low or "usage limit" in low or "http 429" in low
               if quota:
+                  # Quota exhaustion is routine (per-model 5-hour windows), and
+                  # a red check on every PR during the window becomes noise that
+                  # teaches people to ignore the check. This is NOT a false
+                  # green: status=quota is reported in the summary, and a caller
+                  # gating on blockers still cannot pass (status != ok). Warn and
+                  # exit 0.
                   print(
-                      "::error::Mira could not run — inference quota exhausted "
-                      "(OpenCode Go 5-hour/weekly limit). Not a code finding. "
-                      "Re-run after the window resets."
+                      "::warning::Mira could not run — inference quota exhausted "
+                      "(OpenCode Go 5-hour/weekly limit). Not a code finding, and "
+                      "not a clean review: re-run after the window resets."
                   )
                   with open(out, "a") as fh:
                       fh.write("status=quota\n")
-              else:
-                  print(f"::error::Mira produced no review payload (exit {exit_code}) — see logs above")
-                  with open(out, "a") as fh:
-                      fh.write("status=failed\n")
+                  sys.exit(0)
+              print(f"::error::Mira produced no review payload (exit {exit_code}) — see logs above")
+              with open(out, "a") as fh:
+                  fh.write("status=failed\n")
               sys.exit(1)
 
           comments = result.get("comments") or []
