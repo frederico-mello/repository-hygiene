@@ -1,6 +1,33 @@
 # CHANGELOG
 
 
+## v0.6.2 (2026-09-15)
+
+### Bug Fixes
+
+- **mira-ci**: A discarded chunk is not a clean review
+  ([`d7d9c40`](https://github.com/frederico-mello/repository-hygiene/commit/d7d9c401b84296718cbb9215ad629d65d3a204c0))
+
+Caught this on a live fleet run (repository-hygiene PR #103). The job went green reporting status=ok
+  with 0 comments, while the log said:
+
+mira.core.engine WARNING: Chunk 1/1 failed to parse, skipping: LLM response is not valid JSON (even
+  after repair)
+
+The model answered in prose instead of calling the tool, Mira dropped the entire chunk, and the run
+  still exited 0 — so 'nothing found' was indistinguishable from 'never actually reviewed'. That is
+  the same class of silent false-green this workflow exists to eliminate, and it survived my earlier
+  fixes because I was only checking whether a payload existed, not whether the review covered the
+  diff.
+
+Zero comments now only reports ok when nothing was discarded. Otherwise the status is 'partial' and
+  the step summary carries how many chunks were dropped plus an explicit note that the 0-comment
+  result is incomplete, not clean.
+
+Parser re-validated on seven scenarios: ok, failed, clean, warnings-only, quota,
+  discarded-chunks-only, and partial-with-findings.
+
+
 ## v0.6.1 (2026-09-15)
 
 ### Bug Fixes
