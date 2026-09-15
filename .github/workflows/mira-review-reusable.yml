@@ -223,32 +223,14 @@ jobs:
           OPENCODE_GO_API_KEY: ${{ secrets.OPENCODE_GO_API_KEY }}
           GITHUB_TOKEN: ${{ github.token }}
         run: |
-          set +e
-          extra=""
-          if [ "${{ inputs.trust-execution-settings }}" = "true" ]; then
-            extra="--trust-execution-settings"
-          fi
-          mira review \
-            --pr "${{ steps.ctx.outputs.pr_url }}" \
-            --config "$RUNNER_TEMP/mira-effective.yaml" \
-            --github-token "$GITHUB_TOKEN" \
-            --output json \
-            $extra > "$RUNNER_TEMP/mira-out.txt" 2> "$RUNNER_TEMP/mira-err.txt"
-          code=$?
-          set -e
-          echo "--- mira stdout ---"; cat "$RUNNER_TEMP/mira-out.txt"
-          echo "--- mira stderr ---"; cat "$RUNNER_TEMP/mira-err.txt"
-          # Do not let Mira's own non-zero exit fail the step: it exits 1 for
-          # blockers too, and the parser below is the authority on outcome.
-          python - "$RUNNER_TEMP/mira-out.txt" "$code" <<'PY'
+          # Parser kept in a file so the retry loop below can reuse it verbatim.
+          cat > "$RUNNER_TEMP/parse.py" <<'PY'
           import json, os, sys
 
           raw = open(sys.argv[1], encoding="utf-8", errors="replace").read()
           exit_code = int(sys.argv[2])
+          out = os.environ["GITHUB_OUTPUT"]
 
-          # Mira logs to stdout (logging.basicConfig(stream=sys.stdout)), so the
-          # JSON payload is interleaved with WARNING lines. Scan every "{" and
-          # keep the candidate that parses AND has a "comments" key.
           result = None
           for start in [i for i, ch in enumerate(raw) if ch == "{"]:
               try:
@@ -258,70 +240,91 @@ jobs:
               if isinstance(cand, dict) and "comments" in cand:
                   result = cand
 
-          out = os.environ["GITHUB_OUTPUT"]
+          def emit(status, **extra):
+              with open(out, "a") as fh:
+                  fh.write(f"status={status}\n")
+                  for k, v in extra.items():
+                      fh.write(f"{k}={v}\n")
+              print(status)
+
           if result is None:
-              # No parseable payload => Mira did not complete. The exit code is
-              # NOT a usable signal: blockers (sys.exit(1)) and operational
-              # errors (click.ClickException) both exit 1. Fail loudly rather
-              # than reporting a review that never happened.
-              #
-              # Quota exhaustion is a routine, self-inflicted-able condition:
-              # OpenCode Go enforces 5-hour and weekly windows per model, and a
-              # burst of reviews trips it. Distinguish it so a red check reads
-              # as "could not review (quota)", not "the reviewer is broken".
               low = raw.lower()
-              quota = "gousagelimiterror" in low or "usage limit" in low or "http 429" in low
-              if quota:
-                  # Quota exhaustion is routine (per-model 5-hour windows), and
-                  # a red check on every PR during the window becomes noise that
-                  # teaches people to ignore the check. This is NOT a false
-                  # green: status=quota is reported in the summary, and a caller
-                  # gating on blockers still cannot pass (status != ok). Warn and
-                  # exit 0.
+              if "gousagelimiterror" in low or "usage limit" in low or "http 429" in low:
                   print(
                       "::warning::Mira could not run — inference quota exhausted "
                       "(OpenCode Go 5-hour/weekly limit). Not a code finding, and "
                       "not a clean review: re-run after the window resets."
                   )
-                  with open(out, "a") as fh:
-                      fh.write("status=quota\n")
+                  emit("quota", comments=0, blockers=0, dropped_chunks=0)
                   sys.exit(0)
-              print(f"::error::Mira produced no review payload (exit {exit_code}) — see logs above")
-              with open(out, "a") as fh:
-                  fh.write("status=failed\n")
+              print(f"::error::Mira produced no review payload (exit {exit_code}) — see logs")
+              emit("failed", comments=0, blockers=0, dropped_chunks=0)
               sys.exit(1)
 
           comments = result.get("comments") or []
-          blockers = [
-              c for c in comments if (c.get("severity") or "").lower() == "blocker"
-          ]
-
-          # A payload carrying zero comments is NOT the same as a clean review.
-          # When a model answers in prose instead of calling the tool, Mira logs
-          # "Chunk N/M failed to parse, skipping" and drops that chunk entirely,
-          # so the review silently covers less than the diff and still exits 0.
-          # Measured on a real run: a green job reporting 0 comments where the
-          # only chunk had been discarded. Count the drops so "nothing found" can
-          # be told apart from "never actually reviewed".
+          blockers = [c for c in comments if (c.get("severity") or "").lower() == "blocker"]
+          # A payload with zero comments is NOT a clean review: when the model
+          # answers in prose instead of calling the tool, Mira drops that chunk
+          # and still exits 0, so the review silently covered less than the diff.
           dropped = raw.count("failed to parse, skipping")
           status = "partial" if dropped else "ok"
-
-          with open(out, "a") as fh:
-              fh.write(f"status={status}\n")
-              fh.write(f"comments={len(comments)}\n")
-              fh.write(f"blockers={len(blockers)}\n")
-              fh.write(f"dropped_chunks={dropped}\n")
-          print(
-              f"review parsed: {len(comments)} comment(s), {len(blockers)} blocker(s), "
-              f"{dropped} chunk(s) discarded"
-          )
+          emit(status, comments=len(comments), blockers=len(blockers), dropped_chunks=dropped)
+          print(f"parsed: {len(comments)} comment(s), {len(blockers)} blocker(s), {dropped} chunk(s) discarded")
           if dropped:
               print(
                   f"::warning::{dropped} diff chunk(s) discarded: the model answered in "
-                "prose instead of calling the tool, so this review covered less than "
-                "the full diff. Not a clean result — re-run to get a full review."
+                  "prose instead of calling the tool, so the review covered less than "
+                  "the full diff."
               )
           PY
+
+          extra=""
+          if [ "${{ inputs.trust-execution-settings }}" = "true" ]; then
+            extra="--trust-execution-settings"
+          fi
+
+          # Retry once on an incomplete review. Measured on a real diff, the same
+          # model dropped a chunk on ~40% of runs; a retry converts most of those
+          # into a full review cheaply, and a partial review treated as clean is
+          # the exact false-green this workflow exists to prevent.
+          max_attempts=2
+          attempt=1
+          while :; do
+            set +e
+            mira review \
+              --pr "${{ steps.ctx.outputs.pr_url }}" \
+              --config "$RUNNER_TEMP/mira-effective.yaml" \
+              --github-token "$GITHUB_TOKEN" \
+              --output json \
+              $extra > "$RUNNER_TEMP/mira-out.txt" 2> "$RUNNER_TEMP/mira-err.txt"
+            code=$?
+            set -e
+            echo "--- attempt $attempt: mira stdout ---"
+            cat "$RUNNER_TEMP/mira-out.txt"
+            echo "--- attempt $attempt: mira stderr ---"
+            cat "$RUNNER_TEMP/mira-err.txt"
+            # Mira exits 1 for blockers AND for failures, so the exit code is not
+            # the outcome — the parser is. Capture its verdict, not its status.
+            set +e
+            verdict=$(python "$RUNNER_TEMP/parse.py" "$RUNNER_TEMP/mira-out.txt" "$code")
+            set -e
+            echo "attempt $attempt verdict: $verdict"
+            if [ "$verdict" = "partial" ] && [ "$attempt" -lt "$max_attempts" ]; then
+              echo "::notice::review incomplete (chunk discarded) — retrying once"
+              attempt=$((attempt + 1))
+              # The parser appended outputs for this attempt; drop them so the
+              # next attempt's values are the ones that count.
+              grep -vE '^(status|comments|blockers|dropped_chunks)=' "$GITHUB_OUTPUT" > "$RUNNER_TEMP/out.tmp" || true
+              mv "$RUNNER_TEMP/out.tmp" "$GITHUB_OUTPUT"
+              continue
+            fi
+            break
+          done
+          echo "attempts=$attempt" >> "$GITHUB_OUTPUT"
+          if [ "$verdict" = "failed" ]; then
+            echo "::error::Mira produced no usable review after $attempt attempt(s)"
+            exit 1
+          fi
 
       - name: Summarize result
         if: always() && steps.review.outputs.status != ''
@@ -347,6 +350,12 @@ jobs:
             echo ""
             echo "Inline comments are posted on the pull request. Comment \`@mira-review\` to re-run."
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Fail on incomplete review (gate mode only)
+        if: inputs.block-on-blocker && (steps.review.outputs.status == 'partial' || steps.review.outputs.status == 'quota')
+        run: |
+          echo "::error::This PR is gated on Mira, but the review was incomplete (status: ${{ steps.review.outputs.status }}). A gate cannot be satisfied by a review that did not cover the diff."
+          exit 1
 
       - name: Fail on blockers
         if: inputs.block-on-blocker && steps.review.outputs.status == 'ok' && steps.review.outputs.blockers != '0'
