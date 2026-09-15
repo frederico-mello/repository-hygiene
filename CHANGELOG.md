@@ -1,6 +1,52 @@
 # CHANGELOG
 
 
+## v0.8.1 (2026-09-15)
+
+### Bug Fixes
+
+- **mira-ci**: Retry discarded chunks on push, and stop filing issues for partial
+  ([`130dc59`](https://github.com/frederico-mello/repository-hygiene/commit/130dc59d9b79905a7b6d63373014fc08e53a1db3))
+
+Two problems found while installing this across the fleet.
+
+First, the push path had no retry, unlike the PR path. A discarded chunk is the harness losing the
+  answer, not the model judging the diff, and on this path the same diff was measured producing
+  findings on one run and silently nothing on the next. The first install therefore opened three
+  issues whose entire content was 'review incomplete, 0 findings' on pushes that had nothing in
+  them.
+
+Second, partial reviews were opening issues. A partial review is a failure to review, not a finding,
+  so it now warns and writes the step summary instead of filing an issue nobody should triage. Only
+  status=ok can open or close the issue, so a partial never silently closes a real finding either.
+
+Parser re-validated on five scenarios (ok, clean, partial, quota, no payload): the retry flag is set
+  only on partial, and only a missing payload exits non-zero. actionlint clean.
+
+### Continuous Integration
+
+- **mira**: Revisar pushes diretos na branch default
+  ([`c5af80a`](https://github.com/frederico-mello/repository-hygiene/commit/c5af80a4e8706cd631e04ce6dcde4d03237e44bf))
+
+A revisao de PR nao ve commits empurrados direto para main. Este workflow revisa o diff do push e
+  publica o resultado numa issue (abre/atualiza com achados, fecha quando o push esta limpo). Nao
+  bloqueia o push.
+
+- **mira**: Revisar pushes diretos na branch default
+  ([`b3ad133`](https://github.com/frederico-mello/repository-hygiene/commit/b3ad133c28e974f9f1ac51efda2b3df6a1c0335d))
+
+A revisao de PR nao ve commits empurrados direto para main. Este workflow revisa o diff do push e
+  publica o resultado numa issue (abre/atualiza com achados, fecha quando o push esta limpo). Nao
+  bloqueia o push.
+
+- **mira**: Revisar pushes diretos na branch default
+  ([`a15c436`](https://github.com/frederico-mello/repository-hygiene/commit/a15c436ff8f8d1028b38a44c9f3dc4d4b6e6f691))
+
+A revisao de PR nao ve commits empurrados direto para main. Este workflow revisa o diff do push e
+  publica o resultado numa issue (abre/atualiza com achados, fecha quando o push esta limpo). Nao
+  bloqueia o push.
+
+
 ## v0.8.0 (2026-09-15)
 
 ### Continuous Integration
