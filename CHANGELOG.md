@@ -1,6 +1,40 @@
 # CHANGELOG
 
 
+## v0.8.0 (2026-09-15)
+
+### Continuous Integration
+
+- **mira**: Add the AI code-review caller
+  ([`2672d14`](https://github.com/frederico-mello/repository-hygiene/commit/2672d143204cd1c47fdfc9fc47cd6baf011307e6))
+
+Calls the shared reusable workflow instead of carrying a copy:
+  frederico-mello/repository-hygiene/.github/workflows/mira-review-reusable.yml@main
+
+The reusable workflow owns the endpoint, credential, model, and fallback policy; .mira.yaml carries
+  only this repo's review tuning and is merged over those defaults.
+
+Needs the repo secret OPENCODE_GO_API_KEY (configured).
+
+### Features
+
+- **mira-ci**: Review direct pushes to the default branch
+  ([`c18c933`](https://github.com/frederico-mello/repository-hygiene/commit/c18c933ab34411c38567ced484d3de96f893c043))
+
+Closes the gap the PR review cannot cover. On this account most commits go straight to main (6 of
+  the last 8 in principal-tarefas-aleatorias, 4 of 8 in mundo-wumpus), and the PR-triggered workflow
+  never sees them.
+
+Design choices specific to this path: - uses `mira review --stdin` on the pushed diff, measured at
+  ~8-20s versus 78-286s for `--pr`. No posting, no indexing, no PR pass, so it is cheap enough to
+  run on every push. - never blocks the push (it already happened). It publishes evidence instead:
+  one issue per repo with a marker, opened or updated on findings, closed when the latest push is
+  clean. - skips pushes whose commits are all merges, since that content was reviewed in the origin
+  PR, and skips diffs over max-diff-lines because a finding in a mass regeneration is an artifact of
+  size rather than of the change. - carries the same honesty rules as the PR path: quota is reported
+  as quota, discarded chunks report partial, and a missing payload fails the step.
+
+
 ## v0.7.1 (2026-09-15)
 
 ### Bug Fixes
