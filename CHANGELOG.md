@@ -1,6 +1,29 @@
 # CHANGELOG
 
 
+## v0.7.0 (2026-09-15)
+
+### Features
+
+- **mira-ci**: Retry once when a chunk is discarded
+  ([`c6dee90`](https://github.com/frederico-mello/repository-hygiene/commit/c6dee902e799013255da961488b6409d26a00c9a))
+
+Measured on a real PR diff: the same model dropped a chunk on 2 of 5 runs, and the payload for a
+  dropped chunk says 'No issues found.' — so the failure mode looks exactly like a clean review both
+  to a human and to any naive check.
+
+A discarded chunk is transient (the model answered in prose instead of calling the tool), so
+  retrying once converts most incomplete reviews into full ones for the cost of one extra review.
+  The parser moved into a file so the retry loop can reuse it verbatim, and the loop keys off the
+  parser's verdict rather than Mira's exit code (which is 1 for both blockers and failures).
+
+Also tightened the opt-in gate: a caller gating on blockers can no longer be satisfied by
+  status=partial or status=quota. A merge gate that a review which never covered the diff can pass
+  is not a gate.
+
+Parser re-validated on seven scenarios; every step's bash syntax checked with bash -n.
+
+
 ## v0.6.2 (2026-09-15)
 
 ### Bug Fixes
