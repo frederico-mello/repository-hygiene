@@ -205,39 +205,34 @@ jobs:
         env:
           OPENCODE_GO_API_KEY: ${{ secrets.OPENCODE_GO_API_KEY }}
         run: |
-          set +e
-          mira review --stdin --dry-run \
-            --config "$RUNNER_TEMP/mira-effective.yaml" \
-            --output json < "$RUNNER_TEMP/push.diff" \
-            > "$RUNNER_TEMP/out.txt" 2> "$RUNNER_TEMP/err.txt"
-          code=$?
-          set -e
-          echo "--- stdout"; cat "$RUNNER_TEMP/out.txt"
-          echo "--- stderr"; cat "$RUNNER_TEMP/err.txt"
-          python - "$RUNNER_TEMP/out.txt" "$RUNNER_TEMP/err.txt" "$code" <<'PY'
+          cat > "$RUNNER_TEMP/parse.py" <<'PY'
           import json, os, sys
 
           raw = open(sys.argv[1], encoding="utf-8", errors="replace").read()
           err = open(sys.argv[2], encoding="utf-8", errors="replace").read()
           exit_code = int(sys.argv[3])
+          out = os.environ["GITHUB_OUTPUT"]
+          flag = os.environ["RUNNER_TEMP"] + "/incomplete.flag"
+          blob = (raw + err).lower()
 
           result = None
-          for start in [i for i, ch in enumerate(raw) if ch == "{"]:
+          for i, ch in enumerate(raw):
+              if ch != "{":
+                  continue
               try:
-                  cand = json.loads(raw[start:])
+                  cand = json.loads(raw[i:])
               except Exception:
                   continue
               if isinstance(cand, dict) and "comments" in cand:
                   result = cand
-
-          out = os.environ["GITHUB_OUTPUT"]
-          blob = (raw + err).lower()
 
           def emit(status, blockers=0, comments=0, dropped=0, body=""):
               with open(out, "a") as fh:
                   fh.write(f"status={status}\ncomments={comments}\nblockers={blockers}\n")
                   fh.write(f"dropped_chunks={dropped}\n")
                   fh.write("findings<<MIRAEOF\n" + body + "\nMIRAEOF\n")
+              if status == "partial":
+                  open(flag, "w").write("1")
 
           if result is None:
               if "gousagelimiterror" in blob or "usage limit" in blob or "http 429" in blob:
@@ -254,13 +249,7 @@ jobs:
           comments = result.get("comments") or []
           blockers = [c for c in comments if (c.get("severity") or "").lower() == "blocker"]
           dropped = raw.count("failed to parse, skipping")
-
-          # Mirror the PR path: a payload with no comments is not evidence of a
-          # clean change when a chunk was discarded.
-          if dropped and not comments:
-              status = "partial"
-          else:
-              status = "ok"
+          status = "partial" if (dropped and not comments) else "ok"
 
           lines = []
           for c in comments:
@@ -273,19 +262,56 @@ jobs:
               if body:
                   entry += f"\n\n> {body[:700]}"
               lines.append(entry)
-          emit(status, blockers=len(blockers), comments=len(comments),
-               dropped=dropped, body="\n\n---\n\n".join(lines) or "_No findings._")
 
-          print(f"push review: {len(comments)} comment(s), {len(blockers)} blocker(s), {dropped} chunk(s) discarded")
-          if status == "partial":
-              print(f"::warning::{dropped} chunk(s) discarded — this push was not fully reviewed")
+          emit(status, blockers=len(blockers), comments=len(comments), dropped=dropped,
+               body="\n\n---\n\n".join(lines) or "_No findings._")
+          print(f"parsed: {len(comments)} comment(s), {len(blockers)} blocker(s), {dropped} chunk(s) discarded")
           PY
 
+          # Retry once when a chunk is discarded. On this path the same diff was
+          # measured producing findings on one run and silently nothing on the
+          # next, and a discarded chunk is the harness losing the answer rather
+          # than the model judging the diff. Without the retry, a flaky run marks
+          # an untouched push as unreviewed (observed: three such issues on the
+          # first install).
+          max_attempts=2
+          attempt=1
+          parse_rc=0
+          while :; do
+            set +e
+            mira review --stdin --dry-run \
+              --config "$RUNNER_TEMP/mira-effective.yaml" \
+              --output json < "$RUNNER_TEMP/push.diff" \
+              > "$RUNNER_TEMP/out.txt" 2> "$RUNNER_TEMP/err.txt"
+            code=$?
+            set -e
+            echo "--- attempt $attempt stdout"; cat "$RUNNER_TEMP/out.txt"
+            echo "--- attempt $attempt stderr"; cat "$RUNNER_TEMP/err.txt"
+
+            rm -f "$RUNNER_TEMP/incomplete.flag"
+            parse_rc=0
+            python "$RUNNER_TEMP/parse.py" "$RUNNER_TEMP/out.txt" "$RUNNER_TEMP/err.txt" "$code" || parse_rc=$?
+
+            if [ "$parse_rc" -eq 0 ] && [ -f "$RUNNER_TEMP/incomplete.flag" ] \
+               && [ "$attempt" -lt "$max_attempts" ]; then
+              echo "::notice::chunk discarded — retrying once"
+              attempt=$((attempt + 1))
+              grep -vE '^(status|comments|blockers|dropped_chunks)=' "$GITHUB_OUTPUT" \
+                > "$RUNNER_TEMP/o.tmp" || true
+              mv "$RUNNER_TEMP/o.tmp" "$GITHUB_OUTPUT"
+              continue
+            fi
+            break
+          done
+          echo "attempts=$attempt" >> "$GITHUB_OUTPUT"
+          [ "$parse_rc" -eq 0 ] || exit "$parse_rc"
+
       - name: Publish result as an issue
-        if: steps.diff.outputs.skip == '0' && steps.review.outputs.status != 'quota' && steps.review.outputs.status != 'failed'
+        if: steps.diff.outputs.skip == '0' && steps.review.outputs.status == 'ok'
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
         env:
           STATUS: ${{ steps.review.outputs.status }}
+          ATTEMPTS: ${{ steps.review.outputs.attempts }}
           BLOCKERS: ${{ steps.review.outputs.blockers }}
           COMMENTS: ${{ steps.review.outputs.comments }}
           DROPPED: ${{ steps.review.outputs.dropped_chunks }}
@@ -372,6 +398,18 @@ jobs:
                 labels: ['maintenance'],
               });
             }
+
+      - name: Warn when the review stayed incomplete
+        if: steps.review.outputs.status == 'partial'
+        run: |
+          echo "::warning::The push was not fully reviewed even after ${{ steps.review.outputs.attempts }} attempt(s) — ${{ steps.review.outputs.dropped_chunks }} chunk(s) discarded. This is not a finding and no issue was opened: re-run the workflow to get a full review."
+          {
+            echo "## Mira push review"
+            echo ""
+            echo "Status: \`partial\` after ${{ steps.review.outputs.attempts }} attempt(s)."
+            echo ""
+            echo "${{ steps.review.outputs.dropped_chunks }} diff chunk(s) were discarded, so the review covered less than the full diff. No issue was opened because this is an incomplete review, not a finding."
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Fail on unusable review
         if: steps.review.outputs.status == 'failed'
