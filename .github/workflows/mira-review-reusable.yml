@@ -240,11 +240,19 @@ jobs:
               if isinstance(cand, dict) and "comments" in cand:
                   result = cand
 
+          # The verdict goes to its own one-line file: the caller needs a clean
+          # token to compare against, and stdout carries log lines too, so
+          # capturing stdout would yield a multi-line string that never equals
+          # "partial" and would silently disable the retry.
+          VERDICT_FILE = os.environ["RUNNER_TEMP"] + "/mira-verdict.txt"
+
           def emit(status, **extra):
               with open(out, "a") as fh:
                   fh.write(f"status={status}\n")
                   for k, v in extra.items():
                       fh.write(f"{k}={v}\n")
+              with open(VERDICT_FILE, "w") as fh:
+                  fh.write(status + "\n")
               print(status)
 
           if result is None:
@@ -306,8 +314,10 @@ jobs:
             # Mira exits 1 for blockers AND for failures, so the exit code is not
             # the outcome — the parser is. Capture its verdict, not its status.
             set +e
-            verdict=$(python "$RUNNER_TEMP/parse.py" "$RUNNER_TEMP/mira-out.txt" "$code")
+            rm -f "$RUNNER_TEMP/mira-verdict.txt"
+            python "$RUNNER_TEMP/parse.py" "$RUNNER_TEMP/mira-out.txt" "$code"
             set -e
+            verdict=$(cat "$RUNNER_TEMP/mira-verdict.txt" 2>/dev/null || echo "unknown")
             echo "attempt $attempt verdict: $verdict"
             if [ "$verdict" = "partial" ] && [ "$attempt" -lt "$max_attempts" ]; then
               echo "::notice::review incomplete (chunk discarded) — retrying once"
