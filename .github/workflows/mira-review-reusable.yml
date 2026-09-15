@@ -56,9 +56,9 @@ on:
         type: string
         default: "qwen3.8-flash"
       mira-ref:
-        description: "Git ref of miracodeai/mira to install (pin a release tag)."
+        description: "Git ref of miracodeai/mira to install. Prefer the 40-char commit SHA that the release tag points at: a tag can be moved, and SonarQube flags an unpinned git dependency (githubactions:S8544). v0.9.0 = 6410f596251ccc7df86fbf10234aff1a9225fa80."
         type: string
-        default: "v0.9.0"
+        default: "6410f596251ccc7df86fbf10234aff1a9225fa80"
       max-comments:
         description: "Cap on inline comments posted per review."
         type: number
@@ -115,7 +115,10 @@ jobs:
         if: steps.ctx.outputs.pr_url != ''
         run: |
           # NOTE: `pip install mira` resolves to an unrelated object-detection
-          # package. The miracodeai reviewer is only published on git.
+          # package. The miracodeai reviewer is only published on git, so the
+          # dependency is pinned by commit SHA (see the mira-ref input). SHA
+          # beats tag here: a tag can be moved after review, and an unpinned
+          # git dependency trips SonarQube githubactions:S8544.
           pip install --quiet --disable-pip-version-check \
             "mira-reviewer @ git+https://github.com/miracodeai/mira.git@${{ inputs.mira-ref }}"
           mira --version
