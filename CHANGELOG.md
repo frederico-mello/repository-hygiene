@@ -1,12 +1,173 @@
 # CHANGELOG
 
 
+## v0.6.1 (2026-09-15)
+
+### Bug Fixes
+
+- **mira-ci**: Point this repo's caller at @main
+  ([`e86b31f`](https://github.com/frederico-mello/repository-hygiene/commit/e86b31fa4ac6c7e82e85012607f117a329acb3f3))
+
+The caller was pinned to @ci/mira-reusable-workflow while the reusable workflow was under review.
+  That branch was deleted in the squash merge of #521, so the caller resolved to a nonexistent ref
+  and the run failed with ZERO jobs — the workflow could not even start.
+
+Repos that received the caller after the merge already point at @main; this repo was the only one
+  left on the dead branch, and it is the host of the workflow, so it was the natural place to
+  notice.
+
+### Chores
+
+- **openspec**: Archive english-source-localization + sync specs
+  ([`755a4a8`](https://github.com/frederico-mello/repository-hygiene/commit/755a4a811e1527109089fa7e89b8adcc8c831a54))
+
+Move change english-source-localization to openspec/changes/archive/. Sync delta specs: create new
+  english-source-locale capability spec, apply MODIFIED+ADDED requirements to
+  documentation-consistency spec.
+
+### Continuous Integration
+
+- **mira**: Reusable AI code-review workflow for all repos
+  ([`0acb161`](https://github.com/frederico-mello/repository-hygiene/commit/0acb161f77adeb9dc1c926d792509810d9171850))
+
+* ci(mira): reusable AI code-review workflow for all repos
+
+Centralizes Mira (miracodeai/mira) PR review so every repo calls one workflow instead of carrying a
+  copy.
+
+Two things this encodes that the previous per-repo attempt (agente-suporte-ict) missed, both
+  verified locally against the real endpoint:
+
+- OpenCode Go (Zen) now rejects requests without an x-opencode-session header (HTTP 400
+  MissingSessionID). Mira bundles only an openrouter provider profile, so the workflow generates
+  providers.json and points MIRA_PROVIDERS_JSON_PATH at it, with a stable per-repo-per-PR session id
+  for prompt-cache routing. - `mira review --config FILE` disables per-repo .mira.yaml
+  auto-discovery, so passing a fixed deployment file would silently discard repo-local tuning. The
+  workflow merges its defaults with the repo's .mira.yaml and passes the result, and refuses
+  llm.base_url / llm.api_key_env from the repo file.
+
+Advisory by default (blockers are reported, not enforced); callers opt into a merge gate with
+  block-on-blocker: true.
+
+* ci(mira): call the reusable workflow from this repo
+
+Pins @ci/mira-reusable-workflow while the reusable workflow is under review; flip to @main once PR
+  #521 merges. Also drops a .mira.yaml so the review behaviour for this repo is versioned alongside
+  the code.
+
+* fix(mira-ci): decide on the review payload, not on the exit code
+
+Verified failure mode: Mira exits 1 for BOTH cases — sys.exit(1) when it finds blockers, and
+  click.ClickException when the LLM call fails. Treating '>1 as failure' therefore let an
+  operational failure pass as a clean review in advisory mode, which is exactly the silent failure
+  that made the earlier per-repo workflow useless.
+
+The step now runs with --output json, extracts the payload from the log-interleaved stdout (Mira
+  logs to stdout, so warnings can precede or wrap the JSON), and fails loudly when no payload is
+  present. Outputs status/comments/ blockers drive both the summary and the opt-in merge gate, so a
+  gate can no longer be satisfied by a review that never ran.
+
+Tested against four scenarios: interleaved logs + payload, no payload, clean review, warnings-only.
+
+* fix(mira-ci): raise the LLM timeout and configure a fallback model
+
+Root-caused the failure that produced 'LLM tool-call failed with <model>: ' with an EMPTY message.
+  It is not a tool-calling or schema failure: httpx's TimeoutError stringifies to nothing, and
+  Mira's error template puts the exception into the message slot. --verbose shows the real cause:
+
+httpcore.http11 DEBUG: receive_response_headers.failed exception=ReadTimeout(TimeoutError())
+
+Mira's default llm.request_timeout is 120s, which a slow endpoint exceeds on large tool-call
+  payloads. A raw probe of the same endpoint with a tools array succeeds (finish_reason:
+  tool_calls), which is what made the model look guilty.
+
+- request_timeout: 300, max_retries: 5, retry_max_wait: 60 - fallback_model is now a workflow input
+  (default minimax-m3), since the measured failure mode is intermittent, not deterministic - the
+  summary reports which fallback is configured
+
+Also noted for sizing: Mira sends a forced tool_choice first and re-sends with auto when the
+  provider rejects it ('Model X rejected forced tool_choice'), so every call to such a provider
+  costs two round trips.
+
+* feat(mira-ci): report quota exhaustion distinctly from other failures
+
+Hit this while measuring reliability: after ~20 consecutive reviews, every model started failing
+  instantly with
+
+HTTP 429 GoUsageLimitError: 5-hour usage limit reached. Resets in 3hr 57min.
+
+OpenCode Go enforces per-model 5-hour and weekly windows, so a burst of PRs can exhaust the quota
+  and every review then fails. That is a routine condition, not a code finding and not a broken
+  reviewer, so the step now classifies it and the step summary says plainly that it is not a finding
+  and to re-run after the window resets.
+
+This also means reliability numbers measured in a burst are contaminated: the first model measured
+  cleanly (minimax-m3, 5/5 payloads) while every model after the quota ran out failed 100%.
+  Re-measure serially with quota headroom.
+
+* fix(mira-ci): pick models by 5-hour budget, not just by quality
+
+The --pr measurements are explained by OpenCode Go's documented per-model windows, which differ by
+  ~20x:
+
+minimax-m3 3,200 req/5h $60/mo qwen3.8-flash 5,400 req/5h $30/mo deepseek-v4-pro 1,050 req/5h $15/mo
+  glm-5.3 220 req/5h $15/mo qwen3.8-max 160 req/5h $15/mo
+
+A single review costs many calls: Mira sends a forced tool_choice, the provider rejects it, and Mira
+  re-sends with auto, plus separate security and indexing passes. On the small-budget models a
+  reliability sweep therefore exhausts the window after a handful of reviews — which is exactly the
+  NOPAYLOAD pattern observed: the small-window models failed first, and the same model failed twice
+  in a row rather than intermittently.
+
+Defaults now favor budget headroom: minimax-m3 primary (3,200 req/5h) with qwen3.8-flash fallback
+  (5,400 req/5h, different family so it is not exhausted alongside the primary).
+
+* fix(mira-ci): pin the Mira install by commit SHA
+
+SonarQube flagged githubactions:S8544 (MAJOR) at this line: 'Using dependencies without locking
+  resolved versions is security-sensitive'. Fair finding — the install was pinned to a movable tag.
+
+Resolved the tag to its commit and pinned that: v0.9.0 = 6410f596251ccc7df8 6fbf10234aff1a9225fa80
+  (the tag is a lightweight ref straight to a commit, so no dereference needed). A tag can be
+  repointed after review; a SHA cannot.
+
+Note the tag/version drift this exposed: that SHA's tree reports mira 0.8.0, because
+  pyproject/__init__ were not bumped for the v0.9.0 tag. The pin is accurate; the reported version
+  is not.
+
+* fix(mira-ci): quota exhaustion is a warning, not a failed check
+
+The quota branch failed the step, which means every PR opened during a 5-hour window would show a
+  red 'mira / review' check. A red X that is nobody's fault teaches people to ignore the check, and
+  then the red X stops meaning anything when it IS their fault.
+
+Quota now warns and exits 0. This is not a false green: status=quota is reported in the step
+  summary, and a caller gating on blockers still cannot pass because the gate requires status ==
+  'ok'. Real failures (no payload, not quota) still fail the step.
+
+Parser re-validated on all five scenarios: ok/blockers, failed, clean, warnings-only, quota.
+
+* fix(mira-ci): pin Mira inline so the pin is auditable
+
+SonarCloud kept flagging S8544 on the install line even after the tag was resolved to a SHA, because
+  the pin sat behind ${{ inputs.mira-ref }} — an analyzer cannot verify an indirection, and worse, a
+  caller could pass a branch and silently defeat the pin that a reviewer approved.
+
+The version is now a literal commit SHA on the install line and the mira-ref input is gone. Updating
+  Mira means resolving the new tag and changing the SHA in a reviewed PR. This is deliberate
+  friction: reviewers should see exactly which revision runs.
+
+---------
+
+Co-authored-by: Frederico Maciel de Mello <frederico.mello@unifesp.br>
+
+
 ## v0.6.0 (2026-07-26)
 
 ### Features
 
 - English only localization
-  ([`b27a8b8`](https://github.com/frederico-mello/repository-hygiene/commit/b27a8b855d4fca0f97510f9600f64b4834cbfdd2))
+  ([`812e7e2`](https://github.com/frederico-mello/repository-hygiene/commit/812e7e2db4c5581b9ada4cd4ba43d413f93616bc))
 
 - Implements change `` - Archived to openspec/changes/archive/
 
@@ -16,7 +177,7 @@
 ### Bug Fixes
 
 - Reduce cognitive complexity and validate file paths
-  ([`7dbdff7`](https://github.com/frederico-mello/repository-hygiene/commit/7dbdff7462aee964d5acbfc86170e7a94ee52022))
+  ([`c67cf2d`](https://github.com/frederico-mello/repository-hygiene/commit/c67cf2d776a2ec9a4d90eea4be7898a764684e73))
 
 - Extract `_processar_ref_doc` from `_verificar_refs_doc_em_arquivo` (16→15) - Extract
   `_subdir_contem_nome` and `_arquivo_contem_texto` from `_dir_mencionada_em_openspec` (20→15) - Add
@@ -26,18 +187,18 @@
 ### Chores
 
 - Archive reconcile-hygiene-semantic-audit
-  ([`df094b5`](https://github.com/frederico-mello/repository-hygiene/commit/df094b56cd93e7731eabb252a78677aea6c0f7de))
+  ([`8e85923`](https://github.com/frederico-mello/repository-hygiene/commit/8e859238938d143685e288026e65cf06ef51b1c1))
 
 - Resolve merge conflict in openspec/config.yaml
-  ([`1660cbe`](https://github.com/frederico-mello/repository-hygiene/commit/1660cbe5aee367efbc36461cf38f4a9d742a5cea))
+  ([`125b639`](https://github.com/frederico-mello/repository-hygiene/commit/125b639f42f4b0d75297c9ba6213c445080d352b))
 
 - **openspec**: Arquivar change install-skill e sincronizar spec
-  ([`bf00b90`](https://github.com/frederico-mello/repository-hygiene/commit/bf00b908e7b96e9a7bfc47876260054c84ab54a6))
+  ([`1120bf6`](https://github.com/frederico-mello/repository-hygiene/commit/1120bf6464fb4385937a3fd594d5c9a9d25ec94e))
 
 ### Documentation
 
 - Reescrever README conciso — PT só, fluxo linear, aviso pip install
-  ([`d5a1963`](https://github.com/frederico-mello/repository-hygiene/commit/d5a19635ae90cc9b5e90640d315ef1dca0825c93))
+  ([`f0dd747`](https://github.com/frederico-mello/repository-hygiene/commit/f0dd747c689a73221b79c12aae87afea368b7310))
 
 Remove duplicacao PT/EN (Instalacao + Installation & Execution). Remove instrucoes de venv
   redundantes. Adiciona aviso: apos pip install, executar repository-hygiene install . Reorganiza em
@@ -46,7 +207,7 @@ Remove duplicacao PT/EN (Instalacao + Installation & Execution). Remove instruco
 ### Features
 
 - Semantic repository reconciliation audit
-  ([`71c0b6c`](https://github.com/frederico-mello/repository-hygiene/commit/71c0b6c890a962be5052def768fd073c86f71783))
+  ([`b00896b`](https://github.com/frederico-mello/repository-hygiene/commit/b00896bf5f9151dc28cf97b5360726cdaeb9b2ac))
 
 Add nested repo detection, workflow intent evaluation, semantic evidence cross-referencing with
   OpenSpec/Graphify, typed recommendation taxonomy, and updated agent-hygiene-flow skill.
@@ -62,7 +223,7 @@ Add nested repo detection, workflow intent evaluation, semantic evidence cross-r
 ### Features
 
 - **install**: Provisionar skill agent-hygiene-flow no alvo
-  ([`66c597e`](https://github.com/frederico-mello/repository-hygiene/commit/66c597ec27aa3ba9a8b30d393102b1b33d46efe5))
+  ([`c554d6d`](https://github.com/frederico-mello/repository-hygiene/commit/c554d6da34317bd6fa688357818c271ab6484032))
 
 Adiciona a skill OpenCode agent-hygiene-flow como package data e provisiona em
   .opencode/skills/agent-hygiene-flow/ durante o 'repository-hygiene install'. Reutiliza a semantica
@@ -75,59 +236,59 @@ Adiciona a skill OpenCode agent-hygiene-flow como package data e provisiona em
 ### Bug Fixes
 
 - Add --only-binary to workflow pip installs
-  ([`beb21ec`](https://github.com/frederico-mello/repository-hygiene/commit/beb21ec5161580955a44d28a9c97db0d898b8953))
+  ([`c87adbd`](https://github.com/frederico-mello/repository-hygiene/commit/c87adbd4d3f756d11526c7d8391e020fe06454ac))
 
 - Address quality gate findings
-  ([`dcc75c8`](https://github.com/frederico-mello/repository-hygiene/commit/dcc75c876bdc34506d26b6ec8544b50f2ecec565))
+  ([`51ccd5c`](https://github.com/frederico-mello/repository-hygiene/commit/51ccd5cc4c96bf90cf624419aeb02065821e5926))
 
 - Align agent report metadata
-  ([`01ff562`](https://github.com/frederico-mello/repository-hygiene/commit/01ff562380397765168769d5ee73103f5eaa7018))
+  ([`d215edc`](https://github.com/frederico-mello/repository-hygiene/commit/d215edce657f89fa0f88a1339ae225c414c275f9))
 
 - Avoid scanning ignored directories
-  ([`520be13`](https://github.com/frederico-mello/repository-hygiene/commit/520be13c9bc11b97f23488f81c3dc0dca642d839))
+  ([`d50bc2a`](https://github.com/frederico-mello/repository-hygiene/commit/d50bc2a81363d8ff260d2d947adf92c3e9430ca3))
 
 - Clarify git-wt as Worktrunk with AGENTS.md reference
-  ([`c8890ef`](https://github.com/frederico-mello/repository-hygiene/commit/c8890ef922604c2b7146ee1b6437b22abb878498))
+  ([`c183182`](https://github.com/frederico-mello/repository-hygiene/commit/c183182ec1f70b3e30900038139cbd7d5b43949d))
 
 - Deduplicate git_repo fixture — extract to conftest.py
-  ([`2d5fdec`](https://github.com/frederico-mello/repository-hygiene/commit/2d5fdecb338146c0d9566d7df08838f71b74babf))
+  ([`5463324`](https://github.com/frederico-mello/repository-hygiene/commit/5463324fb6bd05580a877165aead7fe4822fbaba))
 
 SonarCloud Quality Gate: 19.3% duplicated lines (threshold 3%). git_repo fixture was duplicated
   across test_auditoria_package.py and test_commit_check.py. Moved to shared conftest.py.
 
 - Detect quoted documentation paths
-  ([`7e0aa6b`](https://github.com/frederico-mello/repository-hygiene/commit/7e0aa6b88846a80d96708faf63603d519a27ed60))
+  ([`2d316f2`](https://github.com/frederico-mello/repository-hygiene/commit/2d316f2cb566033d1e3a13bae599ee8542a05a06))
 
 - Harden audit workflow
-  ([`dfc6029`](https://github.com/frederico-mello/repository-hygiene/commit/dfc60290d5dd551f3b16795f07d653de3bd166f3))
+  ([`bb735af`](https://github.com/frederico-mello/repository-hygiene/commit/bb735aff84e3589b21b0544856d67bedb4467f15))
 
 - Ignore auditoria-report.txt generated by CI
-  ([`d083830`](https://github.com/frederico-mello/repository-hygiene/commit/d083830521dda2822ad713b9eff4efad7cd1ff14))
+  ([`e84a937`](https://github.com/frederico-mello/repository-hygiene/commit/e84a9374cd8fc82aceafdacf780103b49ba2d899))
 
 - Mark validated report path sinks
-  ([`1c5c1f2`](https://github.com/frederico-mello/repository-hygiene/commit/1c5c1f204ba63191789a7bce680518e484a4dc50))
+  ([`cbc06b1`](https://github.com/frederico-mello/repository-hygiene/commit/cbc06b112fac378ced6a5806d7d798678c6876d4))
 
 - Pin CI dependency versions for SonarQube
-  ([`6ada2cf`](https://github.com/frederico-mello/repository-hygiene/commit/6ada2cf43027f38c2139f18d0b83c3b7d29a383a))
+  ([`dd8aa48`](https://github.com/frederico-mello/repository-hygiene/commit/dd8aa4885cabb284b46e5eada3faa6d2aa7b62d7))
 
 - Pin repository-hygiene to exact version 0.2.0 for SonarQube
-  ([`448c583`](https://github.com/frederico-mello/repository-hygiene/commit/448c583b78f70bd749141389d5569675193be701))
+  ([`eb074b2`](https://github.com/frederico-mello/repository-hygiene/commit/eb074b22fd0ec07ca6ed56124fe06ffeedfb027e))
 
 - Pin repository-hygiene to minimum version 0.3.0
-  ([`02768a3`](https://github.com/frederico-mello/repository-hygiene/commit/02768a33338c7184a7800d51fd10a5ce410a4d6c))
+  ([`49cef22`](https://github.com/frederico-mello/repository-hygiene/commit/49cef220d6fae5f0990949dcb799acaad378f3e8))
 
 - Remove build artifacts from version control
-  ([`1673c36`](https://github.com/frederico-mello/repository-hygiene/commit/1673c366806262e8a8d6aa2947cce94e4da6852b))
+  ([`a115d75`](https://github.com/frederico-mello/repository-hygiene/commit/a115d75104c70ea53570648614cb3a97b839b9d7))
 
 - Resolve all remaining SonarCloud vulnerabilities
-  ([`5c2346f`](https://github.com/frederico-mello/repository-hygiene/commit/5c2346f828db64dac7bd248f47af0fec875af7dd))
+  ([`905063c`](https://github.com/frederico-mello/repository-hygiene/commit/905063c6c5510f6807692520ba14ee8c1526ca27))
 
 - Split uv pip install: --only-binary :all: + pinned pytest version - uv run --frozen locks all
   dependency versions - uvx/uv tool run with explicit ==0.2.0 version pin - All actions pinned to
   full commit SHA
 
 - Resolve Quality Gate and CI failures for PR #58
-  ([`4d599fb`](https://github.com/frederico-mello/repository-hygiene/commit/4d599fb6513d6aa2f30de6d5d1f4f6240daf07b8))
+  ([`0e75456`](https://github.com/frederico-mello/repository-hygiene/commit/0e754566a659f2622741e122edf14dfc07ba6d8b))
 
 - Rewrite CLI to support subcommands (install/audit/update) with backward compat - Add cmd_install
   (dry-run support) and cmd_update to init.py - Fix CI workflow: use uv venv instead of --system,
@@ -136,70 +297,74 @@ SonarCloud Quality Gate: 19.3% duplicated lines (threshold 3%). git_repo fixture
   compat: --init, --pre-commit, --install-hook still work
 
 - Resolve repository audit findings
-  ([`f777219`](https://github.com/frederico-mello/repository-hygiene/commit/f77721939ba6253d1e0a1a1b0f96ced7f2898b7b))
+  ([`2323e5f`](https://github.com/frederico-mello/repository-hygiene/commit/2323e5f182d2d403aa06aed19aec54fbc9f8c197))
 
 - Resolve SonarCloud security hotspots in CI workflow
-  ([`9f86e05`](https://github.com/frederico-mello/repository-hygiene/commit/9f86e05df00ed6886d87cba72b0fa696949567c0))
+  ([`56120ef`](https://github.com/frederico-mello/repository-hygiene/commit/56120ef5447c963643d16218b1bab231a7b601aa))
 
 - Pin actions/checkout and astral-sh/setup-uv to full SHA (HIGH) - Pin pytest version to 8.3.4
   (MEDIUM) - Pin uv tool install/run via --from <wheel> (MEDIUM)
 
 - Suppress S8544 - dynamic version by design
-  ([`98c324d`](https://github.com/frederico-mello/repository-hygiene/commit/98c324dba6f0f8a97a9acecd580b1054c79c1d08))
+  ([`dc2c4b5`](https://github.com/frederico-mello/repository-hygiene/commit/dc2c4b5ed99a5a0dcc4e42431704d60d21742a8c))
 
 - Use exact versions for pip install
-  ([`07b8227`](https://github.com/frederico-mello/repository-hygiene/commit/07b8227df529b738f071acc657c853a7c7bcaa96))
+  ([`066489b`](https://github.com/frederico-mello/repository-hygiene/commit/066489b6534ce10e10b275b1aaad7c9ebc4e3778))
 
 - Use minimum version constraint for repository-hygiene
-  ([`225caf6`](https://github.com/frederico-mello/repository-hygiene/commit/225caf6bfdc9a09b7b3ac1e02957bfee0ee1d48f))
+  ([`228fcff`](https://github.com/frederico-mello/repository-hygiene/commit/228fcff4286a94a7b3b4706726a4e5c7a9743b62))
 
 - Validate report output directory
-  ([`7c75a42`](https://github.com/frederico-mello/repository-hygiene/commit/7c75a424a10fddcf9f9466fa4f3ecf06da4f86e4))
+  ([`fdfe640`](https://github.com/frederico-mello/repository-hygiene/commit/fdfe640fbb14422d638f176f4c56292de6a4a3f0))
 
 - Validate report output paths
-  ([`ab3a18f`](https://github.com/frederico-mello/repository-hygiene/commit/ab3a18f3511840df2762d407c37544a269e585a3))
+  ([`1a3a89c`](https://github.com/frederico-mello/repository-hygiene/commit/1a3a89cc04b1dc4c330732fc9c072b3253a0f3da))
 
 - **specs**: Add missing H1 title to publish-pypi-v020 spec
-  ([`95e1213`](https://github.com/frederico-mello/repository-hygiene/commit/95e12137c049fb44d6909855aee56c6574111254))
+  ([`47665ab`](https://github.com/frederico-mello/repository-hygiene/commit/47665abe157e377a4c72c33cbe2004664ea81d05))
 
 ### Chores
 
 - Ignore build artifacts
-  ([`6ab124b`](https://github.com/frederico-mello/repository-hygiene/commit/6ab124bff822a10571457426f1972577fbc0163b))
+  ([`7b5e360`](https://github.com/frederico-mello/repository-hygiene/commit/7b5e3606f05f4920e2b19e559b815754af4b2f91))
 
-  ([`02b4e3d`](https://github.com/frederico-mello/repository-hygiene/commit/02b4e3d006e98dd6ba81fc64c0e342669d785227))
+- **openspec-plus**: Bump to v1.4.0
+  ([`4613db4`](https://github.com/frederico-mello/repository-hygiene/commit/4613db48a528a43d776944fa5d5d528e5f16bd13))
 
+- Update openspec/config.yaml with openspec-plus context and rules - Aligns with upstream
+  sudokar/openspec-plus v1.4.0 - See CHANGELOG:
+  https://github.com/sudokar/openspec-plus/releases/tag/v1.4.0
 
 ### Documentation
 
 - Document remote installation
-  ([`cac2c8f`](https://github.com/frederico-mello/repository-hygiene/commit/cac2c8f0114879f3ddf7ca73b3664d548770cfba))
+  ([`7f0c09c`](https://github.com/frederico-mello/repository-hygiene/commit/7f0c09c30cd973c2d86ad2c33946b1473db2b045))
 
 - Propose agent-friendly audit report
-  ([`7007e33`](https://github.com/frederico-mello/repository-hygiene/commit/7007e33e4079dc214095908e3b5719fddd842193))
+  ([`08a2f52`](https://github.com/frederico-mello/repository-hygiene/commit/08a2f52d59f07243bbc772035f12cffce2573e34))
 
 - Propose audit false-positive reduction
-  ([`c7e39b6`](https://github.com/frederico-mello/repository-hygiene/commit/c7e39b630756379205e23f20839448359b6d03a1))
+  ([`adb46cb`](https://github.com/frederico-mello/repository-hygiene/commit/adb46cbe4c58e03dc01abd73d531f4d1e0122702))
 
 - Propose scalable audit change
-  ([`58421a5`](https://github.com/frederico-mello/repository-hygiene/commit/58421a5b018e9170fa0a2d0221080cbcb564e3dd))
+  ([`083d6b4`](https://github.com/frederico-mello/repository-hygiene/commit/083d6b4eca409d87bf47ce17696ae6f26bf8b6c1))
 
 - Propose scalable audit change
-  ([`f9aa3f4`](https://github.com/frederico-mello/repository-hygiene/commit/f9aa3f45f22a15f8ca28b7388aef347c26898d35))
+  ([`e675f7d`](https://github.com/frederico-mello/repository-hygiene/commit/e675f7d9b2fc5f6b6f330e394fd0b8a0eaa386f8))
 
 - Reorganize README, align workflow template, add tests
-  ([`849f4b1`](https://github.com/frederico-mello/repository-hygiene/commit/849f4b132542d592000b63a140b4c563de59fd48))
+  ([`1b620d0`](https://github.com/frederico-mello/repository-hygiene/commit/1b620d0df85847ddc6de00457e0d0bd41a083998))
 
 ### Features
 
 - Add agent audit reports
-  ([`37195a8`](https://github.com/frederico-mello/repository-hygiene/commit/37195a83dc00b65e345d39479b45f9a7f10b4044))
+  ([`e2e13e1`](https://github.com/frederico-mello/repository-hygiene/commit/e2e13e12f8f9788346c0b2b38b6c364104da34a8))
 
 - Reduce audit false positives
-  ([`6585ef0`](https://github.com/frederico-mello/repository-hygiene/commit/6585ef0d61e629a997e82a2975bfab11af3feded))
+  ([`6d3bc71`](https://github.com/frederico-mello/repository-hygiene/commit/6d3bc71607ddb02c22878ac62511006f2486a169))
 
 - Robust-installation-path — suporte uvx, uv tool install, modulo Python
-  ([`ba5d544`](https://github.com/frederico-mello/repository-hygiene/commit/ba5d5444ff62ad0068aecee7470b4fa499fa4b13))
+  ([`ef70377`](https://github.com/frederico-mello/repository-hygiene/commit/ef7037704e8daa75f3ffe897177b5fce3eab95aa))
 
 - Adiciona __main__.py para execucao via python -m auditoria_higiene - Documenta fluxos uvx, uv tool
   install, pip e modulo Python no README - Nova spec instalacao-cli-uv com cenarios para cada fluxo
@@ -208,10 +373,10 @@ SonarCloud Quality Gate: 19.3% duplicated lines (threshold 3%). git_repo fixture
   segredos, codigos de saida, config invalida, docs - Arquiva change instalacao-cli-com-uv
 
 - Sync delta specs to main specs and archive completed changes
-  ([`79f9c34`](https://github.com/frederico-mello/repository-hygiene/commit/79f9c349da19fdb80f58ed5116fade0aee2d2109))
+  ([`004d0ce`](https://github.com/frederico-mello/repository-hygiene/commit/004d0ced702bb85dfb1624e4affd35a4181116db))
 
 - Version control and release automation
-  ([`a2d37f6`](https://github.com/frederico-mello/repository-hygiene/commit/a2d37f6a458c3f84fcbbe8a3dd7181d221b0945b))
+  ([`ca3c777`](https://github.com/frederico-mello/repository-hygiene/commit/ca3c777f01592336cc74c10b7258eaf791f1c8f6))
 
 - Conventional Commits audit rule (commit_check.py + core.py integration) - commit-msg hook
   installed by default on --init - Dynamic workflow template (no hardcoded version) - Semantic
@@ -219,29 +384,30 @@ SonarCloud Quality Gate: 19.3% duplicated lines (threshold 3%). git_repo fixture
   - 13/13 tasks complete, 140 tests passing
 
 - Version-control-and-release — OpenSpec Plus 1.4.0 + commit check module
-  ([`d21cf82`](https://github.com/frederico-mello/repository-hygiene/commit/d21cf8280b516a65f5c00517fad3bb8b9d77411c))
+  ([`b47ba8e`](https://github.com/frederico-mello/repository-hygiene/commit/b47ba8e8f382c47a6242a605c7851523224046a8))
 
 - Upgrade OpenSpec Plus de 1.3.0 para 1.4.0 - Adiciona regras mandatory no config.yaml para skills
+  openspec-plus-* - Novo modulo commit_check.py: verifica se commits no branch principal seguem
   convencao (feat/fix/etc.) e referenciam issue - Testes para commit_check
 
 - **openspec**: Agent-hygiene-skill — 22/22 tasks complete
-  ([`e50b007`](https://github.com/frederico-mello/repository-hygiene/commit/e50b007af844e1954c198ddf46b9a1dd43fad939))
+  ([`a09e614`](https://github.com/frederico-mello/repository-hygiene/commit/a09e61469132764f00e5f43245b1042afabd5796))
 
 - **openspec**: Sync agent-hygiene-flow delta spec to main specs
-  ([`dc26db6`](https://github.com/frederico-mello/repository-hygiene/commit/dc26db6b5e48d93604536a8a8793b3c872b705f3))
+  ([`3788b17`](https://github.com/frederico-mello/repository-hygiene/commit/3788b17a8891037c0fd5fe138da4ce1687f62825))
 
 ### Performance Improvements
 
 - Scale artifact audit inventory
-  ([`2a4a2eb`](https://github.com/frederico-mello/repository-hygiene/commit/2a4a2eb20139a5fa447c47657caf7c91dbcf85a8))
+  ([`bdb6dc9`](https://github.com/frederico-mello/repository-hygiene/commit/bdb6dc996c2c52e1ca27a1cdc621dcb767fa0857))
 
 ### Refactoring
 
 - Parametrize commit_check tests to reduce duplication
-  ([`02c8c7c`](https://github.com/frederico-mello/repository-hygiene/commit/02c8c7c78aa532cfa40eefc0696e1829b9efb0ff))
+  ([`b1dff7b`](https://github.com/frederico-mello/repository-hygiene/commit/b1dff7bf183a85f365b348b55068006fea1b23fd))
 
 - Parametrize hook validation tests to reduce duplication
-  ([`a58db29`](https://github.com/frederico-mello/repository-hygiene/commit/a58db29597414522d387575a0d7ec8a7811b884c))
+  ([`d0c847a`](https://github.com/frederico-mello/repository-hygiene/commit/d0c847a6552ba6fd3db51a7f3720401dbc8239a0))
 
 
 ## v0.2.0 (2026-07-22)
@@ -255,19 +421,19 @@ SonarCloud Quality Gate: 19.3% duplicated lines (threshold 3%). git_repo fixture
   ([`bd10a97`](https://github.com/frederico-mello/repository-hygiene/commit/bd10a973dbc87833d416baf790827c569c8e5e77))
 
 - Cache tracked files during audit
-  ([`6417430`](https://github.com/frederico-mello/repository-hygiene/commit/6417430e81969886b988066bfe12e8958cfe0e83))
+  ([`8cb9e6e`](https://github.com/frederico-mello/repository-hygiene/commit/8cb9e6e2d859ab4e460028dfe9b823b5fdd990a6))
 
 - Close README test file
-  ([`ba2b809`](https://github.com/frederico-mello/repository-hygiene/commit/ba2b80922cec3f286b75b015aed2e9f4755413a3))
+  ([`f5c1a9e`](https://github.com/frederico-mello/repository-hygiene/commit/f5c1a9e74d2c38430cfb6f40ed977b1a8ac39b89))
 
 - Close remaining SonarCloud findings
   ([`789e312`](https://github.com/frederico-mello/repository-hygiene/commit/789e312c9c91f866d626bb60c17142b5fb496039))
 
 - Install package from git source
-  ([`8bf3d64`](https://github.com/frederico-mello/repository-hygiene/commit/8bf3d643ce596a94c608a9319f1196ba2d22a6d7))
+  ([`0fa3877`](https://github.com/frederico-mello/repository-hygiene/commit/0fa3877e6c0f4eea5e64dba3eba046ccd954eadb))
 
 - Use repository-hygiene package name
-  ([`6fb2693`](https://github.com/frederico-mello/repository-hygiene/commit/6fb2693f7be8ef50150b3c27903ca296d4a65f93))
+  ([`78dee7a`](https://github.com/frederico-mello/repository-hygiene/commit/78dee7a2b46e8070866ca019e9a511481d912586))
 
 - **snapshot**: Prevent path traversal via staged file paths
   ([`3b2f899`](https://github.com/frederico-mello/repository-hygiene/commit/3b2f899de8583c5ba6206d76766bbfc62dd69e24))
@@ -275,13 +441,13 @@ SonarCloud Quality Gate: 19.3% duplicated lines (threshold 3%). git_repo fixture
 ### Documentation
 
 - Propose PyPI 0.2.0 release
-  ([`08a2901`](https://github.com/frederico-mello/repository-hygiene/commit/08a2901405adb9aa1083f0aa41fc491b3f2d9514))
+  ([`3dbeb74`](https://github.com/frederico-mello/repository-hygiene/commit/3dbeb744607a551284cfe55453bf2fe56640c311))
 
 - Sync README with current behavior
-  ([`674d366`](https://github.com/frederico-mello/repository-hygiene/commit/674d366a47be5b98747b7dabb995df68d39834da))
+  ([`365ea22`](https://github.com/frederico-mello/repository-hygiene/commit/365ea22f01172ed4f3b74f87ae6760b972647b0c))
 
 - Use uv commands in README
-  ([`fe9c193`](https://github.com/frederico-mello/repository-hygiene/commit/fe9c193e939490d4cc9b6e507c12ebd18cfd4cbd))
+  ([`0f76efe`](https://github.com/frederico-mello/repository-hygiene/commit/0f76efe7fc28643ed0c917893cc1cd81ff676bf1))
 
 ### Features
 
@@ -289,7 +455,7 @@ SonarCloud Quality Gate: 19.3% duplicated lines (threshold 3%). git_repo fixture
   ([`c4cdf4a`](https://github.com/frederico-mello/repository-hygiene/commit/c4cdf4ab3f5a49cec2aa6b31115aa1c83ac43920))
 
 - Bump to 0.2.0, update README, workflow, add tests
-  ([`8e9691a`](https://github.com/frederico-mello/repository-hygiene/commit/8e9691a7378756a73e7728cf7724896b367e83d9))
+  ([`1cb0e47`](https://github.com/frederico-mello/repository-hygiene/commit/1cb0e477bdad09a1c4a335bc1404a1d9479c13c7))
 
 - Initial release v0.1.0
   ([`3fbd500`](https://github.com/frederico-mello/repository-hygiene/commit/3fbd5008db6c0faa4a4fea47901de12b6ac7f7c9))
