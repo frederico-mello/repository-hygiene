@@ -57,4 +57,6 @@ def validar_commits(repo_path, severidade="warning"):
 def _mensagem_conventional(mensagem):
     if not mensagem:
         return False
+    if mensagem.startswith('Revert "'):
+        return True
     return bool(_PADRAO_CONVENCIONAL.match(mensagem))

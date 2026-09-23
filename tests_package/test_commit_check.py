@@ -1,7 +1,6 @@
 """Testes para commit_check.py."""
 
 import subprocess
-from pathlib import Path
 
 import pytest
 
@@ -175,3 +174,21 @@ def test_commit_invalido_gera_finding_via_auditoria(git_repo):
         r for r in resultado["resultados"] if r["regra"] == "conventional-commits"
     ]
     assert len(findings) == 1
+
+
+def test_revert_conventional_inner_nao_gera_findings(git_repo):
+    assert _validar_apos_commit(git_repo, 'Revert "feat: add OAuth2 support"') == []
+
+
+def test_revert_nonconventional_inner_nao_gera_findings(git_repo):
+    assert _validar_apos_commit(git_repo, 'Revert "added OAuth2"') == []
+
+
+def test_nonrevert_conventional_ainda_validado(git_repo):
+    assert _validar_apos_commit(git_repo, "feat: remove broken feature") == []
+
+
+def test_nonrevert_nonconventional_ainda_flagado(git_repo):
+    findings = _validar_apos_commit(git_repo, "rolled back the auth changes")
+    assert len(findings) == 1
+    assert findings[0]["regra"] == "conventional-commits"
