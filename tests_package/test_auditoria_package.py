@@ -2903,7 +2903,8 @@ class TestSnapshot:
         assert result.returncode == 0
         workflow = tmp_path / ".github" / "workflows" / "repository-hygiene.yml"
         content = workflow.read_text()
-        assert "repository-hygiene==" in content
+        assert "pip install repository-hygiene" in content
+        assert "pip install repository-hygiene==" not in content
 
 
 class TestTaxonomiaRecomendacao:

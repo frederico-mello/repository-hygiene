@@ -27,13 +27,25 @@ jobs:
         run: uv venv
 
       - name: Install test runner
-        run: uv pip install --only-binary :all: 'pytest==8.3.4'
+        run: |
+          uv pip install --only-binary=:all: pytest==8.3.4
+          uv pip install --only-binary=:all: PyYAML==6.0.3
 
-      - name: Install package
-        run: uv pip install -e .
+      - name: Build package
+        run: uv build
 
       - name: Run tests
-        run: uv run --frozen pytest tests_package/ -q
+        shell: bash
+        env:
+          PYTHONPATH: src
+        run: |
+          uv pip install --require-hashes --only-binary :all: -r .github/workflows/requirements-ci.lock
+          if [[ -f .venv/bin/activate ]]; then
+            source .venv/bin/activate
+          else
+            source .venv/Scripts/activate
+          fi
+          python -m pytest tests_package/ -q
 
   install-flow:
     name: install flow (${{ matrix.os }})
@@ -51,28 +63,25 @@ jobs:
       - name: Build package
         run: uv build
 
-      - name: Find wheel file
-        id: find-wheel
-        run: echo "wheel=$(ls dist/*.whl | head -1)" >> "$GITHUB_OUTPUT"
-        shell: bash
-
       - name: uvx install (ephemeral)
+        shell: bash
         run: |
           mkdir -p /tmp/consumer
           git init /tmp/consumer
-          uvx --from '${{ steps.find-wheel.outputs.wheel }}' 'repository-hygiene==0.2.0' install /tmp/consumer
+          uvx --no-build --find-links dist --from repository-hygiene==1.0.0 --with PyYAML==6.0.3 repository-hygiene install /tmp/consumer
           test -f /tmp/consumer/auditoria.yaml
           test -f /tmp/consumer/.github/workflows/repository-hygiene.yml
           test -f /tmp/consumer/.opencode/skills/agent-hygiene-flow/SKILL.md
 
       - name: uv tool install (persistent)
+        shell: bash
         run: |
-          uv tool install --force ${{ steps.find-wheel.outputs.wheel }}
+          uv tool install --force --no-build --find-links dist repository-hygiene==1.0.0
           uv tool list | grep repository-hygiene
-          uv tool run --from '${{ steps.find-wheel.outputs.wheel }}' 'repository-hygiene==0.2.0' --version
+          uv tool run --no-build --find-links dist --from repository-hygiene==1.0.0 repository-hygiene --version
 
   actionlint:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: rhysd/action-actionlint@v1
+      - uses: raven-actions/actionlint@3d39aea434753780c3b3d4a1a31c854b4dbf49d7 # v2
