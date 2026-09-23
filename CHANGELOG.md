@@ -1,11 +1,43 @@
 # CHANGELOG
 
-## Unreleased
+
+## v0.9.0 (2026-09-23)
 
 ### Features
 
-- Add the semantic release workflow and keep generated audit workflows on the current PyPI package.
-- Publish oversized audit reports as artifacts while truncating GitHub Issue bodies safely.
+- **openspec**: Version control release
+  ([#103](https://github.com/frederico-mello/repository-hygiene/pull/103),
+  [`4adb77b`](https://github.com/frederico-mello/repository-hygiene/commit/4adb77b05acfb1f94a6f120ab814d031ac0ae93d))
+
+* feat(openspec): version control release complete
+
+* fix: reconcile release PR with main
+
+* fix(ci): install local package in audit workflow
+
+* fix(ci): run audit from local source
+
+* fix(ci): pin local workflow test dependencies
+
+* fix(ci): stabilize matrix and audit workflows
+
+* fix(ci): pin wheels and use portable install shell
+
+* fix(ci): use sonar-compatible binary pin syntax
+
+* fix(ci): expose binary constraint to sonar
+
+* fix(ci): use no-build for local wheel
+
+* fix(ci): run matrix from pinned ephemeral environment
+
+* fix(ci): declare pinned matrix requirements
+
+* fix(ci): enforce hash-locked test environment
+
+* fix(ci): lock external test dependencies only
+
+* fix(ci): execute tests from activated venv
 
 
 ## v0.8.1 (2026-09-15)
