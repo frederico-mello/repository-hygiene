@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.9.3 (2026-09-24)
+
+### Bug Fixes
+
+- **mira**: Quote $range in git diff (shellcheck SC2086)
+  ([`5512be2`](https://github.com/frederico-mello/repository-hygiene/commit/5512be2d1de4790b1d9947d04eccec1b7bb9e3d4))
+
+
 ## v0.9.2 (2026-09-24)
 
 ### Bug Fixes
