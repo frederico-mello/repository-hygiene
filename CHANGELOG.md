@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.9.4 (2026-09-24)
+
+### Bug Fixes
+
+- **mira**: Revert quote on $range — it holds two SHAs, not one path
+  ([`a02dd60`](https://github.com/frederico-mello/repository-hygiene/commit/a02dd6038674c919e6c55795fc9415d89d689df0))
+
+
 ## v0.9.3 (2026-09-24)
 
 ### Bug Fixes
