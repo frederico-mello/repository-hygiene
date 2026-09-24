@@ -1,6 +1,24 @@
 # CHANGELOG
 
 
+## v0.9.2 (2026-09-24)
+
+### Bug Fixes
+
+- **mira**: Recover prose-emitted payloads — chunk dropped with valid payload counts as covered
+  ([`e5ab5b9`](https://github.com/frederico-mello/repository-hygiene/commit/e5ab5b9a02d867774982bff3731b84a0448be6c7))
+
+minimax-m3 degrades tool-call to prose intermittently on large outputs. Mira then prints the valid
+  review JSON to stdout but marks the chunk as 'failed to parse, skipping', and the parser treated
+  any dropped chunk as partial even when a complete payload (walkthrough, reviewed_files) was
+  present — measured on a real run: 14 files walked, 0 comments, valid walkthrough, counted as
+  partial 4 runs in a row.
+
+Both parsers now merge every recoverable payload (dedupe on file+line+title) and only stay partial
+  when a dropped chunk has no payload with walkthrough or findings. Validated against the real
+  partial-run stdout plus synthetic multi-chunk/empty-payload cases.
+
+
 ## v0.9.1 (2026-09-23)
 
 ### Bug Fixes
