@@ -103,7 +103,8 @@ jobs:
             fi
           fi
 
-          git diff "$range" > "$RUNNER_TEMP/push.diff"
+          # shellcheck disable=SC2086 — $range is exactly two SHAs
+          git diff $range > "$RUNNER_TEMP/push.diff"
           lines=$(wc -l < "$RUNNER_TEMP/push.diff")
           echo "diff lines: $lines"
           if [ "$lines" -eq 0 ]; then
