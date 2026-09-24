@@ -9,3 +9,4 @@ auditoria-report.txt
 .opencode/node_modules/
 graphify-out/
 build/
+.opencode/plugins/emdash-notifications.js
