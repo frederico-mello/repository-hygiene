@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.9.5 (2026-09-24)
+
+### Bug Fixes
+
+- **mira**: Shellcheck directive needs '--', not em dash
+  ([`78aeaf6`](https://github.com/frederico-mello/repository-hygiene/commit/78aeaf6b78e8a7961103b15913a1e65f4fff31f9))
+
+
 ## v0.9.4 (2026-09-24)
 
 ### Bug Fixes
