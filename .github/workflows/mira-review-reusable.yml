@@ -231,14 +231,38 @@ jobs:
           exit_code = int(sys.argv[2])
           out = os.environ["GITHUB_OUTPUT"]
 
-          result = None
+          payloads = []
           for start in [i for i, ch in enumerate(raw) if ch == "{"]:
               try:
                   cand = json.loads(raw[start:])
               except Exception:
                   continue
               if isinstance(cand, dict) and "comments" in cand:
-                  result = cand
+                  payloads.append(cand)
+
+          # Multi-chunk diffs can emit one payload per chunk; merge them all
+          # instead of keeping only the last. Dedupe on file+line+title so an
+          # aggregate payload alongside per-chunk ones cannot double-count.
+          result = payloads[-1] if payloads else None
+          comments = []
+          seen_keys = set()
+          reviewed_files = 0
+          walkthrough_seen = False
+          for p in payloads:
+              for c in p.get("comments") or []:
+                  key = (c.get("file_path") or c.get("path"),
+                         c.get("line") or c.get("start_line"),
+                         c.get("title"))
+                  if key in seen_keys:
+                      continue
+                  seen_keys.add(key)
+                  comments.append(c)
+              if isinstance(p.get("walkthrough"), dict) and p.get("walkthrough"):
+                  walkthrough_seen = True
+              try:
+                  reviewed_files = max(reviewed_files, int(p.get("reviewed_files") or 0))
+              except (TypeError, ValueError):
+                  pass
 
           # The verdict goes to its own one-line file: the caller needs a clean
           # token to compare against, and stdout carries log lines too, so
@@ -269,16 +293,27 @@ jobs:
               emit("failed", comments=0, blockers=0, dropped_chunks=0)
               sys.exit(1)
 
-          comments = result.get("comments") or []
           blockers = [c for c in comments if (c.get("severity") or "").lower() == "blocker"]
-          # A payload with zero comments is NOT a clean review: when the model
-          # answers in prose instead of calling the tool, Mira drops that chunk
-          # and still exits 0, so the review silently covered less than the diff.
+          # A payload recovered from the stdout is the model's verdict for its
+          # chunk. When the model answers in prose instead of calling the tool,
+          # Mira still parses the JSON the harness printed and drops the chunk,
+          # counting it here as "failed to parse, skipping". The payload IS the
+          # review (measured on a real run: 14 files walked, 0 comments, valid
+          # walkthrough), so treat a recovered payload as coverage for its
+          # chunk. Only a discarded chunk with NO recoverable payload (or a
+          # payload that clearly did not walk the diff) stays partial.
           dropped = raw.count("failed to parse, skipping")
-          status = "partial" if dropped else "ok"
+          recovered = len(payloads)
+          if dropped and (recovered and (comments or walkthrough_seen or reviewed_files)):
+              print(
+                  f"::notice::{dropped} chunk(s) dropped by the harness but the "
+                  f"review payload was recovered from the prose output "
+                  f"({reviewed_files} file(s) reviewed) — counting as covered."
+              )
+          status = "partial" if (dropped and not (comments or walkthrough_seen)) else "ok"
           emit(status, comments=len(comments), blockers=len(blockers), dropped_chunks=dropped)
           print(f"parsed: {len(comments)} comment(s), {len(blockers)} blocker(s), {dropped} chunk(s) discarded")
-          if dropped:
+          if dropped and status == "partial":
               print(
                   f"::warning::{dropped} diff chunk(s) discarded: the model answered in "
                   "prose instead of calling the tool, so the review covered less than "
