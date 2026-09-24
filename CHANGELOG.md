@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.9.6 (2026-09-24)
+
+### Bug Fixes
+
+- **mira**: Bare shellcheck directive — explanation text breaks parsing
+  ([`1b9034e`](https://github.com/frederico-mello/repository-hygiene/commit/1b9034edf2823b7370be46c69e5213039a629626))
+
+
 ## v0.9.5 (2026-09-24)
 
 ### Bug Fixes
