@@ -1,7 +1,7 @@
-__pycache__/  
-*.egg-info/  
-dist/  
-.pytest_cache/ 
+__pycache__/
+*.egg-info/
+dist/
+.pytest_cache/
 .venv/
 .ruff_cache/
 .repository-hygiene/
@@ -10,3 +10,6 @@ auditoria-report.txt
 graphify-out/
 build/
 .opencode/plugins/emdash-notifications.js
+
+# ferramentas de agente
+.omp/
