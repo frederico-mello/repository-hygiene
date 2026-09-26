@@ -4,7 +4,7 @@
 
 Automated CI/CD pipeline triggered on push to main that analyzes Conventional Commits, determines next semantic version, generates changelog, creates git tag, builds the package, and publishes to PyPI.
 
-## ADDED Requirements
+## Requirements
 
 ### Requirement: Release pipeline triggered by push to main
 The system SHALL run the release pipeline automatically on every push to the `main` branch.

@@ -4,7 +4,7 @@
 
 Audit rule that validates commit messages against the Conventional Commits specification, plus a pre-commit hook that blocks non-conventional commits locally.
 
-## ADDED Requirements
+## Requirements
 
 ### Requirement: Audit rule validates Conventional Commits format
 The system SHALL provide an audit rule `conventional-commits` that validates all commit messages in the repository against the Conventional Commits specification. The rule SHALL be enabled by default (opt-out).
