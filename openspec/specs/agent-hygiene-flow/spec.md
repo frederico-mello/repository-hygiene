@@ -1,4 +1,10 @@
-## ADDED Requirements
+# Agent Hygiene Flow
+
+## Purpose
+
+Fluxo normativo pelo qual um agente conduz higiene de repositório: ativa a skill `agent-hygiene-flow` (fonte única da verdade), roda o CLI de auditoria, consome o relatório JSON, organiza achados por severidade, remedia com isolamento de worktree e termina auditando novamente até o estado limpo. Deve deferir para a skill em vez de redefinir o fluxo.
+
+## Requirements
 
 ### Requirement: Skill is the normative source for the hygiene flow
 
