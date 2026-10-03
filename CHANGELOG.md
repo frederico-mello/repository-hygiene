@@ -1,6 +1,42 @@
 # CHANGELOG
 
 
+## v0.9.7 (2026-10-03)
+
+### Bug Fixes
+
+- **mira**: Considera reviewed_files no veredito partial do gate
+  ([#657](https://github.com/frederico-mello/repository-hygiene/pull/657),
+  [`a514473`](https://github.com/frederico-mello/repository-hygiene/commit/a5144731d02e8c6b7107015556daad05d29e7395))
+
+O status 'partial' do gate ignorava reviewed_files, fazendo com que reviews limpas com payload
+  recuperado ficassem presas em partial indefinidamente e o gate block-on-blocker reprovasses
+  revisões honestas. O fix unifica o predicado 'covered' entre a seção news counting-as-covered e o
+  veredito do gate, usando reviewed_files para distinguir "coberto por review limpa" de "realmente
+  não coberto".
+
+### Chores
+
+- Alinhar uv.lock com pyproject 1.0.0 e ignorar .omp/
+  ([`c9f8408`](https://github.com/frederico-mello/repository-hygiene/commit/c9f84088fcbeb7120a5e970e3f2cffeff081dd44))
+
+- **openspec**: Migrar changes/spec perdidas do workspace stray
+  ([`da008da`](https://github.com/frederico-mello/repository-hygiene/commit/da008da9242ed72ffe440312f190c1831cc5ab66))
+
+### Continuous Integration
+
+- Fixa o reusable do Mira em SHA e habilita Dependabot
+  ([`b876c68`](https://github.com/frederico-mello/repository-hygiene/commit/b876c682ac1ec2ce7f441b5e6e0c5b6cf992bcf4))
+
+A ref flutuante em @main expunha o secret encaminhado a qualquer push upstream. Dependabot abre o PR
+  de bump para manter atualizado.
+
+### Documentation
+
+- **openspec**: Normalizar specs principais de delta para spec final (Purpose + Requirements)
+  ([`fdf0cd9`](https://github.com/frederico-mello/repository-hygiene/commit/fdf0cd9feae365944694797c31cc6fa9b8e34231))
+
+
 ## v0.9.6 (2026-09-24)
 
 ### Bug Fixes
