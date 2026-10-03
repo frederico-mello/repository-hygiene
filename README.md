@@ -21,7 +21,7 @@ pip install repository-hygiene
 
 **Note:** after `pip install`, run `repository-hygiene install .` **in the
 target repository** to provision configuration, CI workflow, and the
-`agent-hygiene-flow` OpenCode skill.
+`agent-hygiene-flow` skill for the agent roots used by that repository.
 
 To install directly from GitHub (versions not published on PyPI):
 
@@ -34,15 +34,25 @@ pip install git+https://github.com/frederico-mello/repository-hygiene.git
 ### Initialize repository (`install`)
 
 ```bash
-repository-hygiene install .             # create auditoria.yaml + workflow + skill
+repository-hygiene install .             # create auditoria.yaml + workflow + skills
 repository-hygiene install --force .     # overwrite existing files
 repository-hygiene install --dry-run .   # preview without writing
+repository-hygiene install --agents opencode,kilo .  # restrict skill destinations
+repository-hygiene install-skill .       # provision skills only
 ```
 
 `install` creates:
 - `auditoria.yaml` — rule configuration and exceptions
 - `.github/workflows/repository-hygiene.yml` — weekly CI workflow
-- `.opencode/skills/agent-hygiene-flow/` — OpenCode skill for agents
+- `<agent>/skills/agent-hygiene-flow/` — agent skill for each selected agent root
+
+Skill provisioning is agent-agnostic: by default the skill goes to every
+supported agent root present in the target repository (`.opencode`,
+`.kilocode`, `.kilo`, `.omp`, `.hermes`), falling back to `.opencode` when
+none exists. `--agents` (comma-separated, with or without the leading dot)
+restricts the selection explicitly, and `--dry-run` lists every planned
+destination. Each destination is evaluated on its own: an existing skill is
+skipped unless `--force`, while missing destinations are still provisioned.
 
 ### Audit
 
@@ -143,7 +153,8 @@ exceptions:
 
 The generated workflow (`repository-hygiene.yml`):
 
-- Runs weekly and on push/PR to relevant paths
+- Runs weekly and on push/PR to relevant paths, including every supported
+  agent root (`.opencode/`, `.kilocode/`, `.kilo/`, `.omp/`, `.hermes/`)
 - Publishes the report to `$GITHUB_STEP_SUMMARY`
 - Creates/updates a consolidated issue with findings (`error`); closes when clean
 

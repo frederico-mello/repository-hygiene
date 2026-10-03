@@ -8,6 +8,10 @@ on:
       - auditoria.yaml
       - .github/**
       - .opencode/**
+      - .kilocode/**
+      - .kilo/**
+      - .omp/**
+      - .hermes/**
       - openspec/**
       - docs/**
       - README.md
@@ -18,6 +22,10 @@ on:
       - auditoria.yaml
       - .github/**
       - .opencode/**
+      - .kilocode/**
+      - .kilo/**
+      - .omp/**
+      - .hermes/**
       - openspec/**
       - docs/**
       - README.md
