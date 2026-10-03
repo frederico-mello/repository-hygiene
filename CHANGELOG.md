@@ -103,10 +103,15 @@ release.yml ganha --skip-existing para que pushes sem release novo nao falhem co
 
 ## v1.0.0 (2026-10-03)
 
+Primeira publicacao no PyPI desde a 0.2.0 — reune todo o trabalho das releases 0.9.x.
+
+### Breaking Changes
+
+- **Chaves de configuracao em ingles**: siga [docs/MIGRATION.md](docs/MIGRATION.md) para renomear as chaves do seu `auditoria.yaml`.
+
 ### Chores
 
-- **openspec**: Archive fix-mira-partial-gate-contradiction
-  ([`077291a`](https://github.com/frederico-mello/repository-hygiene/commit/077291a895bf7235bd1e06e2c7457402cf34ef88))
+- **openspec**: Archive fix-mira-partial-gate-contradiction ([`077291a`](https://github.com/frederico-mello/repository-hygiene/commit/077291a895bf7235bd1e06e2c7457402cf34ef88))
 
 
 ## v0.9.7 (2026-10-03)
