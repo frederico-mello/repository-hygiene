@@ -304,13 +304,17 @@ jobs:
           # payload that clearly did not walk the diff) stays partial.
           dropped = raw.count("failed to parse, skipping")
           recovered = len(payloads)
-          if dropped and (recovered and (comments or walkthrough_seen or reviewed_files)):
+          # Coverage is any of: findings, a walkthrough, or files the recovered
+          # payload says it reviewed. reviewed_files must be EFFECTIVE (> 0):
+          # a payload that clearly did not walk the diff covers nothing.
+          covered = bool(comments or walkthrough_seen or reviewed_files)
+          if dropped and recovered and covered:
               print(
                   f"::notice::{dropped} chunk(s) dropped by the harness but the "
                   f"review payload was recovered from the prose output "
                   f"({reviewed_files} file(s) reviewed) — counting as covered."
               )
-          status = "partial" if (dropped and not (comments or walkthrough_seen)) else "ok"
+          status = "partial" if (dropped and not covered) else "ok"
           emit(status, comments=len(comments), blockers=len(blockers), dropped_chunks=dropped)
           print(f"parsed: {len(comments)} comment(s), {len(blockers)} blocker(s), {dropped} chunk(s) discarded")
           if dropped and status == "partial":
