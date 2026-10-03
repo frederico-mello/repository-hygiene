@@ -37,7 +37,7 @@ auditoria_higiene = ["templates/*", "templates/skills/**/*"]
 
 [tool.semantic_release]
 branch = "main"
-version_variable = ["pyproject.toml:project.version"]
+version_toml = ["pyproject.toml:project.version"]
 tag_format = "v{version}"
 commit_message = "chore(release): {version}"
 changelog_file = "CHANGELOG.md"
