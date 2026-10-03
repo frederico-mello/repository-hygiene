@@ -5,41 +5,62 @@ import pkgutil
 import sys
 from importlib.resources import files
 
+from auditoria_higiene.agentes import raizes_alvo
 
-def cmd_init(directory, force=False, install_hook=False):
-    cmd_install(directory, force=force, dry_run=False)
+
+def cmd_init(directory, force=False, install_hook=False, agents=None):
+    cmd_install(directory, force=force, dry_run=False, agents=agents)
     _instalar_hook_commit_msg(os.path.abspath(directory), force)
     if install_hook:
         _instalar_hook(os.path.abspath(directory), force)
 
 
-def cmd_install(directory, force=False, dry_run=False):
+def cmd_install(directory, force=False, dry_run=False, agents=None):
     raiz = os.path.abspath(directory)
     if not os.path.isdir(raiz):
         print(f"Error: directory not found: {raiz}", file=sys.stderr)
         sys.exit(2)
+    destinos = _destinos_skills(raiz, agents)
 
     if dry_run:
+        _dry_run_msg_skills(raiz, destinos)
         _dry_run_msg(raiz, "auditoria.yaml", "templates/auditoria.yaml")
         _dry_run_msg(raiz, ".github/workflows/repository-hygiene.yml", "templates/workflow.yml")
-        _dry_run_msg_skills(raiz)
         return
 
-    _gerar_arquivo(raiz, "auditoria.yaml", "templates/auditoria.yaml", force)
-    _gerar_arquivo(raiz, ".github/workflows/repository-hygiene.yml", "templates/workflow.yml", force)
-    _instalar_skills(raiz, force)
+    gravados = []
+    try:
+        _instalar_skills(raiz, force, destinos, gravados)
+        _gerar_arquivo(raiz, "auditoria.yaml", "templates/auditoria.yaml", force, gravados)
+        _gerar_arquivo(raiz, ".github/workflows/repository-hygiene.yml", "templates/workflow.yml", force, gravados)
+    except (ValueError, OSError) as erro:
+        _sair_por_erro_de_escrita(erro, gravados)
     print(f"Files generated in {raiz}")
 
 
-def cmd_install_skill(directory, force=False, dry_run=False):
+def cmd_install_skill(directory, force=False, dry_run=False, agents=None):
     raiz = os.path.abspath(directory)
     if not os.path.isdir(raiz):
         print(f"Error: directory not found: {raiz}", file=sys.stderr)
         sys.exit(2)
+    destinos = _destinos_skills(raiz, agents)
     if dry_run:
-        _dry_run_msg_skills(raiz)
+        _dry_run_msg_skills(raiz, destinos)
         return
-    _instalar_skills(raiz, force)
+    gravados = []
+    try:
+        _instalar_skills(raiz, force, destinos, gravados)
+    except (ValueError, OSError) as erro:
+        _sair_por_erro_de_escrita(erro, gravados)
+
+
+def _sair_por_erro_de_escrita(erro, gravados):
+    print(f"Error: {erro}", file=sys.stderr)
+    if gravados:
+        print(f"  Already written: {'; '.join(gravados)}", file=sys.stderr)
+    else:
+        print("  Nothing was written.", file=sys.stderr)
+    sys.exit(2)
 
 
 def cmd_update(directory, version=None, dry_run=False):
@@ -78,32 +99,46 @@ def _listar_skills():
     return sorted([p.name for p in raiz_skills.iterdir() if p.is_dir()])
 
 
-def _dry_run_msg_skills(raiz):
+def _destinos_skills(raiz, agents):
+    try:
+        return raizes_alvo(raiz, agents)
+    except (ValueError, OSError) as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(2)
+
+
+def _dry_run_msg_skills(raiz, destinos):
     for skill_name in _listar_skills():
-        skill_dir_rel = os.path.join(".opencode", "skills", skill_name)
-        caminho = os.path.join(raiz, skill_dir_rel).replace(os.sep, "/")
-        print(f"  dry-run: {caminho}")
+        for raiz_agente in destinos:
+            skill_dir_rel = os.path.join(raiz_agente, "skills", skill_name)
+            caminho = os.path.join(raiz, skill_dir_rel).replace(os.sep, "/")
+            print(f"  dry-run: {caminho}")
 
 
-def _instalar_skills(raiz, force):
+def _instalar_skills(raiz, force, destinos, gravados=None):
     raiz_skills = _skills_root()
     if raiz_skills is None:
         return
-    for skill_name in _listar_skills():
-        skill_src = raiz_skills.joinpath(skill_name)
-        skill_dest_rel = os.path.join(".opencode", "skills", skill_name)
-        skill_dest_abs = _caminho_no_diretorio(raiz, skill_dest_rel)
-        if os.path.exists(skill_dest_abs) and not force:
-            print(f"  Skipping (already exists): {skill_dest_rel}")
-            continue
-        os.makedirs(skill_dest_abs, exist_ok=True)
-        for entrada in skill_src.iterdir():
-            if not entrada.is_file():
+    for raiz_agente in destinos:
+        for skill_name in _listar_skills():
+            skill_src = raiz_skills.joinpath(skill_name)
+            skill_dest_rel = os.path.join(raiz_agente, "skills", skill_name)
+            skill_dest_abs = _caminho_no_diretorio(raiz, skill_dest_rel)
+            if os.path.exists(skill_dest_abs) and not force:
+                print(f"  Skipping (already exists): {skill_dest_rel}")
                 continue
-            destino_arquivo = os.path.join(skill_dest_abs, entrada.name)
-            with open(destino_arquivo, "wb") as saida:
-                saida.write(entrada.read_bytes())
-        print(f"  Created: {skill_dest_rel}")
+            os.makedirs(skill_dest_abs, exist_ok=True)
+            for entrada in skill_src.iterdir():
+                if not entrada.is_file():
+                    continue
+                destino_arquivo = os.path.join(skill_dest_abs, entrada.name)
+                with open(destino_arquivo, "wb") as saida:
+                    saida.write(entrada.read_bytes())
+                if gravados is not None:
+                    gravados.append(
+                        os.path.join(skill_dest_rel, entrada.name).replace(os.sep, "/")
+                    )
+            print(f"  Created: {skill_dest_rel}")
 
 
 def _instalar_hook(raiz, force):
@@ -148,7 +183,7 @@ def _instalar_hook_commit_msg(raiz, force):
     print("  Created: .git/hooks/commit-msg")
 
 
-def _gerar_arquivo(raiz, caminho_rel, template_recurso, force):
+def _gerar_arquivo(raiz, caminho_rel, template_recurso, force, gravados=None):
     caminho_abs = _caminho_no_diretorio(raiz, caminho_rel)
     if os.path.exists(caminho_abs) and not force:
         print(f"  Skipping (already exists): {caminho_rel}")
@@ -156,10 +191,12 @@ def _gerar_arquivo(raiz, caminho_rel, template_recurso, force):
     os.makedirs(os.path.dirname(caminho_abs), exist_ok=True)
     dados = pkgutil.get_data(__package__, template_recurso)
     if dados is None:
-        print("  Error: template not found: " + template_recurso, file=sys.stderr)
+        print(f"  Error: template not found: {template_recurso}", file=sys.stderr)
         return
     with open(caminho_abs, "wb") as f:
         f.write(dados)
+    if gravados is not None:
+        gravados.append(caminho_rel)
     print("  Created: " + caminho_rel)
 
 

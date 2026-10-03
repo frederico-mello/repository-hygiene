@@ -20,7 +20,7 @@ from auditoria_higiene.reporters import (
     gerar_resumo,
     escrever_relatorio,
 )
-from auditoria_higiene.init import cmd_init, cmd_install, cmd_update
+from auditoria_higiene.init import cmd_init, cmd_install, cmd_install_skill, cmd_update
 from auditoria_higiene.snapshot import (
     executar_pre_commit as executar_pre_commit_snapshot,
 )
@@ -117,9 +117,34 @@ def _resolver_saida(directory, output):
         sys.exit(2)
 
 
+def _add_agents_argument(parser):
+    parser.add_argument(
+        "--agents",
+        default=None,
+        help=(
+            "Comma-separated agent roots that receive the skill "
+            "(default: supported roots present in the repository, "
+            "falling back to .opencode)"
+        ),
+    )
+
+
+def _agents_selecionados(agents):
+    if agents is None:
+        return None
+    return agents.split(",")
+
+
 def main():
     argv = sys.argv[1:] if len(sys.argv) > 1 else []
-    if not argv or argv[0] in ("install", "audit", "update", "--help", "-h"):
+    if not argv or argv[0] in (
+        "install",
+        "install-skill",
+        "audit",
+        "update",
+        "--help",
+        "-h",
+    ):
         _run_subcommand(argv if argv else ["--help"])
     else:
         _run_legacy(argv)
@@ -144,6 +169,16 @@ def _run_subcommand(argv):
                    help="Overwrite existing files without confirmation")
     p.add_argument("--dry-run", action="store_true",
                    help="Show planned operations without modifying files")
+    _add_agents_argument(p)
+
+    p = subparsers.add_parser("install-skill", help="Provision the agent-hygiene-flow skill")
+    p.add_argument("directory", nargs="?", default=".",
+                   help="Repository root directory (default: .)")
+    p.add_argument("--force", action="store_true",
+                   help="Overwrite existing skill files without confirmation")
+    p.add_argument("--dry-run", action="store_true",
+                   help="Show planned operations without modifying files")
+    _add_agents_argument(p)
 
     p = subparsers.add_parser("audit", help="Run audit on a repository")
     p.add_argument("directory", nargs="?", default=".",
@@ -166,7 +201,11 @@ def _run_subcommand(argv):
     args = parser.parse_args(argv)
 
     if args.command == "install":
-        cmd_install(args.directory, force=args.force, dry_run=args.dry_run)
+        cmd_install(args.directory, force=args.force, dry_run=args.dry_run,
+                    agents=_agents_selecionados(args.agents))
+    elif args.command == "install-skill":
+        cmd_install_skill(args.directory, force=args.force, dry_run=args.dry_run,
+                          agents=_agents_selecionados(args.agents))
     elif args.command == "audit":
         _executar_auditoria(args.directory, config_path=args.config,
                             formato=args.format, mode=args.mode)
