@@ -7,6 +7,11 @@ from datetime import datetime, timezone
 
 import yaml
 
+from auditoria_higiene.agentes import (
+    prefixos_diretorio_fonte,
+    prefixos_ruido_referencias,
+)
+
 _MIGRATION_GUIDE_PATH = "docs/MIGRATION.md"
 
 
@@ -133,6 +138,8 @@ _DIR_OPENSPEC_CHANGES = "openspec/changes/"
 _DIR_OPENSPEC_PROPOSTAS = "openspec/proposals/"
 _DIR_TESTS = "tests/"
 _DIR_TESTS_PACKAGE = "tests_package/"
+_PREFIXOS_RUIDO_AGENTES = prefixos_ruido_referencias()
+_PREFIXOS_FONTES_AGENTES = prefixos_diretorio_fonte()
 _ARQUIVO_GITIGNORE = ".gitignore"
 _EXTENSOES_REFERENCIAS = (
     ".py",
@@ -472,11 +479,10 @@ def _em_diretorio_ruidoso_referencias(caminho_rel):
             _DIR_OPENSPEC_PROPOSTAS,
             ".github/prompts/",
             ".github/skills/openspec-",
-            ".opencode/commands/",
-            ".opencode/skills/openspec-",
             _DIR_TESTS,
             _DIR_TESTS_PACKAGE,
         )
+        + _PREFIXOS_RUIDO_AGENTES
     )
 
 
@@ -588,7 +594,9 @@ def _eh_repositorio_aninhado(raiz, caminho_rel):
 
 
 def _eh_diretorio_fonte(caminho_rel):
-    return caminho_rel.startswith(("src/", ".github/", ".opencode/", "openspec/"))
+    return caminho_rel.startswith(
+        ("src/", ".github/", "openspec/") + _PREFIXOS_FONTES_AGENTES
+    )
 
 
 def _eh_artefato_configurado(caminho_rel, cfg):
