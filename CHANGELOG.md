@@ -1,6 +1,114 @@
 # CHANGELOG
 
 
+## v1.1.0 (2026-10-03)
+
+### Chores
+
+- **ci**: Bumpa o pin do reusable do Mira para o fix do gate partial
+  ([`68e6d84`](https://github.com/frederico-mello/repository-hygiene/commit/68e6d842e39ade7e3dec215c8573717e38292bdc))
+
+- **ci**: Bumpa o pin do reusable do Mira para o fix do gate partial
+  ([`61ac3a1`](https://github.com/frederico-mello/repository-hygiene/commit/61ac3a16d3f7735159f3598efaa1b95eddf44e23))
+
+- **deps**: Bump the github-actions group across 1 directory with 5 updates
+  ([#658](https://github.com/frederico-mello/repository-hygiene/pull/658),
+  [`c32d1a6`](https://github.com/frederico-mello/repository-hygiene/commit/c32d1a6bbad35050022063405e286acffbe827f0))
+
+Bumps the github-actions group with 5 updates in the / directory:
+
+| Package | From | To | | --- | --- | --- | |
+  [actions/checkout](https://github.com/actions/checkout) | `4` | `7` | |
+  [astral-sh/setup-uv](https://github.com/astral-sh/setup-uv) | `3.2.4` | `10.2.0` | |
+  [actions/setup-python](https://github.com/actions/setup-python) | `5` | `7` | |
+  [actions/github-script](https://github.com/actions/github-script) | `7` | `9` | |
+  [actions/upload-artifact](https://github.com/actions/upload-artifact) | `4` | `7` |
+
+Updates `actions/checkout` from 4 to 7 - [Release
+  notes](https://github.com/actions/checkout/releases) -
+  [Commits](https://github.com/actions/checkout/compare/v4...v7)
+
+Updates `astral-sh/setup-uv` from 3.2.4 to 10.2.0 - [Release
+  notes](https://github.com/astral-sh/setup-uv/releases) -
+  [Commits](https://github.com/astral-sh/setup-uv/compare/caf0cab7a618c569241d31dcd442f54681755d39...c18668ad3cf93ea998bef934396af7bb5c839dc7)
+
+Updates `actions/setup-python` from 5 to 7 - [Release
+  notes](https://github.com/actions/setup-python/releases) -
+  [Commits](https://github.com/actions/setup-python/compare/v5...v7)
+
+Updates `actions/github-script` from 7 to 9 - [Release
+  notes](https://github.com/actions/github-script/releases) -
+  [Commits](https://github.com/actions/github-script/compare/v7...v9)
+
+Updates `actions/upload-artifact` from 4 to 7 - [Release
+  notes](https://github.com/actions/upload-artifact/releases) -
+  [Commits](https://github.com/actions/upload-artifact/compare/v4...v7)
+
+--- updated-dependencies: - dependency-name: actions/checkout dependency-version: '7'
+
+dependency-type: direct:production
+
+update-type: version-update:semver-major
+
+dependency-group: github-actions
+
+- dependency-name: astral-sh/setup-uv dependency-version: 10.2.0
+
+- dependency-name: actions/setup-python dependency-version: '7'
+
+- dependency-name: actions/github-script dependency-version: '9'
+
+- dependency-name: actions/upload-artifact dependency-version: '7'
+
+dependency-group: github-actions ...
+
+Signed-off-by: dependabot[bot] <support@github.com>
+
+Co-authored-by: dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>
+
+Co-authored-by: frederico-mello <86882927+frederico-mello@users.noreply.github.com>
+
+- **openspec**: Archive add-native-pre-commit-hook
+  ([`94490ee`](https://github.com/frederico-mello/repository-hygiene/commit/94490eefb8a39d209f0bc75c605705c0d3864a4b))
+
+- **openspec**: Descarta change reduzir-falsos-positivos-auditoria sem progresso
+  ([`08bf255`](https://github.com/frederico-mello/repository-hygiene/commit/08bf255e4c2aaf67782c27f1ad7f603ab24d26b0))
+
+### Continuous Integration
+
+- Regenera requirements-ci.lock para py3.10 e repara configuracao do release
+  ([`7af98b6`](https://github.com/frederico-mello/repository-hygiene/commit/7af98b656bf97769ca6a52e3a8a35edfb479761c))
+
+Lock inclui exceptiongroup, tomli e typing-extensions com hashes porque o uv novo do setup-uv v10
+  exige pin completo em --require-hashes e so falhava em py3.10; pyproject version_variable vira
+  version_toml, chave correta da python-semantic-release 9 - antes a versao nunca era carimbada.
+
+release.yml ganha --skip-existing para que pushes sem release novo nao falhem com arquivo ja
+  publicado.
+
+### Documentation
+
+- **openspec**: Cria change agent-agnostic-provisioning
+  ([`381f0fe`](https://github.com/frederico-mello/repository-hygiene/commit/381f0fe4378fe80e8dccb0b78b39c57d2b53c226))
+
+### Features
+
+- **agents**: Multi-agent skill provisioning
+  ([`acf2851`](https://github.com/frederico-mello/repository-hygiene/commit/acf2851f5f8f64dc9bb92a3a90f476985e52e3d1))
+
+* feat(agents): multi-agent skill provisioning
+
+* fix(agents): install skills before writing config
+
+
+## v1.0.0 (2026-10-03)
+
+### Chores
+
+- **openspec**: Archive fix-mira-partial-gate-contradiction
+  ([`077291a`](https://github.com/frederico-mello/repository-hygiene/commit/077291a895bf7235bd1e06e2c7457402cf34ef88))
+
+
 ## v0.9.7 (2026-10-03)
 
 ### Bug Fixes
