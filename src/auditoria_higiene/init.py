@@ -23,18 +23,18 @@ def cmd_install(directory, force=False, dry_run=False, agents=None):
     destinos = _destinos_skills(raiz, agents)
 
     if dry_run:
+        _dry_run_msg_skills(raiz, destinos)
         _dry_run_msg(raiz, "auditoria.yaml", "templates/auditoria.yaml")
         _dry_run_msg(raiz, ".github/workflows/repository-hygiene.yml", "templates/workflow.yml")
-        _dry_run_msg_skills(raiz, destinos)
         return
 
+    gravados = []
     try:
-        _gerar_arquivo(raiz, "auditoria.yaml", "templates/auditoria.yaml", force)
-        _gerar_arquivo(raiz, ".github/workflows/repository-hygiene.yml", "templates/workflow.yml", force)
-        _instalar_skills(raiz, force, destinos)
-    except (ValueError, OSError) as e:
-        print(f"Error: {e}", file=sys.stderr)
-        sys.exit(2)
+        _instalar_skills(raiz, force, destinos, gravados)
+        _gerar_arquivo(raiz, "auditoria.yaml", "templates/auditoria.yaml", force, gravados)
+        _gerar_arquivo(raiz, ".github/workflows/repository-hygiene.yml", "templates/workflow.yml", force, gravados)
+    except (ValueError, OSError) as erro:
+        _sair_por_erro_de_escrita(erro, gravados)
     print(f"Files generated in {raiz}")
 
 
@@ -47,11 +47,20 @@ def cmd_install_skill(directory, force=False, dry_run=False, agents=None):
     if dry_run:
         _dry_run_msg_skills(raiz, destinos)
         return
+    gravados = []
     try:
-        _instalar_skills(raiz, force, destinos)
-    except (ValueError, OSError) as e:
-        print(f"Error: {e}", file=sys.stderr)
-        sys.exit(2)
+        _instalar_skills(raiz, force, destinos, gravados)
+    except (ValueError, OSError) as erro:
+        _sair_por_erro_de_escrita(erro, gravados)
+
+
+def _sair_por_erro_de_escrita(erro, gravados):
+    print(f"Error: {erro}", file=sys.stderr)
+    if gravados:
+        print(f"  Already written: {'; '.join(gravados)}", file=sys.stderr)
+    else:
+        print("  Nothing was written.", file=sys.stderr)
+    sys.exit(2)
 
 
 def cmd_update(directory, version=None, dry_run=False):
@@ -106,7 +115,7 @@ def _dry_run_msg_skills(raiz, destinos):
             print(f"  dry-run: {caminho}")
 
 
-def _instalar_skills(raiz, force, destinos):
+def _instalar_skills(raiz, force, destinos, gravados=None):
     raiz_skills = _skills_root()
     if raiz_skills is None:
         return
@@ -125,6 +134,10 @@ def _instalar_skills(raiz, force, destinos):
                 destino_arquivo = os.path.join(skill_dest_abs, entrada.name)
                 with open(destino_arquivo, "wb") as saida:
                     saida.write(entrada.read_bytes())
+                if gravados is not None:
+                    gravados.append(
+                        os.path.join(skill_dest_rel, entrada.name).replace(os.sep, "/")
+                    )
             print(f"  Created: {skill_dest_rel}")
 
 
@@ -170,7 +183,7 @@ def _instalar_hook_commit_msg(raiz, force):
     print("  Created: .git/hooks/commit-msg")
 
 
-def _gerar_arquivo(raiz, caminho_rel, template_recurso, force):
+def _gerar_arquivo(raiz, caminho_rel, template_recurso, force, gravados=None):
     caminho_abs = _caminho_no_diretorio(raiz, caminho_rel)
     if os.path.exists(caminho_abs) and not force:
         print(f"  Skipping (already exists): {caminho_rel}")
@@ -178,10 +191,12 @@ def _gerar_arquivo(raiz, caminho_rel, template_recurso, force):
     os.makedirs(os.path.dirname(caminho_abs), exist_ok=True)
     dados = pkgutil.get_data(__package__, template_recurso)
     if dados is None:
-        print("  Error: template not found: " + template_recurso, file=sys.stderr)
+        print(f"  Error: template not found: {template_recurso}", file=sys.stderr)
         return
     with open(caminho_abs, "wb") as f:
         f.write(dados)
+    if gravados is not None:
+        gravados.append(caminho_rel)
     print("  Created: " + caminho_rel)
 
 

@@ -265,6 +265,35 @@ class TestInstallMultiDestino:
         assert not self._skill(tmp_path, ".omp").exists()
 
 
+class TestFalhaDeIO:
+    def test_oserror_na_skill_exit_2_lista_o_que_foi_gravado(
+        self, tmp_path, monkeypatch, capsys
+    ):
+        from auditoria_higiene.init import cmd_install
+
+        (tmp_path / ".omp").mkdir()
+        (tmp_path / ".hermes").mkdir()
+        real_makedirs = os.makedirs
+
+        def makedirs_com_falha(path, mode=0o777, exist_ok=False):
+            if ".hermes" in str(path):
+                raise PermissionError(f"Permission denied: {path}")
+            return real_makedirs(path, mode=mode, exist_ok=exist_ok)
+
+        monkeypatch.setattr(os, "makedirs", makedirs_com_falha)
+
+        with pytest.raises(SystemExit) as excinfo:
+            cmd_install(str(tmp_path))
+
+        assert excinfo.value.code == 2
+        stderr = capsys.readouterr().err
+        assert "Already written" in stderr
+        assert ".omp/skills/agent-hygiene-flow" in stderr
+        assert (tmp_path / ".omp" / "skills" / "agent-hygiene-flow" / "SKILL.md").exists()
+        assert not (tmp_path / "auditoria.yaml").exists()
+        assert not (tmp_path / ".github").exists()
+
+
 class TestInstallSkillBundle:
     def test_skill_bundle_alcanca_via_importlib(self):
         from importlib.resources import files
