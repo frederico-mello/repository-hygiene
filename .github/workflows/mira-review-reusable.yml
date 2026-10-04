@@ -124,7 +124,7 @@ jobs:
           # new release tag to its commit and change the SHA here in a reviewed
           # PR. v0.9.0 = 6410f596251ccc7df86fbf10234aff1a9225fa80 (its tree
           # still reports mira 0.8.0 — the tag was cut without a version bump).
-          pip install --quiet --disable-pip-version-check \
+          pip install --only-binary :all: --quiet --disable-pip-version-check \
             "mira-reviewer @ git+https://github.com/miracodeai/mira.git@6410f596251ccc7df86fbf10234aff1a9225fa80"
           mira --version
 

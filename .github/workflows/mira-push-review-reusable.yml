@@ -125,7 +125,7 @@ jobs:
       - name: Install Mira
         if: steps.diff.outputs.skip == '0'
         run: |
-          pip install --quiet --disable-pip-version-check \
+          pip install --only-binary :all: --quiet --disable-pip-version-check \
             "mira-reviewer @ git+https://github.com/miracodeai/mira.git@6410f596251ccc7df86fbf10234aff1a9225fa80"
           mira --version
 
