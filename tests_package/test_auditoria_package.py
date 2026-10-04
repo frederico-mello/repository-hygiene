@@ -4,8 +4,24 @@ import pytest
 import yaml
 import json
 import os
+import re
 import subprocess
 import sys
+
+
+def _versao_pyproject():
+    caminho = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        "pyproject.toml",
+    )
+    with open(caminho, encoding="utf-8") as f:
+        conteudo = f.read()
+    achado = re.search(r"^version = [\"']([^\"']+)[\"']", conteudo, re.MULTILINE)
+    if not achado:
+        raise AssertionError(
+            f'nao encontrei uma linha "version = ..." em {caminho}'
+        )
+    return achado.group(1)
 
 
 @pytest.fixture
@@ -2293,7 +2309,7 @@ class TestSnapshot:
     def test_package_metadata(self):
         from importlib.metadata import version, entry_points
 
-        assert version("repository-hygiene") == "1.0.0"
+        assert version("repository-hygiene") == _versao_pyproject()
         eps = entry_points(group="console_scripts")
         rh_eps = [ep for ep in eps if ep.name == "repository-hygiene"]
         assert len(rh_eps) == 1
@@ -2797,7 +2813,7 @@ class TestSnapshot:
         )
         if result.returncode != 0:
             pytest.skip(f"uvx not available: {result.stderr}")
-        assert "1.0.0" in result.stdout
+        assert _versao_pyproject() in result.stdout
 
     def test_versao_persiste_sem_atualizacao(self):
         pkg_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -2816,7 +2832,7 @@ class TestSnapshot:
             timeout=30,
         )
         assert r2.returncode == 0
-        assert "1.0.0" in r2.stdout
+        assert _versao_pyproject() in r2.stdout
 
     def test_ci_workflow_multiplataforma_existe(self):
         workflow = os.path.join(
