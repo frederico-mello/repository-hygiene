@@ -17,6 +17,10 @@ on:
       - README.md
       - .gitignore
       - Makefile
+      - pyproject.toml
+      - src/**
+      - tests/**
+      - tests_package/**
   pull_request:
     paths:
       - auditoria.yaml
@@ -31,6 +35,10 @@ on:
       - README.md
       - .gitignore
       - Makefile
+      - pyproject.toml
+      - src/**
+      - tests/**
+      - tests_package/**
   workflow_dispatch:
 
 permissions:
