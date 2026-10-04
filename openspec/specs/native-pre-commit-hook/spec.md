@@ -1,7 +1,7 @@
 # native-pre-commit-hook Specification
 
 ## Purpose
-TBD - created by archiving change add-native-pre-commit-hook. Update Purpose after archive.
+This capability installs a native pre-commit hook in the user's repository in an agent-agnostic way, detecting any hook that is already present and leaving it untouched unless replacement is explicitly forced. The hook runs the auditor's pre-commit mode against the staged snapshot only, blocking the commit on error-severity findings and on operational failures while ignoring unstaged edits. The documented behavior covers installation, exit codes, warnings, and the deliberate bypass path.
 
 ## Requirements
 
