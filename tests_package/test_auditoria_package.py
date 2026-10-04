@@ -1953,6 +1953,40 @@ class TestCLI:
         assert dados["version"] == "2.1.0"
 
 
+def _dist_repository_hygiene():
+    """Resolve distribution('repository-hygiene').
+
+    Devolve (dist, caminho): dist e None quando o pacote nao esta instalado;
+    caminho e o diretorio de metadados da distribuicao. Usa dist._path, que e
+    um atributo INTERNO de importlib.metadata (nao faz parte da API publica),
+    por isso o helper tolera a ausencia dele devolvendo None.
+    """
+    from importlib.metadata import PackageNotFoundError, distribution
+
+    try:
+        dist = distribution("repository-hygiene")
+    except PackageNotFoundError:
+        return None, None
+    caminho = getattr(dist, "_path", None)
+    return dist, (str(caminho) if caminho is not None else None)
+
+
+def _metadados_neste_checkout(caminho):
+    """Diz se o diretorio de metadados pertence a este checkout.
+
+    A raiz vem de __file__ (tests_package/..). Aceita tambem src/, porque o
+    egg-info gerado neste repositorio vive em src/repository_hygiene.egg-info.
+    """
+    if not caminho:
+        return False
+    raiz = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    absoluto = os.path.abspath(caminho)
+    bases = (raiz, os.path.join(raiz, "src"))
+    return any(
+        absoluto == base or absoluto.startswith(base + os.sep) for base in bases
+    )
+
+
 class TestSnapshot:
     def test_clean_staged_content(self, tmp_path, git_repo):
         from auditoria_higiene.snapshot import criar_snapshot, limpar_snapshot
@@ -2307,11 +2341,20 @@ class TestSnapshot:
         assert "repository-hygiene" in result.stdout
 
     def test_package_metadata(self):
-        from importlib.metadata import version, entry_points
+        dist, caminho = _dist_repository_hygiene()
+        if dist is None:
+            pytest.skip("pacote nao instalado neste ambiente")
+        if not _metadados_neste_checkout(caminho):
+            pytest.skip(
+                "metadados resolvidos fora deste checkout: "
+                f"caminho={caminho} versao={dist.version} "
+                "(ex.: copia antiga 0.2.0 em site-packages)"
+            )
 
-        assert version("repository-hygiene") == _versao_pyproject()
-        eps = entry_points(group="console_scripts")
-        rh_eps = [ep for ep in eps if ep.name == "repository-hygiene"]
+        assert dist.version == _versao_pyproject()
+        rh_eps = [
+            ep for ep in dist.entry_points if ep.name == "repository-hygiene"
+        ]
         assert len(rh_eps) == 1
         assert rh_eps[0].value == "auditoria_higiene.cli:main"
 
