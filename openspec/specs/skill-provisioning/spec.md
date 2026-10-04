@@ -1,7 +1,7 @@
 # skill-provisioning Specification
 
 ## Purpose
-TBD - created by archiving change install-skill. Update Purpose after archive.
+This capability provisions the skill and configuration files needed by the hygiene flow into every supported agent root of a target repository through the install command, without caring which agent the repository belongs to. Installation selects destinations automatically from the roots present, can be narrowed explicitly, preserves already-provisioned copies unless overwrite is requested, and reports planned work in dry-run mode. The shipped files always match the installed package version, and the same set of agent roots defines what counts as repository source during audits and as trigger paths in the generated workflow.
 
 ## Requirements
 
