@@ -1,6 +1,51 @@
 # CHANGELOG
 
 
+## v1.1.1 (2026-10-09)
+
+### Bug Fixes
+
+- Extract duplicated ".github" literal to a module constant
+  ([#719](https://github.com/frederico-mello/repository-hygiene/pull/719),
+  [`e659b6d`](https://github.com/frederico-mello/repository-hygiene/commit/e659b6d723907bda606fc0739909dd01206b9be7))
+
+### Chores
+
+- **openspec**: Archive agent-agnostic-provisioning + sync specs
+  ([`91487d1`](https://github.com/frederico-mello/repository-hygiene/commit/91487d1f2dcdd500089704415e94ee08367bc79b))
+
+### Continuous Integration
+
+- Require binary wheels in workflow pip installs
+  ([`95f8a20`](https://github.com/frederico-mello/repository-hygiene/commit/95f8a20a125e2e0827df7a24f36c275a341d9bb0))
+
+- Trigger hygiene audit on all agent roots
+  ([`bef49c7`](https://github.com/frederico-mello/repository-hygiene/commit/bef49c7be6d1a2fdb2840f45c6907d0bb94d5c3e))
+
+* ci: trigger hygiene audit on all agent roots
+
+* ci: guard template and workflow trigger paths stay aligned
+
+- Trigger hygiene audit on code and test paths
+  ([`a2cf2a9`](https://github.com/frederico-mello/repository-hygiene/commit/a2cf2a9582383ba67ac61bbaa8e9e79694e88ae4))
+
+### Documentation
+
+- **changelog**: Adiciona secao v1.0.0 ausente
+  ([`eef8c71`](https://github.com/frederico-mello/repository-hygiene/commit/eef8c713d2f71866ac872dc66dee186f8c38621d))
+
+- **specs**: Write purpose placeholders left by archive
+  ([`ac338fe`](https://github.com/frederico-mello/repository-hygiene/commit/ac338fe9f290e775d4b86a837b074063bb0d0112))
+
+### Testing
+
+- Scope package metadata assertions to this checkout
+  ([`28a57fc`](https://github.com/frederico-mello/repository-hygiene/commit/28a57fc11090f345a9e461d4b5cbdeb83bbaf196))
+
+- **snapshot**: Le a versao do pyproject em vez do literal 1.0.0
+  ([`c313835`](https://github.com/frederico-mello/repository-hygiene/commit/c3138351eaf93df4f8713b8ad998b344e0a5306d))
+
+
 ## v1.1.0 (2026-10-03)
 
 ### Chores
@@ -103,15 +148,10 @@ release.yml ganha --skip-existing para que pushes sem release novo nao falhem co
 
 ## v1.0.0 (2026-10-03)
 
-Primeira publicacao no PyPI desde a 0.2.0 — reune todo o trabalho das releases 0.9.x.
-
-### Breaking Changes
-
-- **Chaves de configuracao em ingles**: siga [docs/MIGRATION.md](docs/MIGRATION.md) para renomear as chaves do seu `auditoria.yaml`.
-
 ### Chores
 
-- **openspec**: Archive fix-mira-partial-gate-contradiction ([`077291a`](https://github.com/frederico-mello/repository-hygiene/commit/077291a895bf7235bd1e06e2c7457402cf34ef88))
+- **openspec**: Archive fix-mira-partial-gate-contradiction
+  ([`077291a`](https://github.com/frederico-mello/repository-hygiene/commit/077291a895bf7235bd1e06e2c7457402cf34ef88))
 
 
 ## v0.9.7 (2026-10-03)
