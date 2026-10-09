@@ -138,6 +138,7 @@ _DIR_OPENSPEC_CHANGES = "openspec/changes/"
 _DIR_OPENSPEC_PROPOSTAS = "openspec/proposals/"
 _DIR_TESTS = "tests/"
 _DIR_TESTS_PACKAGE = "tests_package/"
+_DIR_GITHUB = ".github"
 _PREFIXOS_RUIDO_AGENTES = prefixos_ruido_referencias()
 _PREFIXOS_FONTES_AGENTES = prefixos_diretorio_fonte()
 _ARQUIVO_GITIGNORE = ".gitignore"
@@ -727,7 +728,7 @@ def _filtrar_elegiveis_sem_referencia(arquivos, caminhos_excluidos):
     for caminho_rel in arquivos:
         if _esta_excluido(caminho_rel, caminhos_excluidos):
             continue
-        if caminho_rel.startswith(".github"):
+        if caminho_rel.startswith(_DIR_GITHUB):
             continue
         if caminho_rel.startswith(
             (
@@ -975,13 +976,13 @@ def _avaliar_entrada_openspec(raiz, entry, entry_path, resultados, severidade):
 def _verificar_workflows_inseguros(
     raiz, caminhos_excluidos, resultados, severidade="warning", cfg=None
 ):
-    workflows_dir = caminho_seguro(raiz, ".github", "workflows")
+    workflows_dir = caminho_seguro(raiz, _DIR_GITHUB, "workflows")
     if not os.path.isdir(workflows_dir):
         return
     for entry in os.listdir(workflows_dir):
         if not entry.endswith((".yml", ".yaml")):
             continue
-        caminho_rel = os.path.join(".github", "workflows", entry)
+        caminho_rel = os.path.join(_DIR_GITHUB, "workflows", entry)
         if _esta_excluido(caminho_rel, caminhos_excluidos):
             continue
         _analisar_workflow(raiz, caminho_rel, resultados, severidade, cfg)

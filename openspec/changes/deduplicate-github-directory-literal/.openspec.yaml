@@ -1,0 +1,6 @@
+schema: spec-driven
+skip_specs: true
+created: 2026-10-08
+goal: "Extrair constante de modulo para o literal .github duplicado 3x em
+  src/auditoria_higiene/core.py (Sonar S1192, issue #709), sem mudanca de
+  comportamento"
