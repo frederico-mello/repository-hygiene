@@ -10,10 +10,10 @@
 #         pull-requests: write
 #         issues: write
 #       secrets:
-#         OPENCODE_GO_API_KEY: ${{ secrets.OPENCODE_GO_API_KEY }}
+#         OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
 #
 # Requirements in the CALLER repo:
-#   - secret OPENCODE_GO_API_KEY (Settings -> Secrets and variables -> Actions)
+#   - secret OPENROUTER_API_KEY (Settings -> Secrets and variables -> Actions)
 #
 # The Mira version is pinned inline to a commit SHA so it is visible in review
 # and cannot be redirected by a caller.
@@ -21,17 +21,15 @@
 #     repo. It is merged over this workflow's defaults; the repo file does NOT
 #     need to carry LLM/provider settings.
 #
-# Two things this workflow works around, both verified against Mira 0.8.0/0.9.0:
+# Reviews run on OpenRouter, served by Mira's bundled provider profile
+# (base_url https://openrouter.ai/api/v1, api_key_env OPENROUTER_API_KEY,
+# model prefix kept). One thing this workflow works around, verified
+# against Mira 0.8.0/0.9.0:
 #
-# 1. Provider profile. Mira bundles only an `openrouter` profile. OpenCode Go
-#    (Zen) requires an `x-opencode-session` header on every request and answers
-#    HTTP 400 MissingSessionID without it. We generate providers.json in the
-#    runner and point MIRA_PROVIDERS_JSON_PATH at it.
-#
-# 2. Config layering. `mira review --config FILE` uses that file ALONE —
-#    auto-discovery of a per-repo .mira.yaml only runs when --config is absent,
-#    so passing a fixed deployment file would silently discard repo-local tuning.
-#    We therefore merge defaults + the repo's .mira.yaml and pass the result.
+# 1. Config layering. `mira review --config FILE` uses that file ALONE;
+#    auto-discovery of a per-repo `.mira.yaml` only runs when `--config`
+#    is absent. We therefore merge defaults + the repo's .mira.yaml and pass
+#    the result, so a repo keeps its local tuning.
 #
 # Advisory by default: blockers appear in the review but do not fail the job.
 #
@@ -51,13 +49,13 @@ on:
         type: boolean
         default: false
       model:
-        description: "Model id served by the OpenCode Go endpoint. Pick from a model with enough 5-hour request budget: on OpenCode Go the per-model windows differ by ~20x (minimax-m3 = 3,200 req/5h, qwen3.8-max = 160 req/5h), and a review costs many calls because Mira retries forced tool_choice as auto."
+        description: "OpenRouter model id (vendor/model slug). Mira retries forced tool_choice as auto, so prefer a model with generous rate limits."
         type: string
-        default: "minimax-m3"
+        default: "minimax/minimax-m3"
       fallback-model:
-        description: "Model used when the primary fails (timeout, 5xx, unparseable tool call). Prefer a different family: OpenCode Go enforces quota per model, so a same-family fallback can be exhausted alongside the primary."
+        description: "Model used when the primary fails (timeout, 5xx, unparseable tool call). Prefer a different family so one provider-side shortage cannot exhaust both."
         type: string
-        default: "qwen3.8-flash"
+        default: "qwen/qwen3.8-flash"
       max-comments:
         description: "Cap on inline comments posted per review."
         type: number
@@ -67,7 +65,7 @@ on:
         type: boolean
         default: false
     secrets:
-      OPENCODE_GO_API_KEY:
+      OPENROUTER_API_KEY:
         required: true
 
 jobs:
@@ -77,12 +75,12 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Check out repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0 # full history: Mira builds context from the repo
 
       - name: Set up Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.12"
 
@@ -100,15 +98,10 @@ jobs:
               *) echo "comment has no @mira-review mention — nothing to do"; exit 0 ;;
             esac
             url="${{ github.event.issue.pull_request.html_url }}"
-            num="${{ github.event.issue.number }}"
           else
             url="${{ github.event.pull_request.html_url }}"
-            num="${{ github.event.pull_request.number }}"
           fi
           echo "pr_url=$url" >> "$GITHUB_OUTPUT"
-          # One stable session id per repo+PR: Zen uses it for routing and prompt
-          # caching, so a re-review of the same PR reuses the cached prefix.
-          echo "session=mira-$(echo "${{ github.repository }}-$num" | tr '/._' '---')" >> "$GITHUB_OUTPUT"
 
       - name: Install Mira
         if: steps.ctx.outputs.pr_url != ''
@@ -124,21 +117,20 @@ jobs:
           # new release tag to its commit and change the SHA here in a reviewed
           # PR. v0.9.0 = 6410f596251ccc7df86fbf10234aff1a9225fa80 (its tree
           # still reports mira 0.8.0 — the tag was cut without a version bump).
-          pip install --only-binary :all: --quiet --disable-pip-version-check \
+          pip install --quiet --disable-pip-version-check \
             "mira-reviewer @ git+https://github.com/miracodeai/mira.git@6410f596251ccc7df86fbf10234aff1a9225fa80"
           mira --version
 
-      - name: Build effective config and provider profile
+      - name: Build effective config
         if: steps.ctx.outputs.pr_url != ''
         env:
-          SESSION: ${{ steps.ctx.outputs.session }}
           MODEL: ${{ inputs.model }}
           FALLBACK_MODEL: ${{ inputs.fallback-model }}
           MAX_COMMENTS: ${{ inputs.max-comments }}
         run: |
           set -euo pipefail
           python - "$RUNNER_TEMP/mira-effective.yaml" <<'PY'
-          import json, os, pathlib, sys
+          import os, pathlib, sys
           import yaml
 
           out = pathlib.Path(sys.argv[1])
@@ -146,8 +138,8 @@ jobs:
 
           base = {
               "llm": {
-                  "base_url": "https://opencode.ai/zen/go/v1",
-                  "api_key_env": "OPENCODE_GO_API_KEY",
+                  "base_url": "https://openrouter.ai/api/v1",
+                  "api_key_env": "OPENROUTER_API_KEY",
                   "model": os.environ["MODEL"],
                   "review_model": os.environ["MODEL"],
                   "indexing_model": os.environ["MODEL"],
@@ -201,26 +193,13 @@ jobs:
           out.write_text(yaml.safe_dump(cfg, sort_keys=False))
           print(out.read_text())
 
-          profile = {
-              "opencode-go": {
-                  "base_url": "https://opencode.ai/zen/go/v1",
-                  "api_key_env": "OPENCODE_GO_API_KEY",
-                  "model_prefix": "strip",
-                  "extra_headers": {"x-opencode-session": os.environ["SESSION"]},
-                  "reasoning_effort_map": {},
-              }
-          }
-          p = pathlib.Path(os.environ["RUNNER_TEMP"]) / "providers.json"
-          p.write_text(json.dumps(profile, indent=2))
-          print("session id:", os.environ["SESSION"])
           PY
-          echo "MIRA_PROVIDERS_JSON_PATH=$RUNNER_TEMP/providers.json" >> "$GITHUB_ENV"
 
       - name: Review pull request
         id: review
         if: steps.ctx.outputs.pr_url != ''
         env:
-          OPENCODE_GO_API_KEY: ${{ secrets.OPENCODE_GO_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           # Parser kept in a file so the retry loop below can reuse it verbatim.
@@ -281,10 +260,10 @@ jobs:
 
           if result is None:
               low = raw.lower()
-              if "gousagelimiterror" in low or "usage limit" in low or "http 429" in low:
+              if "gousagelimiterror" in low or "usage limit" in low or "http 429" in low or "insufficient credit" in low or "http 402" in low:
                   print(
                       "::warning::Mira could not run — inference quota exhausted "
-                      "(OpenCode Go 5-hour/weekly limit). Not a code finding, and "
+                      "(provider-side quota or credit). Not a code finding, and "
                       "not a clean review: re-run after the window resets."
                   )
                   emit("quota", comments=0, blockers=0, dropped_chunks=0)
@@ -393,7 +372,7 @@ jobs:
             fi
             if [ "${{ steps.review.outputs.status }}" = "quota" ]; then
               echo ""
-              echo "> Inference quota exhausted for the 5-hour/weekly window. This is **not** a code finding — re-run after the window resets."
+              echo "> Inference quota/credit exhausted at the provider. This is **not** a code finding — re-run after the window resets."
             fi
             echo "| mode | ${{ inputs.block-on-blocker && 'gate' || 'advisory' }} |"
             echo ""
