@@ -219,40 +219,37 @@ def test_main_fails_visibly_if_every_model_is_over_quota(tmp_path, monkeypatch):
     assert json.loads(values["models_attempted"]) == attempted
 
 
-def test_real_runner_invokes_fallback_process_after_quota(tmp_path):
+def test_runner_invokes_fallback_process_after_quota(tmp_path, monkeypatch):
     base = tmp_path / "base.yaml"
     base.write_text("llm: {}\n", encoding="utf-8")
-    fake_models = tmp_path / "models-used"
-    fake_mira = tmp_path / "fake-mira"
-    fake_mira.write_text(
-        f"#!{sys.executable}\n"
-        "import json, os, sys, yaml\n"
-        "from pathlib import Path\n"
-        "config = Path(sys.argv[sys.argv.index('--config') + 1])\n"
-        "model = yaml.safe_load(config.read_text())['llm']['model']\n"
-        "with open(os.environ['FAKE_MIRA_MODELS'], 'a') as log: log.write(model + '\\n')\n"
-        "if model == 'qwen3.8-flash':\n"
-        "    print('HTTP 429 GoUsageLimitError: usage limit reached')\n"
-        "    raise SystemExit(1)\n"
-        "print(json.dumps({'comments': [], 'reviewed_files': 3}))\n",
-        encoding="utf-8",
-    )
-    fake_mira.chmod(0o755)
     output = tmp_path / "github-output"
-    env = dict(os.environ)
-    env.update(
-        {
-            "GITHUB_TOKEN": "test-token",
-            "GITHUB_OUTPUT": str(output),
-            "RUNNER_TEMP": str(tmp_path),
-            "FAKE_MIRA_MODELS": str(fake_models),
-        }
-    )
+    output.write_text("", encoding="utf-8")
+    monkeypatch.setenv("GITHUB_TOKEN", "test-token")
+    monkeypatch.setenv("GITHUB_OUTPUT", str(output))
+    monkeypatch.setenv("RUNNER_TEMP", str(tmp_path))
+    attempted = []
 
-    completed = subprocess.run(
+    def fake_run(command, **_kwargs):
+        config_path = Path(command[command.index("--config") + 1])
+        model = yaml.safe_load(config_path.read_text(encoding="utf-8"))["llm"]["model"]
+        attempted.append(model)
+        if model == "qwen3.8-flash":
+            return subprocess.CompletedProcess(
+                command,
+                1,
+                stdout="HTTP 429 GoUsageLimitError: usage limit reached",
+                stderr="",
+            )
+        return subprocess.CompletedProcess(
+            command,
+            0,
+            stdout=json.dumps({"comments": [], "reviewed_files": 3}),
+            stderr="",
+        )
+
+    monkeypatch.setattr(mira.subprocess, "run", fake_run)
+    code = mira.main(
         [
-            sys.executable,
-            str(SCRIPT),
             "--pr-url",
             "https://github.com/example/repo/pull/1",
             "--base-config",
@@ -261,71 +258,59 @@ def test_real_runner_invokes_fallback_process_after_quota(tmp_path):
             "qwen3.8-flash",
             "--fallback-model",
             "qwen3.7-plus",
-            "--mira-command",
-            str(fake_mira),
-        ],
-        check=False,
-        capture_output=True,
-        text=True,
-        env=env,
-        timeout=30,
+        ]
     )
-
     values = dict(
         line.split("=", 1)
         for line in output.read_text(encoding="utf-8").splitlines()
         if "=" in line
     )
-    assert completed.returncode == 0, completed.stdout + completed.stderr
-    assert fake_models.read_text(encoding="utf-8").splitlines() == [
-        "qwen3.8-flash",
-        "qwen3.7-plus",
-    ]
+
+    assert code == 0
+    assert attempted == ["qwen3.8-flash", "qwen3.7-plus"]
     assert values["status"] == "ok"
     assert values["used_model"] == "qwen3.7-plus"
     assert values["attempts"] == "2"
 
 
-def test_real_runner_routes_to_openrouter_after_opencode_quota(tmp_path):
+def test_runner_routes_to_openrouter_after_opencode_quota(tmp_path, monkeypatch):
     base = tmp_path / "base.yaml"
     base.write_text(
         "llm:\n  base_url: https://opencode.ai/zen/go/v1\n"
         "  api_key_env: OPENCODE_GO_API_KEY\n",
         encoding="utf-8",
     )
-    attempts_file = tmp_path / "attempts.jsonl"
-    fake_mira = tmp_path / "fake-mira"
-    fake_mira.write_text(
-        f"#!{sys.executable}\n"
-        "import json, os, sys, yaml\n"
-        "from pathlib import Path\n"
-        "config = Path(sys.argv[sys.argv.index('--config') + 1])\n"
-        "llm = yaml.safe_load(config.read_text())['llm']\n"
-        "entry = {'model': llm['model'], 'base_url': llm['base_url'], 'api_key_env': llm['api_key_env']}\n"
-        "with open(os.environ['FAKE_MIRA_ATTEMPTS'], 'a') as log: log.write(json.dumps(entry) + '\\n')\n"
-        "if llm['base_url'] == 'https://opencode.ai/zen/go/v1':\n"
-        "    print('HTTP 429 GoUsageLimitError: usage limit reached')\n"
-        "    raise SystemExit(1)\n"
-        "print(json.dumps({'comments': [], 'reviewed_files': 3}))\n",
-        encoding="utf-8",
-    )
-    fake_mira.chmod(0o755)
     output = tmp_path / "github-output"
-    env = dict(os.environ)
-    env.update(
-        {
-            "GITHUB_TOKEN": "test-token",
-            "OPENROUTER_API_KEY": "test-openrouter-token",
-            "GITHUB_OUTPUT": str(output),
-            "RUNNER_TEMP": str(tmp_path),
-            "FAKE_MIRA_ATTEMPTS": str(attempts_file),
-        }
-    )
+    output.write_text("", encoding="utf-8")
+    monkeypatch.setenv("GITHUB_TOKEN", "test-token")
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-openrouter-token")
+    monkeypatch.setenv("GITHUB_OUTPUT", str(output))
+    monkeypatch.setenv("RUNNER_TEMP", str(tmp_path))
+    attempts = []
 
-    completed = subprocess.run(
+    def fake_run(command, **_kwargs):
+        config_path = Path(command[command.index("--config") + 1])
+        llm = yaml.safe_load(config_path.read_text(encoding="utf-8"))["llm"]
+        attempts.append(
+            {"model": llm["model"], "base_url": llm["base_url"], "api_key_env": llm["api_key_env"]}
+        )
+        if llm["base_url"] == "https://opencode.ai/zen/go/v1":
+            return subprocess.CompletedProcess(
+                command,
+                1,
+                stdout="HTTP 429 GoUsageLimitError: usage limit reached",
+                stderr="",
+            )
+        return subprocess.CompletedProcess(
+            command,
+            0,
+            stdout=json.dumps({"comments": [], "reviewed_files": 3}),
+            stderr="",
+        )
+
+    monkeypatch.setattr(mira.subprocess, "run", fake_run)
+    code = mira.main(
         [
-            sys.executable,
-            str(SCRIPT),
             "--pr-url",
             "https://github.com/example/repo/pull/1",
             "--base-config",
@@ -334,23 +319,15 @@ def test_real_runner_routes_to_openrouter_after_opencode_quota(tmp_path):
             "qwen3.8-flash",
             "--fallback-models",
             "OpenRouter/xiaomi/mimo-v2.6-flash",
-            "--mira-command",
-            str(fake_mira),
-        ],
-        check=False,
-        capture_output=True,
-        text=True,
-        env=env,
-        timeout=30,
+        ]
     )
-
     values = dict(
         line.split("=", 1)
         for line in output.read_text(encoding="utf-8").splitlines()
         if "=" in line
     )
-    attempts = [json.loads(line) for line in attempts_file.read_text(encoding="utf-8").splitlines()]
-    assert completed.returncode == 0, completed.stdout + completed.stderr
+
+    assert code == 0
     assert attempts == [
         {
             "model": "qwen3.8-flash",
