@@ -10,12 +10,12 @@
 #         pull-requests: write
 #         issues: write
 #       secrets:
-#         OPENCODE_GO_API_KEY: ${{ secrets.OPENCODE_GO_API_KEY }}
-#         OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }} # optional
+#         OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+#         OPENCODE_GO_API_KEY: ${{ secrets.OPENCODE_GO_API_KEY }} # optional independent fallback
 #
 # Requirements in the CALLER repo:
-#   - OPENCODE_GO_API_KEY
-#   - optional OPENROUTER_API_KEY for the independent Xiaomi fallback
+#   - secret OPENROUTER_API_KEY (Settings -> Secrets and variables -> Actions)
+#   - optional secret OPENCODE_GO_API_KEY for the independent provider fallback
 #
 # The Mira version is pinned inline to a commit SHA so it is visible in review
 # and cannot be redirected by a caller.
@@ -55,17 +55,17 @@ on:
         type: boolean
         default: false
       model:
-        description: "First model route to try, normally an OpenCode Go model id. Use the explicit OpenRouter/<vendor/model> form for OpenRouter routes."
+        description: "Primary OpenRouter model route. The default is the user-approved Xiaomi Mimo model."
         type: string
-        default: "qwen3.8-flash"
+        default: "OpenRouter/xiaomi/mimo-v2.6-flash"
       fallback-model:
-        description: "First fallback candidate (kept for compatibility with existing callers)."
+        description: "First independent-provider fallback candidate (retained for compatibility with existing callers)."
         type: string
-        default: "qwen3.7-plus"
+        default: "OpenCode-Go/qwen3.8-flash"
       fallback-models:
-        description: "Additional comma-separated model routes, including OpenCode Go ids or OpenRouter/<vendor/model>. Each is tried in order after quota, failure, or incomplete review."
+        description: "Additional comma-separated model routes, tried in order after quota, failure, or incomplete review."
         type: string
-        default: "qwen3.6-plus,qwen3.7-max,qwen3.8-max,OpenRouter/xiaomi/mimo-v2.6-flash"
+        default: "OpenCode-Go/qwen3.7-plus,OpenCode-Go/qwen3.6-plus,OpenCode-Go/qwen3.7-max,OpenCode-Go/qwen3.8-max"
       max-comments:
         description: "Cap on inline comments posted per review."
         type: number
@@ -75,10 +75,10 @@ on:
         type: boolean
         default: false
     secrets:
-      OPENCODE_GO_API_KEY:
-        required: true
       OPENROUTER_API_KEY:
-        description: "Optional independent OpenRouter fallback credential."
+        required: true
+      OPENCODE_GO_API_KEY:
+        description: "Optional independent-provider fallback credential."
         required: false
 
 jobs:
@@ -88,12 +88,12 @@ jobs:
     timeout-minutes: 70
     steps:
       - name: Check out repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0 # full history: Mira builds context from the repo
 
       - name: Set up Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.12"
 
@@ -135,7 +135,7 @@ jobs:
           # new release tag to its commit and change the SHA here in a reviewed
           # PR. v0.9.0 = 6410f596251ccc7df86fbf10234aff1a9225fa80 (its tree
           # still reports mira 0.8.0 — the tag was cut without a version bump).
-          pip install --only-binary :all: --quiet --disable-pip-version-check \
+          pip install --quiet --disable-pip-version-check \
             "mira-reviewer @ git+https://github.com/miracodeai/mira.git@6410f596251ccc7df86fbf10234aff1a9225fa80"
           mira --version
 
@@ -156,8 +156,8 @@ jobs:
 
           base = {
               "llm": {
-                  "base_url": "https://opencode.ai/zen/go/v1",
-                  "api_key_env": "OPENCODE_GO_API_KEY",
+                  "base_url": "https://openrouter.ai/api/v1",
+                  "api_key_env": "OPENROUTER_API_KEY",
                   "model": os.environ["MODEL"],
                   "review_model": os.environ["MODEL"],
                   "indexing_model": os.environ["MODEL"],
@@ -298,7 +298,7 @@ jobs:
             else
               echo "**No complete Mira review was produced. This is not a clean review, even if the comment count is zero.**"
               if [ "$MIRA_STATUS" = "quota" ]; then
-                echo "OpenCode Go and the configured OpenRouter fallback did not produce a complete review. Check quota, provider availability, and the OPENROUTER_API_KEY secret; no review was completed."
+                echo "OpenRouter and the configured OpenCode Go fallback chain did not produce a complete review. Check quota and provider availability; no review was completed."
               elif [ "$MIRA_STATUS" = "partial" ]; then
                 echo "The review remained incomplete after one retry and the fallback chain. Do not interpret it as clean."
               else
