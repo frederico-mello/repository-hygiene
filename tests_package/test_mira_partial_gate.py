@@ -108,6 +108,37 @@ def test_all_quota_attempts_remain_unavailable_not_clean():
     assert len(history) == 2
 
 
+def test_quota_after_an_earlier_operational_failure_keeps_quota_status():
+    outcomes = iter([mira.ReviewResult("failed"), mira.ReviewResult("quota")])
+    outcome, used_model, history = mira.run_chain(
+        ["qwen3.8-flash", "qwen3.7-plus"], lambda _: next(outcomes)
+    )
+
+    assert outcome.status == "quota"
+    assert used_model is None
+    assert [result.status for _, result in history] == ["failed", "quota"]
+
+
+def test_partial_retry_evidence_is_preserved_if_later_fallback_fails():
+    outcomes = iter(
+        [
+            mira.ReviewResult("partial", comments=1, dropped_chunks=2),
+            mira.ReviewResult("partial", comments=3, blockers=1, dropped_chunks=1),
+            mira.ReviewResult("failed"),
+        ]
+    )
+    outcome, used_model, history = mira.run_chain(
+        ["qwen3.8-flash", "qwen3.7-plus"], lambda _: next(outcomes)
+    )
+
+    assert outcome.status == "partial"
+    assert outcome.comments == 3
+    assert outcome.blockers == 1
+    assert outcome.dropped_chunks == 1
+    assert used_model is None
+    assert [result.status for _, result in history] == ["partial", "partial", "failed"]
+
+
 def test_attempt_config_pins_all_mira_roles_and_disables_implicit_fallback(tmp_path):
     base = tmp_path / "base.yaml"
     base.write_text(
