@@ -440,10 +440,17 @@ def test_workflow_wires_fallback_runner_and_gives_chain_time_to_run():
     review = next(
         step for step in doc["jobs"]["review"]["steps"] if step.get("id") == "review"
     )
+    helper_checkout = next(
+        step for step in doc["jobs"]["review"]["steps"]
+        if step.get("name") == "Check out Mira runner"
+    )
     inputs = doc.get("on", doc.get(True))["workflow_call"]["inputs"]
     call_secrets = doc.get("on", doc.get(True))["workflow_call"]["secrets"]
 
-    assert ".github/scripts/mira_review_chain.py" in review["run"]
+    assert helper_checkout["with"]["repository"] == "frederico-mello/repository-hygiene"
+    assert helper_checkout["with"]["ref"] == "4eb7e1bbec1ab9e25a8c38174b0ea75d3f3eb2db"
+    assert helper_checkout["with"]["path"] == ".mira-workflow"
+    assert ".mira-workflow/.github/scripts/mira_review_chain.py" in review["run"]
     assert "MIRA_FALLBACK_MODELS" in review["env"]
     assert "OPENROUTER_API_KEY" in review["env"]
     assert "OPENCODE_GO_API_KEY" in review["env"]

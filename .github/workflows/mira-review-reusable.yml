@@ -92,6 +92,16 @@ jobs:
         with:
           fetch-depth: 0 # full history: Mira builds context from the repo
 
+      # The caller checkout above does not contain files from this reusable
+      # workflow's repository. Fetch the pinned helper source separately.
+      - name: Check out Mira runner
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: frederico-mello/repository-hygiene
+          ref: 4eb7e1bbec1ab9e25a8c38174b0ea75d3f3eb2db
+          path: .mira-workflow
+          fetch-depth: 1
+
       - name: Set up Python
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
@@ -260,7 +270,7 @@ jobs:
           if [ "$MIRA_TRUST_EXECUTION_SETTINGS" = "true" ]; then
             args+=(--trust-execution-settings)
           fi
-          python .github/scripts/mira_review_chain.py "${args[@]}"
+          python .mira-workflow/.github/scripts/mira_review_chain.py "${args[@]}"
 
       - name: Summarize result
         if: always() && steps.review.outputs.status != ''
