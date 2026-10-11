@@ -25,11 +25,15 @@ on:
       model:
         description: "OpenRouter model id (vendor/model slug)."
         type: string
-        default: "minimax/minimax-m3"
+        default: "anthropic/claude-haiku-5.5"
       fallback-model:
         description: "Model used when the primary fails. Prefer a different family so one provider-side shortage cannot exhaust both."
         type: string
-        default: "qwen/qwen3.8-flash"
+        default: "openai/gpt-6-luna"
+      reasoning-effort:
+        description: "Extended-thinking effort for the review passes (e.g. xhigh/high; none disables). Remapped per provider profile."
+        type: string
+        default: "high"
       max-comments:
         description: "Cap on findings reported in the issue."
         type: number
@@ -134,6 +138,7 @@ jobs:
         env:
           MODEL: ${{ inputs.model }}
           FALLBACK_MODEL: ${{ inputs.fallback-model }}
+          REASONING_EFFORT: ${{ inputs.reasoning-effort }}
           MAX_COMMENTS: ${{ inputs.max-comments }}
         run: |
           set -euo pipefail
@@ -150,6 +155,8 @@ jobs:
                   "review_model": os.environ["MODEL"],
                   "indexing_model": os.environ["MODEL"],
                   "fallback_model": os.environ["FALLBACK_MODEL"],
+                  "review_reasoning_effort": os.environ["REASONING_EFFORT"],
+                  "security_model": os.environ["MODEL"],
                   "temperature": 0.2,
                   "max_tokens": 8192,
                   "request_timeout": 300,
