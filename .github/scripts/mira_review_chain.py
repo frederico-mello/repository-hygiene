@@ -149,14 +149,34 @@ def run_chain(
             if retry_result.status == "ok":
                 return retry_result, model, history
     statuses = [result.status for _, result in history]
-    if statuses and all(status == "quota" for status in statuses):
-        final_status = "quota"
-    elif "partial" in statuses:
+    if "partial" in statuses:
         final_status = "partial"
+    elif history and history[-1][1].status == "quota":
+        final_status = "quota"
     else:
         final_status = "failed"
-    last = history[-1][1] if history else ReviewResult("failed")
-    return ReviewResult(final_status, last.comments, last.blockers, last.dropped_chunks), None, history
+
+    # Retain evidence from the best/latest informative attempt, including a
+    # same-model partial retry, instead of replacing it with an empty later
+    # failure or quota response.
+    status_rank = {"ok": 4, "partial": 3, "quota": 2, "failed": 1}
+    evidence = max(
+        (result for _, result in history),
+        key=lambda result: (
+            status_rank.get(result.status, 0),
+            result.comments,
+            result.blockers,
+            result.dropped_chunks,
+        ),
+        default=ReviewResult("failed"),
+    )
+    return ReviewResult(
+        final_status,
+        evidence.comments,
+        evidence.blockers,
+        evidence.dropped_chunks,
+        evidence.detail,
+    ), None, history
 
 
 def _write_outputs(result: ReviewResult, used_model: str | None, history: list[tuple[str, ReviewResult]]) -> None:
