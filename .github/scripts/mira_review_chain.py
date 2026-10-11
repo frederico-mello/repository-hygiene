@@ -1,7 +1,7 @@
-"""Run Mira with an ordered OpenCode Go model fallback chain.
+"""Run Mira with an ordered OpenRouter/OpenCode Go fallback chain.
 
 A workflow check is successful only when Mira returns a complete review payload.
-Quota/operational failures try the next model; exhausting the chain fails the
+Quota/operational failures try the next route; exhausting the chain fails the
 step so an unavailable reviewer cannot appear as a green review.
 """
 from __future__ import annotations
@@ -19,7 +19,13 @@ from pathlib import Path
 import yaml
 
 DROP_MARKER = "failed to parse, skipping"
-QUOTA_MARKERS = ("gousagelimiterror", "usage limit", "http 429")
+QUOTA_MARKERS = (
+    "gousagelimiterror",
+    "usage limit",
+    "http 429",
+    "insufficient credit",
+    "http 402",
+)
 MODEL_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/-]*$")
 
 
@@ -50,12 +56,22 @@ def parse_model_chain(primary: str, legacy_fallback: str, fallbacks: str) -> lis
 
 
 def resolve_model_route(model: str) -> tuple[str, str]:
-    """Resolve an explicit OpenRouter/ route; leave the model id literal intact."""
+    """Resolve an explicit provider prefix or infer a legacy model route.
+
+    Vendor/model slugs default to OpenRouter; legacy single-part model ids
+    default to OpenCode Go. Prefix routes are stripped before Mira sees them.
+    """
     prefix, separator, model_id = model.partition("/")
     if separator and prefix.casefold() == "openrouter":
         if not model_id:
             raise ValueError("OpenRouter route must include a vendor/model id")
         return "openrouter", model_id
+    if separator and prefix.casefold() in {"opencode-go", "opencodego"}:
+        if not model_id:
+            raise ValueError("OpenCode Go route must include a model id")
+        return "opencode-go", model_id
+    if separator:
+        return "openrouter", model
     return "opencode-go", model
 
 
@@ -120,6 +136,9 @@ def config_for_model(base_config: Path, model: str, output_config: Path) -> None
     if provider == "openrouter":
         llm["base_url"] = "https://openrouter.ai/api/v1"
         llm["api_key_env"] = "OPENROUTER_API_KEY"
+    else:
+        llm["base_url"] = "https://opencode.ai/zen/go/v1"
+        llm["api_key_env"] = "OPENCODE_GO_API_KEY"
     for key in ("model", "review_model", "indexing_model"):
         llm[key] = model_id
     # The outer loop owns fallback order so each result is attributable to the
@@ -212,8 +231,9 @@ def _run_mira(
     mira_command: str,
 ) -> ReviewResult:
     provider, _ = resolve_model_route(model)
-    if provider == "openrouter" and not os.environ.get("OPENROUTER_API_KEY"):
-        message = "missing Actions secret OPENROUTER_API_KEY; OpenRouter fallback skipped"
+    key_name = "OPENROUTER_API_KEY" if provider == "openrouter" else "OPENCODE_GO_API_KEY"
+    if not os.environ.get(key_name):
+        message = f"missing Actions secret {key_name}; {provider} route skipped"
         print(f"::warning::{message}", flush=True)
         return ReviewResult("failed", detail=message)
     safe_model = re.sub(r"[^A-Za-z0-9._-]", "_", model)
