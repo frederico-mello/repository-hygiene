@@ -11,9 +11,11 @@
 #         issues: write
 #       secrets:
 #         OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+#         OPENCODE_GO_API_KEY: ${{ secrets.OPENCODE_GO_API_KEY }} # optional independent fallback
 #
 # Requirements in the CALLER repo:
 #   - secret OPENROUTER_API_KEY (Settings -> Secrets and variables -> Actions)
+#   - optional secret OPENCODE_GO_API_KEY for the independent provider fallback
 #
 # The Mira version is pinned inline to a commit SHA so it is visible in review
 # and cannot be redirected by a caller.
@@ -21,23 +23,27 @@
 #     repo. It is merged over this workflow's defaults; the repo file does NOT
 #     need to carry LLM/provider settings.
 #
-# Reviews run on OpenRouter, served by Mira's bundled provider profile
-# (base_url https://openrouter.ai/api/v1, api_key_env OPENROUTER_API_KEY,
-# model prefix kept). One thing this workflow works around, verified
-# against Mira 0.8.0/0.9.0:
+# Two things this workflow works around, both verified against Mira 0.8.0/0.9.0:
 #
-# 1. Config layering. `mira review --config FILE` uses that file ALONE;
-#    auto-discovery of a per-repo `.mira.yaml` only runs when `--config`
-#    is absent. We therefore merge defaults + the repo's .mira.yaml and pass
-#    the result, so a repo keeps its local tuning.
+# 1. Provider profile. Mira bundles only an `openrouter` profile. OpenCode Go
+#    (Zen) requires an `x-opencode-session` header on every request and answers
+#    HTTP 400 MissingSessionID without it. We generate providers.json in the
+#    runner and point MIRA_PROVIDERS_JSON_PATH at it.
+#
+# 2. Config layering. `mira review --config FILE` uses that file ALONE —
+#    auto-discovery of a per-repo .mira.yaml only runs when --config is absent,
+#    so passing a fixed deployment file would silently discard repo-local tuning.
+#    We therefore merge defaults + the repo's .mira.yaml and pass the result.
 #
 # Advisory by default: blockers appear in the review but do not fail the job.
 #
 # Never gate on Mira's exit code: `sys.exit(1)` (blockers) and
 # `click.ClickException` (LLM/operational failure) both exit 1, so exit 1 alone
-# cannot tell "found problems" from "did not run". This workflow reads the
-# JSON payload instead and fails the step when no review was produced.
-# Pass `block-on-blocker: true` from a caller to gate merges instead.
+# cannot tell "found problems" from "did not run". The runner reads the JSON
+# payload and tries the ordered model chain until it gets a complete review.
+# Exhausting the chain is a failed check even in advisory mode; a green check
+# must never mean that inference was skipped or quota-exhausted. Pass
+# `block-on-blocker: true` from a caller to also gate merges on code findings.
 
 name: Mira Code Review
 
@@ -49,13 +55,17 @@ on:
         type: boolean
         default: false
       model:
-        description: "OpenRouter model id (vendor/model slug). Mira retries forced tool_choice as auto, so prefer a model with generous rate limits."
+        description: "Primary OpenRouter model route. The default is the user-approved Xiaomi Mimo model."
         type: string
-        default: "minimax/minimax-m3"
+        default: "OpenRouter/xiaomi/mimo-v2.6-flash"
       fallback-model:
-        description: "Model used when the primary fails (timeout, 5xx, unparseable tool call). Prefer a different family so one provider-side shortage cannot exhaust both."
+        description: "First independent-provider fallback candidate (retained for compatibility with existing callers)."
         type: string
-        default: "qwen/qwen3.8-flash"
+        default: "OpenCode-Go/qwen3.8-flash"
+      fallback-models:
+        description: "Additional comma-separated model routes, tried in order after quota, failure, or incomplete review."
+        type: string
+        default: "OpenCode-Go/qwen3.7-plus,OpenCode-Go/qwen3.6-plus,OpenCode-Go/qwen3.7-max,OpenCode-Go/qwen3.8-max"
       max-comments:
         description: "Cap on inline comments posted per review."
         type: number
@@ -67,17 +77,30 @@ on:
     secrets:
       OPENROUTER_API_KEY:
         required: true
+      OPENCODE_GO_API_KEY:
+        description: "Optional independent-provider fallback credential."
+        required: false
 
 jobs:
   review:
     if: github.event_name == 'pull_request' || github.event_name == 'issue_comment'
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 70
     steps:
       - name: Check out repository
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0 # full history: Mira builds context from the repo
+
+      # The caller checkout above does not contain files from this reusable
+      # workflow's repository. Fetch the pinned helper source separately.
+      - name: Check out Mira runner
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: frederico-mello/repository-hygiene
+          ref: 4eb7e1bbec1ab9e25a8c38174b0ea75d3f3eb2db
+          path: .mira-workflow
+          fetch-depth: 1
 
       - name: Set up Python
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
@@ -98,10 +121,15 @@ jobs:
               *) echo "comment has no @mira-review mention — nothing to do"; exit 0 ;;
             esac
             url="${{ github.event.issue.pull_request.html_url }}"
+            num="${{ github.event.issue.number }}"
           else
             url="${{ github.event.pull_request.html_url }}"
+            num="${{ github.event.pull_request.number }}"
           fi
           echo "pr_url=$url" >> "$GITHUB_OUTPUT"
+          # One stable session id per repo+PR: Zen uses it for routing and prompt
+          # caching, so a re-review of the same PR reuses the cached prefix.
+          echo "session=mira-$(echo "${{ github.repository }}-$num" | tr '/._' '---')" >> "$GITHUB_OUTPUT"
 
       - name: Install Mira
         if: steps.ctx.outputs.pr_url != ''
@@ -121,16 +149,16 @@ jobs:
             "mira-reviewer @ git+https://github.com/miracodeai/mira.git@6410f596251ccc7df86fbf10234aff1a9225fa80"
           mira --version
 
-      - name: Build effective config
+      - name: Build effective config and provider profile
         if: steps.ctx.outputs.pr_url != ''
         env:
+          SESSION: ${{ steps.ctx.outputs.session }}
           MODEL: ${{ inputs.model }}
-          FALLBACK_MODEL: ${{ inputs.fallback-model }}
           MAX_COMMENTS: ${{ inputs.max-comments }}
         run: |
           set -euo pipefail
           python - "$RUNNER_TEMP/mira-effective.yaml" <<'PY'
-          import os, pathlib, sys
+          import json, os, pathlib, sys
           import yaml
 
           out = pathlib.Path(sys.argv[1])
@@ -143,7 +171,7 @@ jobs:
                   "model": os.environ["MODEL"],
                   "review_model": os.environ["MODEL"],
                   "indexing_model": os.environ["MODEL"],
-                  "fallback_model": os.environ["FALLBACK_MODEL"],
+                  "fallback_model": None,
                   "temperature": 0.2,
                   "max_tokens": 8192,
                   # Mira's default request_timeout is 120s, which a slow endpoint
@@ -193,190 +221,100 @@ jobs:
           out.write_text(yaml.safe_dump(cfg, sort_keys=False))
           print(out.read_text())
 
+          profile = {
+              "opencode-go": {
+                  "base_url": "https://opencode.ai/zen/go/v1",
+                  "api_key_env": "OPENCODE_GO_API_KEY",
+                  "model_prefix": "strip",
+                  "extra_headers": {"x-opencode-session": os.environ["SESSION"]},
+                  "reasoning_effort_map": {},
+              },
+              "openrouter": {
+                  "base_url": "https://openrouter.ai/api/v1",
+                  "api_key_env": "OPENROUTER_API_KEY",
+                  "model_prefix": "keep",
+                  "extra_headers": {
+                      "HTTP-Referer": "https://github.com/frederico-mello/repository-hygiene",
+                      "X-Title": "Mira Code Review",
+                  },
+                  "reasoning_effort_map": {"max": "xhigh"},
+              },
+          }
+          p = pathlib.Path(os.environ["RUNNER_TEMP"]) / "providers.json"
+          p.write_text(json.dumps(profile, indent=2))
+          print("session id:", os.environ["SESSION"])
           PY
+          echo "MIRA_PROVIDERS_JSON_PATH=$RUNNER_TEMP/providers.json" >> "$GITHUB_ENV"
 
       - name: Review pull request
         id: review
         if: steps.ctx.outputs.pr_url != ''
         env:
+          OPENCODE_GO_API_KEY: ${{ secrets.OPENCODE_GO_API_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GITHUB_TOKEN: ${{ github.token }}
+          MIRA_PR_URL: ${{ steps.ctx.outputs.pr_url }}
+          MIRA_MODEL: ${{ inputs.model }}
+          MIRA_FALLBACK_MODEL: ${{ inputs.fallback-model }}
+          MIRA_FALLBACK_MODELS: ${{ inputs.fallback-models }}
+          MIRA_TRUST_EXECUTION_SETTINGS: ${{ inputs.trust-execution-settings }}
         run: |
-          # Parser kept in a file so the retry loop below can reuse it verbatim.
-          cat > "$RUNNER_TEMP/parse.py" <<'PY'
-          import json, os, sys
-
-          raw = open(sys.argv[1], encoding="utf-8", errors="replace").read()
-          exit_code = int(sys.argv[2])
-          out = os.environ["GITHUB_OUTPUT"]
-
-          payloads = []
-          for start in [i for i, ch in enumerate(raw) if ch == "{"]:
-              try:
-                  cand = json.loads(raw[start:])
-              except Exception:
-                  continue
-              if isinstance(cand, dict) and "comments" in cand:
-                  payloads.append(cand)
-
-          # Multi-chunk diffs can emit one payload per chunk; merge them all
-          # instead of keeping only the last. Dedupe on file+line+title so an
-          # aggregate payload alongside per-chunk ones cannot double-count.
-          result = payloads[-1] if payloads else None
-          comments = []
-          seen_keys = set()
-          reviewed_files = 0
-          walkthrough_seen = False
-          for p in payloads:
-              for c in p.get("comments") or []:
-                  key = (c.get("file_path") or c.get("path"),
-                         c.get("line") or c.get("start_line"),
-                         c.get("title"))
-                  if key in seen_keys:
-                      continue
-                  seen_keys.add(key)
-                  comments.append(c)
-              if isinstance(p.get("walkthrough"), dict) and p.get("walkthrough"):
-                  walkthrough_seen = True
-              try:
-                  reviewed_files = max(reviewed_files, int(p.get("reviewed_files") or 0))
-              except (TypeError, ValueError):
-                  pass
-
-          # The verdict goes to its own one-line file: the caller needs a clean
-          # token to compare against, and stdout carries log lines too, so
-          # capturing stdout would yield a multi-line string that never equals
-          # "partial" and would silently disable the retry.
-          VERDICT_FILE = os.environ["RUNNER_TEMP"] + "/mira-verdict.txt"
-
-          def emit(status, **extra):
-              with open(out, "a") as fh:
-                  fh.write(f"status={status}\n")
-                  for k, v in extra.items():
-                      fh.write(f"{k}={v}\n")
-              with open(VERDICT_FILE, "w") as fh:
-                  fh.write(status + "\n")
-              print(status)
-
-          if result is None:
-              low = raw.lower()
-              if "gousagelimiterror" in low or "usage limit" in low or "http 429" in low or "insufficient credit" in low or "http 402" in low:
-                  print(
-                      "::warning::Mira could not run — inference quota exhausted "
-                      "(provider-side quota or credit). Not a code finding, and "
-                      "not a clean review: re-run after the window resets."
-                  )
-                  emit("quota", comments=0, blockers=0, dropped_chunks=0)
-                  sys.exit(0)
-              print(f"::error::Mira produced no review payload (exit {exit_code}) — see logs")
-              emit("failed", comments=0, blockers=0, dropped_chunks=0)
-              sys.exit(1)
-
-          blockers = [c for c in comments if (c.get("severity") or "").lower() == "blocker"]
-          # A payload recovered from the stdout is the model's verdict for its
-          # chunk. When the model answers in prose instead of calling the tool,
-          # Mira still parses the JSON the harness printed and drops the chunk,
-          # counting it here as "failed to parse, skipping". The payload IS the
-          # review (measured on a real run: 14 files walked, 0 comments, valid
-          # walkthrough), so treat a recovered payload as coverage for its
-          # chunk. Only a discarded chunk with NO recoverable payload (or a
-          # payload that clearly did not walk the diff) stays partial.
-          dropped = raw.count("failed to parse, skipping")
-          recovered = len(payloads)
-          # Coverage is any of: findings, a walkthrough, or files the recovered
-          # payload says it reviewed. reviewed_files must be EFFECTIVE (> 0):
-          # a payload that clearly did not walk the diff covers nothing.
-          covered = bool(comments or walkthrough_seen or reviewed_files)
-          if dropped and recovered and covered:
-              print(
-                  f"::notice::{dropped} chunk(s) dropped by the harness but the "
-                  f"review payload was recovered from the prose output "
-                  f"({reviewed_files} file(s) reviewed) — counting as covered."
-              )
-          status = "partial" if (dropped and not covered) else "ok"
-          emit(status, comments=len(comments), blockers=len(blockers), dropped_chunks=dropped)
-          print(f"parsed: {len(comments)} comment(s), {len(blockers)} blocker(s), {dropped} chunk(s) discarded")
-          if dropped and status == "partial":
-              print(
-                  f"::warning::{dropped} diff chunk(s) discarded: the model answered in "
-                  "prose instead of calling the tool, so the review covered less than "
-                  "the full diff."
-              )
-          PY
-
-          extra=""
-          if [ "${{ inputs.trust-execution-settings }}" = "true" ]; then
-            extra="--trust-execution-settings"
+          set -euo pipefail
+          args=(
+            --pr-url "$MIRA_PR_URL"
+            --base-config "$RUNNER_TEMP/mira-effective.yaml"
+            --model "$MIRA_MODEL"
+            --fallback-model "$MIRA_FALLBACK_MODEL"
+            --fallback-models "$MIRA_FALLBACK_MODELS"
+          )
+          if [ "$MIRA_TRUST_EXECUTION_SETTINGS" = "true" ]; then
+            args+=(--trust-execution-settings)
           fi
-
-          # Retry once on an incomplete review. Measured on a real diff, the same
-          # model dropped a chunk on ~40% of runs; a retry converts most of those
-          # into a full review cheaply, and a partial review treated as clean is
-          # the exact false-green this workflow exists to prevent.
-          max_attempts=2
-          attempt=1
-          while :; do
-            set +e
-            mira review \
-              --pr "${{ steps.ctx.outputs.pr_url }}" \
-              --config "$RUNNER_TEMP/mira-effective.yaml" \
-              --github-token "$GITHUB_TOKEN" \
-              --output json \
-              $extra > "$RUNNER_TEMP/mira-out.txt" 2> "$RUNNER_TEMP/mira-err.txt"
-            code=$?
-            set -e
-            echo "--- attempt $attempt: mira stdout ---"
-            cat "$RUNNER_TEMP/mira-out.txt"
-            echo "--- attempt $attempt: mira stderr ---"
-            cat "$RUNNER_TEMP/mira-err.txt"
-            # Mira exits 1 for blockers AND for failures, so the exit code is not
-            # the outcome — the parser is. Capture its verdict, not its status.
-            set +e
-            rm -f "$RUNNER_TEMP/mira-verdict.txt"
-            python "$RUNNER_TEMP/parse.py" "$RUNNER_TEMP/mira-out.txt" "$code"
-            set -e
-            verdict=$(cat "$RUNNER_TEMP/mira-verdict.txt" 2>/dev/null || echo "unknown")
-            echo "attempt $attempt verdict: $verdict"
-            if [ "$verdict" = "partial" ] && [ "$attempt" -lt "$max_attempts" ]; then
-              echo "::notice::review incomplete (chunk discarded) — retrying once"
-              attempt=$((attempt + 1))
-              # The parser appended outputs for this attempt; drop them so the
-              # next attempt's values are the ones that count.
-              grep -vE '^(status|comments|blockers|dropped_chunks)=' "$GITHUB_OUTPUT" > "$RUNNER_TEMP/out.tmp" || true
-              mv "$RUNNER_TEMP/out.tmp" "$GITHUB_OUTPUT"
-              continue
-            fi
-            break
-          done
-          echo "attempts=$attempt" >> "$GITHUB_OUTPUT"
-          if [ "$verdict" = "failed" ]; then
-            echo "::error::Mira produced no usable review after $attempt attempt(s)"
-            exit 1
-          fi
+          python .mira-workflow/.github/scripts/mira_review_chain.py "${args[@]}"
 
       - name: Summarize result
         if: always() && steps.review.outputs.status != ''
+        env:
+          MIRA_PRIMARY_MODEL: ${{ inputs.model }}
+          MIRA_FIRST_FALLBACK: ${{ inputs.fallback-model }}
+          MIRA_MORE_FALLBACKS: ${{ inputs.fallback-models }}
+          MIRA_USED_MODEL: ${{ steps.review.outputs.used_model }}
+          MIRA_MODELS_ATTEMPTED: ${{ steps.review.outputs.models_attempted }}
+          MIRA_ATTEMPT_RESULTS: ${{ steps.review.outputs.attempt_results }}
+          MIRA_ATTEMPTS: ${{ steps.review.outputs.attempts }}
+          MIRA_STATUS: ${{ steps.review.outputs.status }}
+          MIRA_COMMENTS: ${{ steps.review.outputs.comments }}
+          MIRA_BLOCKERS: ${{ steps.review.outputs.blockers }}
+          MIRA_DROPPED: ${{ steps.review.outputs.dropped_chunks }}
         run: |
           {
             echo "## Mira code review"
             echo ""
             echo "| field | value |"
             echo "|---|---|"
-            echo "| model | \`${{ inputs.model }}\` (fallback \`${{ inputs.fallback-model }}\`) |"
-            echo "| mira | \`6410f596\` (commit SHA) |"
-            echo "| result | \`${{ steps.review.outputs.status }}\` — ${{ steps.review.outputs.comments }} comment(s), ${{ steps.review.outputs.blockers }} blocker(s) |"
-            echo "| diff chunks discarded | ${{ steps.review.outputs.dropped_chunks }} |"
-            if [ "${{ steps.review.outputs.status }}" = "partial" ]; then
-              echo ""
-              echo "> ${{ steps.review.outputs.dropped_chunks }} diff chunk(s) were discarded (the model answered in prose instead of calling the tool). This review covered **less than the full diff** — treat the 0-comment result as incomplete, not clean, and re-run."
-            fi
-            if [ "${{ steps.review.outputs.status }}" = "quota" ]; then
-              echo ""
-              echo "> Inference quota/credit exhausted at the provider. This is **not** a code finding — re-run after the window resets."
-            fi
+            echo "| primary model | $MIRA_PRIMARY_MODEL |"
+            echo "| fallback chain | $MIRA_FIRST_FALLBACK, $MIRA_MORE_FALLBACKS |"
+            echo "| models attempted | $MIRA_MODELS_ATTEMPTED |"
+            echo "| attempt results | $MIRA_ATTEMPT_RESULTS |"
+            echo "| model that produced the review | ${MIRA_USED_MODEL:-none} |"
+            echo "| attempts | $MIRA_ATTEMPTS |"
+            echo "| Mira result | $MIRA_STATUS — $MIRA_COMMENTS comment(s), $MIRA_BLOCKERS blocker(s) |"
+            echo "| diff chunks discarded | $MIRA_DROPPED |"
             echo "| mode | ${{ inputs.block-on-blocker && 'gate' || 'advisory' }} |"
             echo ""
-            echo "Inline comments are posted on the pull request. Comment \`@mira-review\` to re-run."
+            if [ "$MIRA_STATUS" = "ok" ]; then
+              echo "A complete Mira review payload was produced."
+              echo "Inline comments and the Mira walkthrough are posted on the pull request; comment @mira-review to run it again."
+            else
+              echo "**No complete Mira review was produced. This is not a clean review, even if the comment count is zero.**"
+              if [ "$MIRA_STATUS" = "quota" ]; then
+                echo "OpenRouter and the configured OpenCode Go fallback chain did not produce a complete review. Check quota and provider availability; no review was completed."
+              elif [ "$MIRA_STATUS" = "partial" ]; then
+                echo "The review remained incomplete after one retry and the fallback chain. Do not interpret it as clean."
+              else
+                echo "Mira failed to produce a usable review after trying the configured fallback chain."
+              fi
+            fi
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Fail on incomplete review (gate mode only)
