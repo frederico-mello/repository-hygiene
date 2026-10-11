@@ -1,11 +1,7 @@
-"""Testes do parser Python embutido no workflow de revisão MIRA.
+"""Tests for Mira output classification and model fallback orchestration."""
+from __future__ import annotations
 
-O parser vive como heredoc dentro de `.github/workflows/mira-review-reusable.yml`.
-Estes testes extraem esse código real do YAML e o executam como subprocesso,
-para que a regra de status (`ok`/`partial`) seja exercitada exatamente como o
-workflow a executa — sem duplicar a lógica no teste.
-"""
-
+import importlib.util
 import json
 import os
 import subprocess
@@ -16,95 +12,421 @@ import yaml
 
 ROOT = Path(__file__).resolve().parent.parent
 WORKFLOW = ROOT / ".github" / "workflows" / "mira-review-reusable.yml"
+SCRIPT = ROOT / ".github" / "scripts" / "mira_review_chain.py"
+SPEC = importlib.util.spec_from_file_location("mira_review_chain", SCRIPT)
+assert SPEC and SPEC.loader
+mira = importlib.util.module_from_spec(SPEC)
+sys.modules[SPEC.name] = mira
+SPEC.loader.exec_module(mira)
+
 DROP_MARKER = "failed to parse, skipping"
 
 
-def _parser_source():
-    """Devolve o código do parse.py escrito pelo passo `review` do workflow."""
-    doc = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
-    run = next(
-        step["run"]
-        for step in doc["jobs"]["review"]["steps"]
-        if step.get("id") == "review"
+def _partial_payload(reviewed_files: int) -> str:
+    return (
+        f"WARNING: chunk 1/1 {DROP_MARKER}: invalid JSON\n"
+        + json.dumps({"comments": [], "reviewed_files": reviewed_files})
     )
-    _, _, rest = run.partition("<<'PY'\n")
-    assert rest, "heredoc do parser não encontrado em mira-review-reusable.yml"
-    body, sep, tail = rest.partition("\nPY\n")
-    assert sep, "terminador do heredoc do parser não encontrado"
-    assert body.strip(), "heredoc do parser vazio"
-    return body
 
 
-def _run_parser(tmp_path, raw, exit_code=0):
-    """Executa o parser real com o stdout simulado e devolve (outputs, verdicto, stdout)."""
-    parser = tmp_path / "parse.py"
-    parser.write_text(_parser_source(), encoding="utf-8")
+def test_recovered_payload_with_reviewed_files_is_complete():
+    outcome = mira.parse_mira_output(_partial_payload(14), 0)
+    assert outcome.status == "ok"
+    assert outcome.comments == 0
+    assert outcome.blockers == 0
+    assert outcome.dropped_chunks == 1
 
-    mira_out = tmp_path / "mira-out.txt"
-    mira_out.write_text(raw, encoding="utf-8")
 
-    github_output = tmp_path / "github_output"
-    github_output.write_text("", encoding="utf-8")
+def test_dropped_chunk_without_coverage_is_partial():
+    outcome = mira.parse_mira_output(_partial_payload(0), 0)
+    assert outcome.status == "partial"
+    assert outcome.dropped_chunks == 1
 
-    env = dict(os.environ)
-    env["GITHUB_OUTPUT"] = str(github_output)
-    env["RUNNER_TEMP"] = str(tmp_path)
-    env["PYTHONIOENCODING"] = "utf-8"
 
-    result = subprocess.run(
-        [sys.executable, str(parser), str(mira_out), str(exit_code)],
-        capture_output=True,
-        text=True,
+def test_quota_is_detected_even_when_reported_on_stderr():
+    outcome = mira.parse_mira_output("", 1, "HTTP 429 GoUsageLimitError: usage limit reached")
+    assert outcome.status == "quota"
+
+
+def test_model_chain_is_ordered_and_deduplicated():
+    assert mira.parse_model_chain(
+        "qwen3.8-flash", "qwen3.7-plus", "qwen3.7-plus, qwen3.6-plus"
+    ) == ["qwen3.8-flash", "qwen3.7-plus", "qwen3.6-plus"]
+
+
+def test_model_chain_rejects_shell_metacharacters():
+    try:
+        mira.parse_model_chain("qwen3.8-flash; touch /tmp/x", "", "")
+    except ValueError as exc:
+        assert "invalid Mira model id" in str(exc)
+    else:
+        raise AssertionError("unsafe model id was accepted")
+
+
+def test_quota_uses_fallback_then_stops_on_complete_review():
+    seen = []
+
+    def attempt(model):
+        seen.append(model)
+        if model == "qwen3.8-flash":
+            return mira.ReviewResult("quota")
+        return mira.ReviewResult("ok", comments=2, blockers=1)
+
+    outcome, used_model, history = mira.run_chain(
+        ["qwen3.8-flash", "qwen3.7-plus", "qwen3.6-plus"], attempt
+    )
+    assert outcome == mira.ReviewResult("ok", comments=2, blockers=1)
+    assert used_model == "qwen3.7-plus"
+    assert seen == ["qwen3.8-flash", "qwen3.7-plus"]
+    assert [entry.status for _, entry in history] == ["quota", "ok"]
+
+
+def test_partial_review_retries_once_then_advances_to_next_model():
+    seen = []
+
+    def attempt(model):
+        seen.append(model)
+        if model == "qwen3.8-flash":
+            return mira.ReviewResult("partial")
+        return mira.ReviewResult("ok", comments=1)
+
+    outcome, used_model, history = mira.run_chain(
+        ["qwen3.8-flash", "qwen3.7-plus"], attempt
+    )
+    assert outcome.status == "ok"
+    assert used_model == "qwen3.7-plus"
+    assert seen == ["qwen3.8-flash", "qwen3.8-flash", "qwen3.7-plus"]
+    assert [entry.status for _, entry in history] == ["partial", "partial", "ok"]
+
+
+def test_all_quota_attempts_remain_unavailable_not_clean():
+    outcome, used_model, history = mira.run_chain(
+        ["qwen3.8-flash", "qwen3.7-plus"], lambda _: mira.ReviewResult("quota")
+    )
+    assert outcome.status == "quota"
+    assert used_model is None
+    assert len(history) == 2
+
+
+def test_attempt_config_pins_all_mira_roles_and_disables_implicit_fallback(tmp_path):
+    base = tmp_path / "base.yaml"
+    base.write_text(
+        "llm:\n  model: old-primary\n  review_model: repo-review\n"
+        "  indexing_model: repo-index\n  fallback_model: repo-fallback\n",
         encoding="utf-8",
-        errors="replace",
-        env=env,
-        timeout=60,
     )
-    assert result.returncode == 0, (
-        f"parser terminou com {result.returncode}\n{result.stdout}\n{result.stderr}"
+    attempt = tmp_path / "attempt.yaml"
+
+    mira.config_for_model(base, "qwen3.7-plus", attempt)
+
+    import yaml
+
+    llm = yaml.safe_load(attempt.read_text(encoding="utf-8"))["llm"]
+    assert llm["model"] == "qwen3.7-plus"
+    assert llm["review_model"] == "qwen3.7-plus"
+    assert llm["indexing_model"] == "qwen3.7-plus"
+    assert llm["fallback_model"] is None
+
+
+def test_openrouter_attempt_keeps_the_vendor_model_and_uses_its_key(tmp_path):
+    base = tmp_path / "base.yaml"
+    base.write_text(
+        "llm:\n  base_url: https://opencode.ai/zen/go/v1\n"
+        "  api_key_env: OPENCODE_GO_API_KEY\n",
+        encoding="utf-8",
+    )
+    attempt = tmp_path / "openrouter.yaml"
+
+    mira.config_for_model(base, "OpenRouter/xiaomi/mimo-v2.6-flash", attempt)
+
+    import yaml
+
+    llm = yaml.safe_load(attempt.read_text(encoding="utf-8"))["llm"]
+    assert llm["base_url"] == "https://openrouter.ai/api/v1"
+    assert llm["api_key_env"] == "OPENROUTER_API_KEY"
+    assert llm["model"] == "xiaomi/mimo-v2.6-flash"
+    assert llm["review_model"] == "xiaomi/mimo-v2.6-flash"
+    assert mira.resolve_model_route("OpenRouter/xiaomi/mimo-v2.6-flash") == (
+        "openrouter",
+        "xiaomi/mimo-v2.6-flash",
     )
 
-    outputs = dict(
+
+def test_openrouter_route_without_secret_is_skipped_before_running_mira(tmp_path, monkeypatch):
+    base = tmp_path / "base.yaml"
+    base.write_text("llm: {}\n", encoding="utf-8")
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+    monkeypatch.setattr(
+        mira.subprocess,
+        "run",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("Mira must not run")),
+    )
+
+    outcome = mira._run_mira(
+        "OpenRouter/xiaomi/mimo-v2.6-flash",
+        "https://github.com/example/repo/pull/1",
+        base,
+        tmp_path,
+        "test-token",
+        False,
+        "mira",
+    )
+
+    assert outcome.status == "failed"
+    assert "OPENROUTER_API_KEY" in outcome.detail
+
+
+def test_main_fails_visibly_if_every_model_is_over_quota(tmp_path, monkeypatch):
+    base = tmp_path / "base.yaml"
+    base.write_text("llm: {}\n", encoding="utf-8")
+    output = tmp_path / "github-output"
+    output.write_text("", encoding="utf-8")
+    monkeypatch.setenv("GITHUB_TOKEN", "test-token")
+    monkeypatch.setenv("GITHUB_OUTPUT", str(output))
+    monkeypatch.setenv("RUNNER_TEMP", str(tmp_path))
+
+    attempted = []
+
+    def fake_run(model, *_args):
+        attempted.append(model)
+        return mira.ReviewResult("quota")
+
+    monkeypatch.setattr(mira, "_run_mira", fake_run)
+    code = mira.main(
+        [
+            "--pr-url",
+            "https://github.com/example/repo/pull/1",
+            "--base-config",
+            str(base),
+            "--model",
+            "qwen3.8-flash",
+            "--fallback-model",
+            "qwen3.7-plus",
+            "--fallback-models",
+            "qwen3.6-plus",
+        ]
+    )
+
+    values = dict(
         line.split("=", 1)
-        for line in github_output.read_text(encoding="utf-8").splitlines()
+        for line in output.read_text(encoding="utf-8").splitlines()
         if "=" in line
     )
-    verdict = (tmp_path / "mira-verdict.txt").read_text(encoding="utf-8").strip()
-    return outputs, verdict, result.stdout
+    assert code == 1
+    assert attempted == ["qwen3.8-flash", "qwen3.7-plus", "qwen3.6-plus"]
+    assert values["status"] == "quota"
+    assert values["used_model"] == ""
+    assert json.loads(values["models_attempted"]) == attempted
 
 
-def _raw(payload_json):
-    """Stdout do Mira com um chunk descartado pelo harness e o payload recuperado."""
-    return (
-        "mira.core.engine WARNING: Chunk 1/1 "
-        + DROP_MARKER
-        + ": LLM response is not valid JSON\n"
-        + payload_json
+def test_real_runner_invokes_fallback_process_after_quota(tmp_path):
+    base = tmp_path / "base.yaml"
+    base.write_text("llm: {}\n", encoding="utf-8")
+    fake_models = tmp_path / "models-used"
+    fake_mira = tmp_path / "fake-mira"
+    fake_mira.write_text(
+        f"#!{sys.executable}\n"
+        "import json, os, sys, yaml\n"
+        "from pathlib import Path\n"
+        "config = Path(sys.argv[sys.argv.index('--config') + 1])\n"
+        "model = yaml.safe_load(config.read_text())['llm']['model']\n"
+        "with open(os.environ['FAKE_MIRA_MODELS'], 'a') as log: log.write(model + '\\n')\n"
+        "if model == 'qwen3.8-flash':\n"
+        "    print('HTTP 429 GoUsageLimitError: usage limit reached')\n"
+        "    raise SystemExit(1)\n"
+        "print(json.dumps({'comments': [], 'reviewed_files': 3}))\n",
+        encoding="utf-8",
+    )
+    fake_mira.chmod(0o755)
+    output = tmp_path / "github-output"
+    env = dict(os.environ)
+    env.update(
+        {
+            "GITHUB_TOKEN": "test-token",
+            "GITHUB_OUTPUT": str(output),
+            "RUNNER_TEMP": str(tmp_path),
+            "FAKE_MIRA_MODELS": str(fake_models),
+        }
     )
 
+    completed = subprocess.run(
+        [
+            sys.executable,
+            str(SCRIPT),
+            "--pr-url",
+            "https://github.com/example/repo/pull/1",
+            "--base-config",
+            str(base),
+            "--model",
+            "qwen3.8-flash",
+            "--fallback-model",
+            "qwen3.7-plus",
+            "--mira-command",
+            str(fake_mira),
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+        env=env,
+        timeout=30,
+    )
 
-def test_payload_recuperado_com_reviewed_files_conta_como_cobertura(tmp_path):
-    """Cenário 1 do spec: payload recuperado com reviewed_files, zero comentários
-    e walkthrough desligado → veredito `ok`, não `partial`."""
-    raw = _raw(json.dumps({"comments": [], "reviewed_files": 14}))
+    values = dict(
+        line.split("=", 1)
+        for line in output.read_text(encoding="utf-8").splitlines()
+        if "=" in line
+    )
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    assert fake_models.read_text(encoding="utf-8").splitlines() == [
+        "qwen3.8-flash",
+        "qwen3.7-plus",
+    ]
+    assert values["status"] == "ok"
+    assert values["used_model"] == "qwen3.7-plus"
+    assert values["attempts"] == "2"
 
-    outputs, verdict, stdout = _run_parser(tmp_path, raw)
 
-    assert outputs["status"] == "ok"
-    assert verdict == "ok"
-    assert outputs["comments"] == "0"
-    assert outputs["blockers"] == "0"
-    assert outputs["dropped_chunks"] == "1"
-    assert "counting as covered" in stdout
+def test_real_runner_routes_to_openrouter_after_opencode_quota(tmp_path):
+    base = tmp_path / "base.yaml"
+    base.write_text(
+        "llm:\n  base_url: https://opencode.ai/zen/go/v1\n"
+        "  api_key_env: OPENCODE_GO_API_KEY\n",
+        encoding="utf-8",
+    )
+    attempts_file = tmp_path / "attempts.jsonl"
+    fake_mira = tmp_path / "fake-mira"
+    fake_mira.write_text(
+        f"#!{sys.executable}\n"
+        "import json, os, sys, yaml\n"
+        "from pathlib import Path\n"
+        "config = Path(sys.argv[sys.argv.index('--config') + 1])\n"
+        "llm = yaml.safe_load(config.read_text())['llm']\n"
+        "entry = {'model': llm['model'], 'base_url': llm['base_url'], 'api_key_env': llm['api_key_env']}\n"
+        "with open(os.environ['FAKE_MIRA_ATTEMPTS'], 'a') as log: log.write(json.dumps(entry) + '\\n')\n"
+        "if llm['base_url'] == 'https://opencode.ai/zen/go/v1':\n"
+        "    print('HTTP 429 GoUsageLimitError: usage limit reached')\n"
+        "    raise SystemExit(1)\n"
+        "print(json.dumps({'comments': [], 'reviewed_files': 3}))\n",
+        encoding="utf-8",
+    )
+    fake_mira.chmod(0o755)
+    output = tmp_path / "github-output"
+    env = dict(os.environ)
+    env.update(
+        {
+            "GITHUB_TOKEN": "test-token",
+            "OPENROUTER_API_KEY": "test-openrouter-token",
+            "GITHUB_OUTPUT": str(output),
+            "RUNNER_TEMP": str(tmp_path),
+            "FAKE_MIRA_ATTEMPTS": str(attempts_file),
+        }
+    )
+
+    completed = subprocess.run(
+        [
+            sys.executable,
+            str(SCRIPT),
+            "--pr-url",
+            "https://github.com/example/repo/pull/1",
+            "--base-config",
+            str(base),
+            "--model",
+            "qwen3.8-flash",
+            "--fallback-models",
+            "OpenRouter/xiaomi/mimo-v2.6-flash",
+            "--mira-command",
+            str(fake_mira),
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+        env=env,
+        timeout=30,
+    )
+
+    values = dict(
+        line.split("=", 1)
+        for line in output.read_text(encoding="utf-8").splitlines()
+        if "=" in line
+    )
+    attempts = [json.loads(line) for line in attempts_file.read_text(encoding="utf-8").splitlines()]
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    assert attempts == [
+        {
+            "model": "qwen3.8-flash",
+            "base_url": "https://opencode.ai/zen/go/v1",
+            "api_key_env": "OPENCODE_GO_API_KEY",
+        },
+        {
+            "model": "xiaomi/mimo-v2.6-flash",
+            "base_url": "https://openrouter.ai/api/v1",
+            "api_key_env": "OPENROUTER_API_KEY",
+        },
+    ]
+    assert values["status"] == "ok"
+    assert values["used_model"] == "OpenRouter/xiaomi/mimo-v2.6-flash"
 
 
-def test_chunk_descartado_sem_payload_coberto_permanece_partial(tmp_path):
-    """Cenário 2 do spec: chunk descartado e nenhum payload recuperável fornece
-    cobertura (sem comentários, sem walkthrough, reviewed_files nulo) → `partial`."""
-    raw = _raw(json.dumps({"comments": [], "reviewed_files": 0}))
+def test_workflow_wires_fallback_runner_and_gives_chain_time_to_run():
+    doc = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
+    review = next(
+        step for step in doc["jobs"]["review"]["steps"] if step.get("id") == "review"
+    )
+    inputs = doc.get("on", doc.get(True))["workflow_call"]["inputs"]
+    call_secrets = doc.get("on", doc.get(True))["workflow_call"]["secrets"]
 
-    outputs, verdict, _ = _run_parser(tmp_path, raw)
+    assert ".github/scripts/mira_review_chain.py" in review["run"]
+    assert "MIRA_FALLBACK_MODELS" in review["env"]
+    assert "OPENROUTER_API_KEY" in review["env"]
+    assert call_secrets["OPENROUTER_API_KEY"]["required"] is False
+    assert "OpenRouter/xiaomi/mimo-v2.6-flash" in inputs["fallback-models"]["default"]
+    assert inputs["fallback-models"]["default"]
+    assert doc["jobs"]["review"]["timeout-minutes"] == 70
 
-    assert outputs["status"] == "partial"
-    assert verdict == "partial"
-    assert outputs["dropped_chunks"] == "1"
+
+def test_workflow_builds_openrouter_provider_profile(tmp_path):
+    doc = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
+    build = next(
+        step for step in doc["jobs"]["review"]["steps"]
+        if step.get("name") == "Build effective config and provider profile"
+    )
+    marker = "python - \"$RUNNER_TEMP/mira-effective.yaml\" <<'PY'\n"
+    _, found, rest = build["run"].partition(marker)
+    code, end, _ = rest.partition("\nPY\n")
+    assert found and end and code.strip()
+
+    runner_temp = tmp_path / "runner-temp"
+    runner_temp.mkdir()
+    env = dict(os.environ)
+    env.update(
+        {
+            "SESSION": "mira-example-1",
+            "MODEL": "qwen3.8-flash",
+            "MAX_COMMENTS": "5",
+            "RUNNER_TEMP": str(runner_temp),
+            "GITHUB_ENV": str(tmp_path / "github-env"),
+        }
+    )
+    completed = subprocess.run(
+        [sys.executable, "-c", code, str(runner_temp / "mira-effective.yaml")],
+        check=False,
+        capture_output=True,
+        text=True,
+        env=env,
+        cwd=tmp_path,
+        timeout=30,
+    )
+
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    profiles = json.loads((runner_temp / "providers.json").read_text(encoding="utf-8"))
+    assert profiles["openrouter"] == {
+        "base_url": "https://openrouter.ai/api/v1",
+        "api_key_env": "OPENROUTER_API_KEY",
+        "model_prefix": "keep",
+        "extra_headers": {
+            "HTTP-Referer": "https://github.com/frederico-mello/repository-hygiene",
+            "X-Title": "Mira Code Review",
+        },
+        "reasoning_effort_map": {"max": "xhigh"},
+    }
+    assert profiles["opencode-go"]["api_key_env"] == "OPENCODE_GO_API_KEY"
