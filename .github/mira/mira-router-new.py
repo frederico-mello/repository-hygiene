@@ -1,0 +1,172 @@
+"""Mira Go -> Ollama router. Recovery budget is per execution, not per model."""
+import json
+import os
+import time
+import threading
+import urllib.request
+import urllib.error
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+import hashlib
+
+# Load only the two authorized credentials. Never print their values.
+_envfile = Path.home() / 'AppData/Local/hermes/.env'
+if _envfile.exists():
+    for line in _envfile.read_text(encoding='utf-8').splitlines():
+        name, sep, value = line.removeprefix('export ').partition('=')
+        if sep and name.strip() in ('OPENCODE_GO_API_KEY', 'OLLAMA_API_KEY'):
+            os.environ.setdefault(name.strip(), value.strip().strip('\"\''))
+STATE_DIR = Path(os.environ.get('MIRA_ROUTING_STATE_DIR', str(Path.home() / 'tools/mira-routing-state')))
+
+def save_state(identity, state):
+    STATE_DIR.mkdir(parents=True, exist_ok=True)
+    path = STATE_DIR / (hashlib.sha256(identity.encode()).hexdigest() + '.json')
+    tmp = path.with_suffix('.tmp')
+    tmp.write_text(json.dumps(state.summary()), encoding='utf-8')
+    tmp.replace(path)
+MODEL = 'deepseek-v4.1-flash'
+ROUTES = {
+    'go': ('https://opencode.ai/zen/go/v1/chat/completions', 'OPENCODE_GO_API_KEY'),
+    'ollama': ('https://ollama.com/v1/chat/completions', 'OLLAMA_API_KEY'),
+}
+STATES = {}
+LOCK = threading.RLock()
+LIMIT = 6
+
+class State:
+    def __init__(self):
+        self.route = 'go'
+        self.recoveries = 0
+        self.calls = 0
+        self.failed = False
+        self.reason = ''
+        self.lock = threading.RLock()
+    def consume(self):
+        if self.recoveries >= LIMIT:
+            self.failed = True
+            self.reason = 'recovery_budget_exhausted'
+            return False
+        self.recoveries += 1
+        return True
+    def summary(self):
+        return {k: getattr(self, k) for k in ('route', 'recoveries', 'calls', 'failed', 'reason')}
+
+def state_for(identity):
+    with LOCK:
+        if identity not in STATES:
+            state = State()
+            path = STATE_DIR / (hashlib.sha256(identity.encode()).hexdigest() + '.json')
+            if path.exists():
+                data = json.loads(path.read_text(encoding='utf-8'))
+                for key in state.summary():
+                    setattr(state, key, data[key])
+            STATES[identity] = state
+        return STATES[identity]
+
+def forward(route, identity, body):
+    url, env = ROUTES[route]
+    key = os.environ.get(env)
+    if not key:
+        return 401, json.dumps({'error': {'message': 'Missing credential for ' + route}})
+    headers = {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key}
+    if route == 'go':
+        headers['x-opencode-session'] = identity
+    req = urllib.request.Request(url, data=json.dumps(body).encode(), headers=headers, method='POST')
+    try:
+        with urllib.request.urlopen(req, timeout=300) as resp:
+            return resp.status, resp.read().decode()
+    except urllib.error.HTTPError as exc:
+        # Do not log upstream response bodies or credentials.
+        return exc.code, exc.read().decode()
+    except (urllib.error.URLError, TimeoutError, OSError):
+        return 503, json.dumps({'error': {'message': 'upstream_transport_failure'}})
+
+def route_and_call(body, identity, send=forward, pause=time.sleep):
+    if not identity or len(identity) > 200:
+        return 400, json.dumps({'error': {'message': 'Missing/invalid x-mira-execution'}})
+    if body.get('model') != MODEL:
+        return 400, json.dumps({'error': {'message': 'Model not allowed by deployment'}})
+    state = state_for(identity)
+    with state.lock:
+        if state.failed:
+            return 503, json.dumps({'error': {'message': state.reason}})
+        payload = dict(body)
+        # The installed model can reject forced tool_choice. Use auto initially
+        # so the client does not perform an unbudgeted compatibility retry.
+        if 'tools' in payload:
+            payload['tool_choice'] = 'auto'
+        attempts = 0
+        while True:
+            state.calls += 1
+            save_state(identity, state)
+            code, result = send(state.route, identity, payload)
+            if code == 200:
+                return code, result
+            # Quota/auth errors are never retried on that provider.
+            if state.route == 'go' and code in (401, 403, 429):
+                if not state.consume():
+                    break
+                state.route = 'ollama'
+                print(json.dumps({'execution': identity, 'event': 'fallback', **state.summary()}), flush=True)
+                continue
+            if code in (408, 425, 500, 502, 503, 504) and attempts == 0:
+                if not state.consume():
+                    break
+                attempts += 1
+                pause(2)
+                continue
+            # One transient retry on Go failed: try fallback once. No bounce back.
+            if state.route == 'go' and code in (408, 425, 500, 502, 503, 504):
+                if not state.consume():
+                    break
+                state.route = 'ollama'
+                continue
+            state.failed = True
+            state.reason = 'upstream_failure_' + str(code)
+            save_state(identity, state)
+            return code, result
+        save_state(identity, state)
+        return 503, json.dumps({'error': {'message': state.reason}})
+
+class Handler(BaseHTTPRequestHandler):
+    def log_message(self, *args):
+        pass
+    def respond(self, code, body):
+        data = body.encode()
+        self.send_response(code)
+        self.send_header('Content-Type', 'application/json')
+        self.send_header('Content-Length', str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+    def do_GET(self):
+        if self.path == '/health':
+            self.respond(200, json.dumps({'status': 'ok', 'router': 'go-ollama-v1'}))
+            return
+        identity = self.headers.get('x-mira-execution', '')
+        if self.path == '/status' and identity:
+            state = state_for(identity)
+            with state.lock:
+                self.respond(200, json.dumps(state.summary()))
+            return
+        self.respond(404, '{}')
+    def do_POST(self):
+        if self.path != '/v1/chat/completions':
+            self.respond(404, '{}')
+            return
+        try:
+            size = int(self.headers.get('Content-Length', '0'))
+            if not 0 < size <= 8000000:
+                self.respond(413, '{}')
+                return
+            body = json.loads(self.rfile.read(size))
+            code, data = route_and_call(body, self.headers.get('x-mira-execution', ''))
+            self.respond(code, data)
+        except (ValueError, TypeError):
+            self.respond(400, '{}')
+
+if __name__ == '__main__':
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--port', type=int, default=8001)
+    args = parser.parse_args()
+    ThreadingHTTPServer(('127.0.0.1', args.port), Handler).serve_forever()
