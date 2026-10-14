@@ -279,13 +279,13 @@ jobs:
               if status == "partial":
                   open(flag, "w").write("1")
 
+          result = payloads[-1] if payloads else None
           routing = json.load(open(os.environ["RUNNER_TEMP"] + "/mira-routing-status.json"))
           if routing.get("failed"):
               print("::error::Review incomplete: " + routing.get("reason", "routing failure"))
               emit("failed")
               sys.exit(1)
 
-          result = payloads[-1] if payloads else None
           if result is None:
               if "gousagelimiterror" in blob or "usage limit" in blob or "http 429" in blob or "insufficient credit" in blob or "http 402" in blob:
                   print(
