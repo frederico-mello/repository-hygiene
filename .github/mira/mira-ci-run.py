@@ -9,16 +9,17 @@ from mira.core.engine import ReviewEngine
 from mira.exceptions import LLMError
 
 IDENTITY = os.environ['MIRA_EXECUTION']
+ROUTER_URL = os.environ.get('MIRA_ROUTER_URL', 'http://127.0.0.1:8001').rstrip('/')
 original_headers = LLMProvider._build_headers
 
 def headers(self):
-    if self.config.base_url.rstrip('/') != 'http://127.0.0.1:8001/v1':
+    if self.config.base_url.rstrip('/') != ROUTER_URL + '/v1':
         raise RuntimeError('Unauthorized endpoint in CI configuration')
     return {'Content-Type': 'application/json', 'x-mira-execution': IDENTITY}
 
 async def guard():
     def status():
-        req = urllib.request.Request('http://127.0.0.1:8001/status', headers={'x-mira-execution': IDENTITY})
+        req = urllib.request.Request(ROUTER_URL + '/status', headers={'x-mira-execution': IDENTITY})
         with urllib.request.urlopen(req, timeout=10) as resp:
             return json.load(resp)
     state = await asyncio.to_thread(status)
