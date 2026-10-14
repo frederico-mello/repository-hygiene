@@ -46,6 +46,6 @@ jobs:
        github.event.issue.pull_request != null &&
        github.event.comment.user.type != 'Bot' &&
        contains(github.event.comment.body, '@mira-review'))
-    uses: frederico-mello/repository-hygiene/.github/workflows/mira-review-reusable.yml@4fc711e3e5ff71fa0887c06552bfbe1c55fb5d3a
+    uses: frederico-mello/repository-hygiene/.github/workflows/mira-review-reusable.yml@9067698be69993e197a155085e54c958294b69cb
     secrets:
       OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
