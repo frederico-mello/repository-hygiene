@@ -14,7 +14,7 @@
 #   - pula pushes de merge, porque o conteúdo já foi revisado no PR de origem.
 #
 # Requisitos no repo chamador:
-#   - secret OPENROUTER_API_KEY
+#   - secret OPENCODE_GO_API_KEY
 #   - permissões: contents read, issues write
 
 name: Mira Push Review
@@ -25,15 +25,15 @@ on:
       model:
         description: "OpenRouter model id (vendor/model slug)."
         type: string
-        default: "anthropic/claude-haiku-5.5"
+        default: "deepseek-v4.1-flash"
       fallback-model:
         description: "Model used when the primary fails. Prefer a different family so one provider-side shortage cannot exhaust both."
         type: string
-        default: "openai/gpt-6-luna"
+        default: "deepseek-v4.1-flash"
       reasoning-effort:
         description: "Extended-thinking effort for the review passes (e.g. xhigh/high; none disables). Remapped per provider profile."
         type: string
-        default: "high"
+        default: "off"
       max-comments:
         description: "Cap on findings reported in the issue."
         type: number
@@ -47,7 +47,9 @@ on:
         type: number
         default: 4000
     secrets:
-      OPENROUTER_API_KEY:
+      OPENCODE_GO_API_KEY:
+        required: true
+      OLLAMA_API_KEY:
         required: true
 
 permissions:
@@ -133,6 +135,32 @@ jobs:
             "mira-reviewer @ git+https://github.com/miracodeai/mira.git@6410f596251ccc7df86fbf10234aff1a9225fa80"
           mira --version
 
+      - name: Start isolated routing proxy
+        env:
+          OPENCODE_GO_API_KEY: ${{ secrets.OPENCODE_GO_API_KEY }}
+          OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
+          MIRA_ROUTING_STATE_DIR: ${{ runner.temp }}/mira-routing-state
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/mira-routing"
+          for file in mira-router-new.py mira-ci-run.py mira-ci-status.py; do
+            curl --fail --silent --show-error "https://raw.githubusercontent.com/frederico-mello/repository-hygiene/f6396d40eed9ce7254cb23478a68beafc7857a7a/.github/mira/$file" -o "$RUNNER_TEMP/mira-routing/$file"
+          done
+          echo "MIRA_EXECUTION=mira-ci-${GITHUB_REPOSITORY//\//-}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_ENV"
+          python "$RUNNER_TEMP/mira-routing/mira-router-new.py" --port 8001 > "$RUNNER_TEMP/mira-routing/router.log" 2>&1 &
+          python - <<'PY'
+          import time, urllib.request
+          for attempt in range(20):
+              try:
+                  with urllib.request.urlopen("http://127.0.0.1:8001/health", timeout=1) as response:
+                      if response.status == 200:
+                          break
+              except OSError:
+                  time.sleep(0.2)
+          else:
+              raise SystemExit("Routing proxy did not become healthy")
+          PY
+
       - name: Configure effective config
         if: steps.diff.outputs.skip == '0'
         env:
@@ -149,18 +177,18 @@ jobs:
           out = pathlib.Path(sys.argv[1])
           base = {
               "llm": {
-                  "base_url": "https://openrouter.ai/api/v1",
-                  "api_key_env": "OPENROUTER_API_KEY",
+                  "base_url": "http://127.0.0.1:8001/v1",
+                  "api_key_env": "",
                   "model": os.environ["MODEL"],
                   "review_model": os.environ["MODEL"],
                   "indexing_model": os.environ["MODEL"],
-                  "fallback_model": os.environ["FALLBACK_MODEL"],
+                  "fallback_model": None,
                   "review_reasoning_effort": os.environ["REASONING_EFFORT"],
                   "security_model": os.environ["MODEL"],
                   "temperature": 0.2,
                   "max_tokens": 8192,
                   "request_timeout": 300,
-                  "max_retries": 5,
+                  "max_retries": 1,
                   "retry_max_wait": 60,
               },
               "filter": {
@@ -188,6 +216,7 @@ jobs:
                   for key in ("base_url", "api_key_env"):
                       (overlay.get("llm") or {}).pop(key, None)
                   base = deep_merge(base, overlay)
+          base["llm"].update(base_url="http://127.0.0.1:8001/v1", api_key_env="", model="deepseek-v4.1-flash", review_model="deepseek-v4.1-flash", indexing_model="deepseek-v4.1-flash", security_model="deepseek-v4.1-flash", fallback_model=None, max_retries=1)
           out.write_text(yaml.safe_dump(base, sort_keys=False))
 
           PY
@@ -196,7 +225,7 @@ jobs:
         id: review
         if: steps.diff.outputs.skip == '0'
         env:
-          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          OPENCODE_GO_API_KEY: ${{ secrets.OPENCODE_GO_API_KEY }}
         run: |
           cat > "$RUNNER_TEMP/parse.py" <<'PY'
           import json, os, sys
@@ -249,6 +278,12 @@ jobs:
                   fh.write("findings<<MIRAEOF\n" + body + "\nMIRAEOF\n")
               if status == "partial":
                   open(flag, "w").write("1")
+
+          routing = json.load(open(os.environ["RUNNER_TEMP"] + "/mira-routing-status.json"))
+          if routing.get("failed"):
+              print("::error::Review incomplete: " + routing.get("reason", "routing failure"))
+              emit("failed")
+              sys.exit(1)
 
           result = payloads[-1] if payloads else None
           if result is None:
@@ -305,11 +340,12 @@ jobs:
           parse_rc=0
           while :; do
             set +e
-            mira review --stdin --dry-run \
+            python "$RUNNER_TEMP/mira-routing/mira-ci-run.py" review --stdin --dry-run \
               --config "$RUNNER_TEMP/mira-effective.yaml" \
               --output json < "$RUNNER_TEMP/push.diff" \
               > "$RUNNER_TEMP/out.txt" 2> "$RUNNER_TEMP/err.txt"
             code=$?
+            python "$RUNNER_TEMP/mira-routing/mira-ci-status.py" "$RUNNER_TEMP/mira-routing-status.json"
             set -e
             echo "--- attempt $attempt stdout"; cat "$RUNNER_TEMP/out.txt"
             echo "--- attempt $attempt stderr"; cat "$RUNNER_TEMP/err.txt"
@@ -442,3 +478,18 @@ jobs:
         run: |
           echo "::error::Mira could not review this push and produced no payload."
           exit 1
+
+      - name: Summarize routing recovery
+        if: always()
+        run: |
+          python "$RUNNER_TEMP/mira-routing/mira-ci-status.py" "$RUNNER_TEMP/mira-routing-status.json" || true
+          python - <<'PY'
+          import json, os, pathlib
+          path = pathlib.Path(os.environ["RUNNER_TEMP"]) / "mira-routing-status.json"
+          state = json.loads(path.read_text()) if path.exists() else {"failed": True, "reason": "not_started"}
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as stream:
+              stream.write("\n## Review routing\n\n")
+              stream.write("Primary: OpenCode Go. Fallback: Ollama Cloud. Model: `deepseek-v4.1-flash`.\n\n")
+              for key, value in state.items():
+                  stream.write(f"- {key}: {value}\n")
+          PY
