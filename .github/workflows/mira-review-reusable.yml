@@ -258,12 +258,6 @@ jobs:
           # Multi-chunk diffs can emit one payload per chunk; merge them all
           # instead of keeping only the last. Dedupe on file+line+title so an
           # aggregate payload alongside per-chunk ones cannot double-count.
-          routing = json.load(open(os.environ["RUNNER_TEMP"] + "/mira-routing-status.json"))
-          if routing.get("failed"):
-              print("::error::Review incomplete: " + routing.get("reason", "routing failure"))
-              emit("failed", comments=0, blockers=0, dropped_chunks=0)
-              sys.exit(1)
-
           result = payloads[-1] if payloads else None
           comments = []
           seen_keys = set()
@@ -299,6 +293,12 @@ jobs:
               with open(VERDICT_FILE, "w") as fh:
                   fh.write(status + "\n")
               print(status)
+
+          routing = json.load(open(os.environ["RUNNER_TEMP"] + "/mira-routing-status.json"))
+          if routing.get("failed"):
+              print("::error::Review incomplete: " + routing.get("reason", "routing failure"))
+              emit("failed", comments=0, blockers=0, dropped_chunks=0)
+              sys.exit(1)
 
           if result is None:
               low = raw.lower()
