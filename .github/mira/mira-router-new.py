@@ -16,10 +16,10 @@ if _envfile.exists():
         name, sep, value = line.removeprefix('export ').partition('=')
         if sep and name.strip() in ('OPENCODE_GO_API_KEY', 'OLLAMA_API_KEY'):
             os.environ.setdefault(name.strip(), value.strip().strip('\"\''))
-STATE_DIR = Path(os.environ.get('MIRA_ROUTING_STATE_DIR', str(Path.home() / 'tools/mira-routing-state')))
+STATE_DIR = Path.home() / 'tools/mira-routing-state'
 
 def save_state(identity, state):
-    STATE_DIR.mkdir(parents=True, exist_ok=True)
+    STATE_DIR.mkdir(exist_ok=True)
     path = STATE_DIR / (hashlib.sha256(identity.encode()).hexdigest() + '.json')
     tmp = path.with_suffix('.tmp')
     tmp.write_text(json.dumps(state.summary()), encoding='utf-8')
@@ -41,6 +41,7 @@ class State:
         self.failed = False
         self.reason = ''
         self.lock = threading.RLock()
+        self.per_route = {'go': 0, 'ollama': 0}
     def consume(self):
         if self.recoveries >= LIMIT:
             self.failed = True
@@ -49,7 +50,9 @@ class State:
         self.recoveries += 1
         return True
     def summary(self):
-        return {k: getattr(self, k) for k in ('route', 'recoveries', 'calls', 'failed', 'reason')}
+        data = {k: getattr(self, k) for k in ('route', 'recoveries', 'calls', 'failed', 'reason')}
+        data['calls_by_route'] = dict(self.per_route)
+        return data
 
 def state_for(identity):
     with LOCK:
@@ -98,9 +101,33 @@ def route_and_call(body, identity, send=forward, pause=time.sleep):
         attempts = 0
         while True:
             state.calls += 1
+            state.per_route[state.route] = state.per_route.get(state.route, 0) + 1
             save_state(identity, state)
             code, result = send(state.route, identity, payload)
             if code == 200:
+                # A 200 whose message has neither tool calls nor content is a
+                # malformed model response (e.g. reasoning-only). Treat it as
+                # a budgeted recovery, not a success: without this, the client
+                # aborts the whole review on one ill-formed response.
+                try:
+                    message = json.loads(result)['choices'][0]['message']
+                except (ValueError, KeyError, IndexError, TypeError):
+                    message = None
+                tool_composed = bool(message and message.get('tool_calls'))
+                has_content = bool(message and message.get('content'))
+                # Only check when tools are actually requested; a plain JSON
+                # completion legitimately carries content and no tool_calls.
+                if 'tools' in payload and not (tool_composed or has_content):
+                    print(json.dumps({'execution': identity, 'event': 'malformed_response',
+                                      'route': state.route, **state.summary()}), flush=True)
+                    if not state.consume():
+                        state.failed = True
+                        state.reason = 'malformed_response_persistent'
+                        save_state(identity, state)
+                        break
+                    attempts += 1
+                    pause(2)
+                    continue
                 return code, result
             # Quota/auth errors are never retried on that provider.
             if state.route == 'go' and code in (401, 403, 429):
