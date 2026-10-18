@@ -72,7 +72,10 @@ on:
       OPENCODE_GO_API_KEY:
         required: true
       OLLAMA_API_KEY:
-        required: true
+        # Optional: the issue_comment path is Go-only and fail-closed and
+        # receives no Ollama credential at all. The pull_request path keeps
+        # passing it and falls back to Ollama Cloud as before.
+        required: false
 
 jobs:
   review:
@@ -130,13 +133,17 @@ jobs:
       - name: Start isolated routing proxy
         env:
           OPENCODE_GO_API_KEY: ${{ secrets.OPENCODE_GO_API_KEY }}
-          OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
+          # issue_comment is Go-only and fail-closed: never hand the router the
+          # Ollama credential and arm go-only mode, so quota/auth/transient
+          # failures cannot select Ollama Cloud. pull_request is unchanged.
+          OLLAMA_API_KEY: ${{ github.event_name != 'issue_comment' && secrets.OLLAMA_API_KEY || '' }}
+          MIRA_GO_ONLY: ${{ github.event_name == 'issue_comment' && '1' || '' }}
           MIRA_ROUTING_STATE_DIR: ${{ runner.temp }}/mira-routing-state
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/mira-routing"
           for file in mira-router-new.py mira-ci-run.py mira-ci-status.py; do
-            curl --fail --silent --show-error "https://raw.githubusercontent.com/frederico-mello/repository-hygiene/80951d3c12aac64255c2ac6ba8f2f01a445c4e81/.github/mira/$file" -o "$RUNNER_TEMP/mira-routing/$file"
+            curl --fail --silent --show-error "https://raw.githubusercontent.com/frederico-mello/repository-hygiene/8734f270a5e2ed6912b41cb75c3eb7eb59717dbe/.github/mira/$file" -o "$RUNNER_TEMP/mira-routing/$file"
           done
           echo "MIRA_EXECUTION=mira-ci-${GITHUB_REPOSITORY//\//-}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_ENV"
           python "$RUNNER_TEMP/mira-routing/mira-router-new.py" --port 8001 > "$RUNNER_TEMP/mira-routing/router.log" 2>&1 &
