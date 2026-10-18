@@ -1,7 +1,7 @@
 # Mira Code Review — caller.
 #
 # Review logic lives in the reusable workflow, so every repo stays in sync:
-#   frederico-mello/repository-hygiene/.github/workflows/mira-review-reusable.yml@2ff6759443a40785e960b7b0469f66db9eb495f7
+#   frederico-mello/repository-hygiene/.github/workflows/mira-review-reusable.yml@594e9e6ba8b1f092259a47e63e1b02de292d9012
 #
 # Needs the repo secret OPENCODE_GO_API_KEY (already configured).
 # Review behaviour is tuned in .mira.yaml at the repo root, which the reusable
@@ -46,7 +46,10 @@ jobs:
        github.event.issue.pull_request != null &&
        github.event.comment.user.type != 'Bot' &&
        contains(github.event.comment.body, '@mira-review'))
-    uses: frederico-mello/repository-hygiene/.github/workflows/mira-review-reusable.yml@2ff6759443a40785e960b7b0469f66db9eb495f7
+    uses: frederico-mello/repository-hygiene/.github/workflows/mira-review-reusable.yml@594e9e6ba8b1f092259a47e63e1b02de292d9012
     secrets:
       OPENCODE_GO_API_KEY: ${{ secrets.OPENCODE_GO_API_KEY }}
-      OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
+      # issue_comment is Go-only and fail-closed: withhold the Ollama
+      # credential on that event so nothing can forward to Ollama Cloud.
+      # pull_request keeps receiving it and falls back as before.
+      OLLAMA_API_KEY: ${{ github.event_name != 'issue_comment' && secrets.OLLAMA_API_KEY || '' }}
