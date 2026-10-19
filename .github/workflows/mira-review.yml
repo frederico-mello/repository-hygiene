@@ -51,12 +51,10 @@ jobs:
        github.event.issue.pull_request != null &&
        github.event.comment.user.type != 'Bot' &&
        contains(github.event.comment.body, '@mira-review'))
-    uses: frederico-mello/repository-hygiene/.github/workflows/mira-review-reusable.yml@52c0ebe1057079a686191ee19ba043fdceef0fe8
+    uses: frederico-mello/repository-hygiene/.github/workflows/mira-review-reusable.yml@frederico-mello/fix-issue-comment-go-only-clean
     # This repo's reusable workflow at its full commit SHA — the Go-only router
     # fix, immutable and review-visible. GitHub Docs require a commit SHA for
     # reusable-workflow refs (tags can be moved; `main`/`./` can drift).
     secrets:
       OPENCODE_GO_API_KEY: ${{ secrets.OPENCODE_GO_API_KEY }}
-      # Empty on every event: with MIRA_GO_ONLY=1 the router never reads this
-      # credential and never selects the Ollama route (fail-closed Go-only).
-      OLLAMA_API_KEY: ''
+      OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
