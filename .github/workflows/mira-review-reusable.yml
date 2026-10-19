@@ -138,7 +138,7 @@ jobs:
           # network, so no request payload can reach Ollama Cloud. Ollama
           # fallback is never selected in this deployment.
           OLLAMA_API_KEY: ${{ github.event_name != 'issue_comment' && secrets.OLLAMA_API_KEY || '' }}
-          MIRA_GO_ONLY: '1'
+          MIRA_GO_ONLY: '0'
           MIRA_ROUTING_STATE_DIR: ${{ runner.temp }}/mira-routing-state
         run: |
           set -euo pipefail
