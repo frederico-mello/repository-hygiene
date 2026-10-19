@@ -72,7 +72,10 @@ on:
       OPENCODE_GO_API_KEY:
         required: true
       OLLAMA_API_KEY:
-        required: true
+        # Optional and unused for routing in this deployment: the router runs
+        # Go-only on every event (MIRA_GO_ONLY=1), so Ollama is never selected
+        # and no request reaches Ollama Cloud, whatever this secret contains.
+        required: false
 
 jobs:
   review:
@@ -130,13 +133,18 @@ jobs:
       - name: Start isolated routing proxy
         env:
           OPENCODE_GO_API_KEY: ${{ secrets.OPENCODE_GO_API_KEY }}
-          OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
+          # Go-only, fail-closed, on EVERY event (pull_request included): the
+          # router refuses any non-go route before touching credentials or the
+          # network, so no request payload can reach Ollama Cloud. Ollama
+          # fallback is never selected in this deployment.
+          OLLAMA_API_KEY: ${{ github.event_name != 'issue_comment' && secrets.OLLAMA_API_KEY || '' }}
+          MIRA_GO_ONLY: '1'
           MIRA_ROUTING_STATE_DIR: ${{ runner.temp }}/mira-routing-state
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/mira-routing"
           for file in mira-router-new.py mira-ci-run.py mira-ci-status.py; do
-            curl --fail --silent --show-error "https://raw.githubusercontent.com/frederico-mello/repository-hygiene/80951d3c12aac64255c2ac6ba8f2f01a445c4e81/.github/mira/$file" -o "$RUNNER_TEMP/mira-routing/$file"
+            curl --fail --silent --show-error "https://raw.githubusercontent.com/frederico-mello/repository-hygiene/b6978a4950093faa1de2320c64ce1acfde4503ac/.github/mira/$file" -o "$RUNNER_TEMP/mira-routing/$file"
           done
           echo "MIRA_EXECUTION=mira-ci-${GITHUB_REPOSITORY//\//-}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_ENV"
           python "$RUNNER_TEMP/mira-routing/mira-router-new.py" --port 8001 > "$RUNNER_TEMP/mira-routing/router.log" 2>&1 &
@@ -444,7 +452,7 @@ jobs:
           state = json.loads(path.read_text()) if path.exists() else {"failed": True, "reason": "not_started"}
           with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as stream:
               stream.write("\n## Review routing\n\n")
-              stream.write("Primary: OpenCode Go. Fallback: Ollama Cloud. Model: `deepseek-v4.1-flash`.\n\n")
+              stream.write("Primary: OpenCode Go (Go-only, fail-closed). No Ollama fallback in this deployment. Model: `deepseek-v4.1-flash`.\n\n")
               for key, value in state.items():
                   stream.write(f"- {key}: {value}\n")
           PY

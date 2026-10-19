@@ -51,6 +51,14 @@ def _run_parser(tmp_path, raw, exit_code=0):
     env["RUNNER_TEMP"] = str(tmp_path)
     env["PYTHONIOENCODING"] = "utf-8"
 
+    # The parser fail-closes unless it can read the routing status that
+    # `mira-ci-status.py` writes before parse.py runs in the workflow. These
+    # scenarios exercise the ok/partial coverage rule with healthy routing, so
+    # mirror that precondition (failed=false) instead of leaving the file absent.
+    (tmp_path / "mira-routing-status.json").write_text(
+        json.dumps({"failed": False, "reason": ""}), encoding="utf-8"
+    )
+
     result = subprocess.run(
         [sys.executable, str(parser), str(mira_out), str(exit_code)],
         capture_output=True,
