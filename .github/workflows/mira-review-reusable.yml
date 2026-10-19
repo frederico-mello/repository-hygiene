@@ -72,9 +72,9 @@ on:
       OPENCODE_GO_API_KEY:
         required: true
       OLLAMA_API_KEY:
-        # Optional: the issue_comment path is Go-only and fail-closed and
-        # receives no Ollama credential at all. The pull_request path keeps
-        # passing it and falls back to Ollama Cloud as before.
+        # Optional and unused for routing in this deployment: the router runs
+        # Go-only on every event (MIRA_GO_ONLY=1), so Ollama is never selected
+        # and no request reaches Ollama Cloud, whatever this secret contains.
         required: false
 
 jobs:
@@ -133,11 +133,12 @@ jobs:
       - name: Start isolated routing proxy
         env:
           OPENCODE_GO_API_KEY: ${{ secrets.OPENCODE_GO_API_KEY }}
-          # issue_comment is Go-only and fail-closed: never hand the router the
-          # Ollama credential and arm go-only mode, so quota/auth/transient
-          # failures cannot select Ollama Cloud. pull_request is unchanged.
+          # Go-only, fail-closed, on EVERY event (pull_request included): the
+          # router refuses any non-go route before touching credentials or the
+          # network, so no request payload can reach Ollama Cloud. Ollama
+          # fallback is never selected in this deployment.
           OLLAMA_API_KEY: ${{ github.event_name != 'issue_comment' && secrets.OLLAMA_API_KEY || '' }}
-          MIRA_GO_ONLY: ${{ github.event_name == 'issue_comment' && '1' || '' }}
+          MIRA_GO_ONLY: '1'
           MIRA_ROUTING_STATE_DIR: ${{ runner.temp }}/mira-routing-state
         run: |
           set -euo pipefail
@@ -451,7 +452,7 @@ jobs:
           state = json.loads(path.read_text()) if path.exists() else {"failed": True, "reason": "not_started"}
           with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as stream:
               stream.write("\n## Review routing\n\n")
-              stream.write("Primary: OpenCode Go. Fallback: Ollama Cloud. Model: `deepseek-v4.1-flash`.\n\n")
+              stream.write("Primary: OpenCode Go (Go-only, fail-closed). No Ollama fallback in this deployment. Model: `deepseek-v4.1-flash`.\n\n")
               for key, value in state.items():
                   stream.write(f"- {key}: {value}\n")
           PY
