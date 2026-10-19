@@ -51,7 +51,7 @@ jobs:
        github.event.issue.pull_request != null &&
        github.event.comment.user.type != 'Bot' &&
        contains(github.event.comment.body, '@mira-review'))
-    uses: frederico-mello/repository-hygiene/.github/workflows/mira-review-reusable.yml@frederico-mello/fix-issue-comment-go-only-clean
+    uses: frederico-mello/repository-hygiene/.github/workflows/mira-review-reusable.yml@52c0ebe1057079a686191ee19ba043fdceef0fe8
     # This repo's reusable workflow at its full commit SHA — the Go-only router
     # fix, immutable and review-visible. GitHub Docs require a commit SHA for
     # reusable-workflow refs (tags can be moved; `main`/`./` can drift).
