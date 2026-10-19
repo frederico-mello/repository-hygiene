@@ -29,7 +29,9 @@ load_envfile(_envfile)
 STATE_DIR = Path.home() / 'tools/mira-routing-state'
 
 def save_state(identity, state):
-    STATE_DIR.mkdir(exist_ok=True)
+    # parents=True: a fresh home has no 'tools/' yet, and the first go-only
+    # request must not die with FileNotFoundError before forwarding.
+    STATE_DIR.mkdir(parents=True, exist_ok=True)
     path = STATE_DIR / (hashlib.sha256(identity.encode()).hexdigest() + '.json')
     tmp = path.with_suffix('.tmp')
     tmp.write_text(json.dumps(state.summary()), encoding='utf-8')

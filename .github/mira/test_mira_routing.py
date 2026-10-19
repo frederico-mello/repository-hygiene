@@ -165,4 +165,24 @@ class GoOnlyTests(unittest.TestCase):
   self.assertEqual(env['OPENCODE_GO_API_KEY'],'FROMFILE')
   self.assertEqual(env['OLLAMA_API_KEY'],'FROMFILE2')
 
+class FreshHomeStartupTests(unittest.TestCase):
+ def test_go_only_run_starts_when_state_parent_absent(self):
+  # Synthetic home without 'tools/': the first go-only call must create
+  # 'tools/mira-routing-state' with its parents instead of crashing on
+  # FileNotFoundError before forwarding (fresh issue_comment run).
+  self.tmp=tempfile.TemporaryDirectory(dir=pathlib.Path(__file__).parent);self.addCleanup(self.tmp.cleanup)
+  home=pathlib.Path(self.tmp.name)
+  self.assertFalse((home/'tools').exists())
+  with patch.object(pathlib.Path,'home',return_value=home),patch.dict(os.environ,{'MIRA_GO_ONLY':'1'}):
+   spec=importlib.util.spec_from_file_location('router_fresh_home',pathlib.Path(__file__).with_name('mira-router-new.py'))
+   fresh=importlib.util.module_from_spec(spec);spec.loader.exec_module(fresh)
+   self.assertEqual(fresh.STATE_DIR,home/'tools'/'mira-routing-state')
+   code,_=fresh.route_and_call({'model':fresh.MODEL,'messages':[]},'fresh-home',send=lambda route,id,body:(200,'ok'),pause=lambda _:None)
+  self.assertEqual(code,200)
+  state_dir=home/'tools'/'mira-routing-state'
+  self.assertTrue(state_dir.is_dir())
+  files=list(state_dir.glob('*.json'))
+  self.assertEqual(len(files),1)
+  self.assertEqual(json.loads(files[0].read_text(encoding='utf-8'))['calls'],1)
+
 if __name__=='__main__':unittest.main(verbosity=2)
