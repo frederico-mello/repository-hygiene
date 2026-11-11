@@ -190,11 +190,11 @@ def _run_subcommand(argv):
     p.add_argument("--mode", choices=["pre-commit", "ci"], default=None,
                    help="Execution mode")
 
-    p = subparsers.add_parser("update", help="Update configuration to a specific version")
+    p = subparsers.add_parser(
+        "update", help="Regenerate configuration and workflow from the bundled templates"
+    )
     p.add_argument("directory", nargs="?", default=".",
                    help="Repository root directory (default: .)")
-    p.add_argument("--version", default=None,
-                   help="Target version (default: latest)")
     p.add_argument("--dry-run", action="store_true",
                    help="Show planned changes without modifying files")
 
@@ -210,7 +210,7 @@ def _run_subcommand(argv):
         _executar_auditoria(args.directory, config_path=args.config,
                             formato=args.format, mode=args.mode)
     elif args.command == "update":
-        cmd_update(args.directory, version=args.version, dry_run=args.dry_run)
+        cmd_update(args.directory, dry_run=args.dry_run)
 
 
 def _run_legacy(argv):

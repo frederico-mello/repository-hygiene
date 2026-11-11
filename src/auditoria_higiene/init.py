@@ -63,7 +63,7 @@ def _sair_por_erro_de_escrita(erro, gravados):
     sys.exit(2)
 
 
-def cmd_update(directory, version=None, dry_run=False):
+def cmd_update(directory, dry_run=False):
     raiz = os.path.abspath(directory)
     if not os.path.isdir(raiz):
         print(f"Error: directory not found: {raiz}", file=sys.stderr)

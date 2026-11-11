@@ -2693,6 +2693,26 @@ class TestSnapshot:
         assert result.returncode == 0
         assert "dry-run" in result.stdout
 
+    def test_cli_update_rejeita_flag_version(self, tmp_path):
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "auditoria_higiene.cli",
+                "update",
+                "--version",
+                "1.0",
+                "--dry-run",
+                str(tmp_path),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        assert result.returncode == 2
+        assert "unrecognized arguments: --version" in result.stderr
+        assert list(tmp_path.iterdir()) == []
+
     def test_cli_update_cria_arquivos(self, tmp_path):
         import subprocess
 
