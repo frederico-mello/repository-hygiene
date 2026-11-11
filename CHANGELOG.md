@@ -1,49 +1,114 @@
 # CHANGELOG
 
 
+## v1.1.2 (2026-11-11)
+
+### Bug Fixes
+
+- Remove unused cmd_update version parameter and dead update --version flag (python:S1172)
+  ([#1135](https://github.com/frederico-mello/repository-hygiene/pull/1135),
+  [`f8a8cc8`](https://github.com/frederico-mello/repository-hygiene/commit/f8a8cc80a2f6d0cab1e82a41174efcd95db5a34f))
+
+Refs #1134
+
+Co-authored-by: Claude Haiku 5.5 <noreply@anthropic.com>
+
+### Chores
+
+- **openspec**: Archive deduplicate-github-directory-literal
+  ([`0802e2a`](https://github.com/frederico-mello/repository-hygiene/commit/0802e2a31e0f78dc6bf9f52de4a13f7839f1c142))
+
+### Continuous Integration
+
+- Point Mira callers at malformed-response fix [skip ci]
+  ([`65ce784`](https://github.com/frederico-mello/repository-hygiene/commit/65ce784452837e9fafd971ceabb992135439b27d))
+
+- Point routing helpers at malformed-response fix [skip ci]
+  ([`b1cd565`](https://github.com/frederico-mello/repository-hygiene/commit/b1cd5652c6032bd9e02d56e915fc8599ba48f3ee))
+
+- Prepare isolated review routing [skip ci]
+  ([`ed8c5be`](https://github.com/frederico-mello/repository-hygiene/commit/ed8c5be2470f4c56daee4cc601b8ea3eeef4cc77))
+
+- Prepare isolated review routing [skip ci]
+  ([`1017647`](https://github.com/frederico-mello/repository-hygiene/commit/101764765c3ab8a29cf1e4932b2b0506b3c066ef))
+
+- Prepare isolated review routing [skip ci]
+  ([`1f30854`](https://github.com/frederico-mello/repository-hygiene/commit/1f308546db0afd77e77fd4b08fe15b85f7a3a63d))
+
+- Prepare isolated review routing [skip ci]
+  ([`3d78514`](https://github.com/frederico-mello/repository-hygiene/commit/3d78514f55c0610a745949cda6e2832ef76e7de7))
+
+- Verify incomplete review handling [skip ci]
+  ([`357518b`](https://github.com/frederico-mello/repository-hygiene/commit/357518b7c6b1696f2eb8ab93ddbe6d1f33b3a80c))
+
+- **mira**: Move reviews to Claude Haiku 5.5 with GPT-6 Luna fallback
+  ([`62dfd41`](https://github.com/frederico-mello/repository-hygiene/commit/62dfd410d33acf9186992f0001a2a79d446377e5))
+
+Primary model is now anthropic/claude-haiku-5.5 (xhigh effort on the PR workflow, high on the push
+  workflow) with openai/gpt-6-luna as the fallback. Reasoning effort is explicit in the effective
+  config and the security pass stays on the review model.
+
+- **mira**: Pin reusable workflows to the Haiku 5.5 revision
+  ([`93bba81`](https://github.com/frederico-mello/repository-hygiene/commit/93bba814e9f82c0e3f69d618debe74769b586dd6))
+
+- **mira**: Point callers at the OpenRouter provider commit 05edb475e84e
+  ([`697ed2d`](https://github.com/frederico-mello/repository-hygiene/commit/697ed2d068c1f36f0a12ff9df017e677f6309815))
+
+Both callers now forward the OPENROUTER_API_KEY secret to the reusable workflows.
+
+- **mira**: Run reviews on OpenRouter (OPENROUTER_API_KEY)
+  ([`05edb47`](https://github.com/frederico-mello/repository-hygiene/commit/05edb475e84e4172c0980ba36f2c92349fd7ef9a))
+
+Switches both reusable workflows from the OpenCode Go (Zen) endpoint to OpenRouter: - base_url
+  https://openrouter.ai/api/v1, api_key_env OPENROUTER_API_KEY - default models become vendor/model
+  slugs (minimax/minimax-m3, qwen/qwen3.8-flash) - drops the Zen session-profile override
+  (providers.json + MIRA_PROVIDERS_JSON_PATH) - secret interface renamed to OPENROUTER_API_KEY -
+  quota classifier also recognises provider credit errors (insufficient credit / HTTP 402)
+
+
 ## v1.1.1 (2026-10-09)
 
 ### Bug Fixes
 
 - Extract duplicated ".github" literal to a module constant
-  ([#719](https://github.com/[REDACTED NAME]/repository-hygiene/pull/719),
-  [`e659b6d`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/e659b6d723907bda606fc0739909dd01206b9be7))
+  ([#719](https://github.com/frederico-mello/repository-hygiene/pull/719),
+  [`4e80ddc`](https://github.com/frederico-mello/repository-hygiene/commit/4e80ddc07156686c550aff466dd69a208ec7ce3a))
 
 ### Chores
 
 - **openspec**: Archive agent-agnostic-provisioning + sync specs
-  ([`91487d1`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/91487d1f2dcdd500089704415e94ee08367bc79b))
+  ([`55fb4d5`](https://github.com/frederico-mello/repository-hygiene/commit/55fb4d561d0b8e979364b08da70cc2cc74a8e757))
 
 ### Continuous Integration
 
 - Require binary wheels in workflow pip installs
-  ([`95f8a20`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/95f8a20a125e2e0827df7a24f36c275a341d9bb0))
+  ([`1ee4155`](https://github.com/frederico-mello/repository-hygiene/commit/1ee4155bd94d3a433c9285b25ef2934752120fa5))
 
 - Trigger hygiene audit on all agent roots
-  ([`bef49c7`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/bef49c7be6d1a2fdb2840f45c6907d0bb94d5c3e))
+  ([`9441d0c`](https://github.com/frederico-mello/repository-hygiene/commit/9441d0cdbbe2b9ed67168c2d906412f15e2bc795))
 
 * ci: trigger hygiene audit on all agent roots
 
 * ci: guard template and workflow trigger paths stay aligned
 
 - Trigger hygiene audit on code and test paths
-  ([`a2cf2a9`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/a2cf2a9582383ba67ac61bbaa8e9e79694e88ae4))
+  ([`f3ce0b1`](https://github.com/frederico-mello/repository-hygiene/commit/f3ce0b17339f94701a43cd062114f9ebeaf41e1a))
 
 ### Documentation
 
 - **changelog**: Adiciona secao v1.0.0 ausente
-  ([`eef8c71`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/eef8c713d2f71866ac872dc66dee186f8c38621d))
+  ([`45c6c73`](https://github.com/frederico-mello/repository-hygiene/commit/45c6c734778f0bee65adc37145cdb723c9245ec1))
 
 - **specs**: Write purpose placeholders left by archive
-  ([`ac338fe`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/ac338fe9f290e775d4b86a837b074063bb0d0112))
+  ([`c77569f`](https://github.com/frederico-mello/repository-hygiene/commit/c77569f2bf4afdbff43504d8803a3126289fe0f8))
 
 ### Testing
 
 - Scope package metadata assertions to this checkout
-  ([`28a57fc`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/28a57fc11090f345a9e461d4b5cbdeb83bbaf196))
+  ([`5ca3daa`](https://github.com/frederico-mello/repository-hygiene/commit/5ca3daa4720800a60ade42c68775e3cc273bf242))
 
 - **snapshot**: Le a versao do pyproject em vez do literal 1.0.0
-  ([`c313835`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/c3138351eaf93df4f8713b8ad998b344e0a5306d))
+  ([`d5c6c97`](https://github.com/frederico-mello/repository-hygiene/commit/d5c6c97a6383120368f25e82b64b9048878f5094))
 
 
 ## v1.1.0 (2026-10-03)
@@ -51,14 +116,14 @@
 ### Chores
 
 - **ci**: Bumpa o pin do reusable do Mira para o fix do gate partial
-  ([`68e6d84`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/68e6d842e39ade7e3dec215c8573717e38292bdc))
+  ([`56f4582`](https://github.com/frederico-mello/repository-hygiene/commit/56f4582095218a7bdaa373bfbf6ad1858c9036b4))
 
 - **ci**: Bumpa o pin do reusable do Mira para o fix do gate partial
-  ([`61ac3a1`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/61ac3a16d3f7735159f3598efaa1b95eddf44e23))
+  ([`4d5b252`](https://github.com/frederico-mello/repository-hygiene/commit/4d5b2529f936dde37ae2f828e6b1a1cf2ea85404))
 
 - **deps**: Bump the github-actions group across 1 directory with 5 updates
-  ([#658](https://github.com/[REDACTED NAME]/repository-hygiene/pull/658),
-  [`c32d1a6`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/c32d1a6bbad35050022063405e286acffbe827f0))
+  ([#658](https://github.com/frederico-mello/repository-hygiene/pull/658),
+  [`65ecd98`](https://github.com/frederico-mello/repository-hygiene/commit/65ecd9890ac2ba232a57fb554857ff566fc0a8e0))
 
 Bumps the github-actions group with 5 updates in the / directory:
 
@@ -111,18 +176,18 @@ Signed-off-by: dependabot[bot] <support@github.com>
 
 Co-authored-by: dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>
 
-Co-authored-by: [REDACTED NAME] <[REDACTED EMAIL]>
+Co-authored-by: frederico-mello <86882927+frederico-mello@users.noreply.github.com>
 
 - **openspec**: Archive add-native-pre-commit-hook
-  ([`94490ee`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/94490eefb8a39d209f0bc75c605705c0d3864a4b))
+  ([`9b62b49`](https://github.com/frederico-mello/repository-hygiene/commit/9b62b494bb7f47fbf362c791be719a22d80249cb))
 
 - **openspec**: Descarta change reduzir-falsos-positivos-auditoria sem progresso
-  ([`08bf255`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/08bf255e4c2aaf67782c27f1ad7f603ab24d26b0))
+  ([`2d66154`](https://github.com/frederico-mello/repository-hygiene/commit/2d66154782a0f19f52f0f49b6ee385c7ebdc8dff))
 
 ### Continuous Integration
 
 - Regenera requirements-ci.lock para py3.10 e repara configuracao do release
-  ([`7af98b6`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/7af98b656bf97769ca6a52e3a8a35edfb479761c))
+  ([`ca1ac64`](https://github.com/frederico-mello/repository-hygiene/commit/ca1ac645f3acc69322359876f2449bcd89b2467c))
 
 Lock inclui exceptiongroup, tomli e typing-extensions com hashes porque o uv novo do setup-uv v10
   exige pin completo em --require-hashes e so falhava em py3.10; pyproject version_variable vira
@@ -134,12 +199,12 @@ release.yml ganha --skip-existing para que pushes sem release novo nao falhem co
 ### Documentation
 
 - **openspec**: Cria change agent-agnostic-provisioning
-  ([`381f0fe`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/381f0fe4378fe80e8dccb0b78b39c57d2b53c226))
+  ([`65ab9b8`](https://github.com/frederico-mello/repository-hygiene/commit/65ab9b8ee49567152aac081ef47a10057b8b9ece))
 
 ### Features
 
 - **agents**: Multi-agent skill provisioning
-  ([`acf2851`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/acf2851f5f8f64dc9bb92a3a90f476985e52e3d1))
+  ([`145aa01`](https://github.com/frederico-mello/repository-hygiene/commit/145aa01821a552214e79923f493ec3ba5e331d50))
 
 * feat(agents): multi-agent skill provisioning
 
@@ -151,7 +216,7 @@ release.yml ganha --skip-existing para que pushes sem release novo nao falhem co
 ### Chores
 
 - **openspec**: Archive fix-mira-partial-gate-contradiction
-  ([`077291a`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/077291a895bf7235bd1e06e2c7457402cf34ef88))
+  ([`bcac859`](https://github.com/frederico-mello/repository-hygiene/commit/bcac8597d6e0f34446cc92a119e7446d36364ef8))
 
 
 ## v0.9.7 (2026-10-03)
@@ -159,8 +224,8 @@ release.yml ganha --skip-existing para que pushes sem release novo nao falhem co
 ### Bug Fixes
 
 - **mira**: Considera reviewed_files no veredito partial do gate
-  ([#657](https://github.com/[REDACTED NAME]/repository-hygiene/pull/657),
-  [`a514473`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/a5144731d02e8c6b7107015556daad05d29e7395))
+  ([#657](https://github.com/frederico-mello/repository-hygiene/pull/657),
+  [`2c041d5`](https://github.com/frederico-mello/repository-hygiene/commit/2c041d5b34413e8fb167676ef518389600b99bdc))
 
 O status 'partial' do gate ignorava reviewed_files, fazendo com que reviews limpas com payload
   recuperado ficassem presas em partial indefinidamente e o gate block-on-blocker reprovasses
@@ -171,15 +236,15 @@ O status 'partial' do gate ignorava reviewed_files, fazendo com que reviews limp
 ### Chores
 
 - Alinhar uv.lock com pyproject 1.0.0 e ignorar .omp/
-  ([`c9f8408`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/c9f84088fcbeb7120a5e970e3f2cffeff081dd44))
+  ([`b42ed67`](https://github.com/frederico-mello/repository-hygiene/commit/b42ed676830ca4a00dea621ff6cb5a921f1a6818))
 
 - **openspec**: Migrar changes/spec perdidas do workspace stray
-  ([`da008da`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/da008da9242ed72ffe440312f190c1831cc5ab66))
+  ([`686226a`](https://github.com/frederico-mello/repository-hygiene/commit/686226a538cd259dafc2cdf7ccf36786df5dcc21))
 
 ### Continuous Integration
 
 - Fixa o reusable do Mira em SHA e habilita Dependabot
-  ([`b876c68`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/b876c682ac1ec2ce7f441b5e6e0c5b6cf992bcf4))
+  ([`3454056`](https://github.com/frederico-mello/repository-hygiene/commit/3454056df6862338a9b56ac4777216f67b34d273))
 
 A ref flutuante em @main expunha o secret encaminhado a qualquer push upstream. Dependabot abre o PR
   de bump para manter atualizado.
@@ -187,7 +252,7 @@ A ref flutuante em @main expunha o secret encaminhado a qualquer push upstream. 
 ### Documentation
 
 - **openspec**: Normalizar specs principais de delta para spec final (Purpose + Requirements)
-  ([`fdf0cd9`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/fdf0cd9feae365944694797c31cc6fa9b8e34231))
+  ([`06a7485`](https://github.com/frederico-mello/repository-hygiene/commit/06a74852a620f712eb89913d38ae924c2a1fe883))
 
 
 ## v0.9.6 (2026-09-24)
@@ -195,7 +260,7 @@ A ref flutuante em @main expunha o secret encaminhado a qualquer push upstream. 
 ### Bug Fixes
 
 - **mira**: Bare shellcheck directive — explanation text breaks parsing
-  ([`1b9034e`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/1b9034edf2823b7370be46c69e5213039a629626))
+  ([`7a5ddd0`](https://github.com/frederico-mello/repository-hygiene/commit/7a5ddd01b7ac777040084db6302924e63b1c273d))
 
 
 ## v0.9.5 (2026-09-24)
@@ -203,7 +268,7 @@ A ref flutuante em @main expunha o secret encaminhado a qualquer push upstream. 
 ### Bug Fixes
 
 - **mira**: Shellcheck directive needs '--', not em dash
-  ([`78aeaf6`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/78aeaf6b78e8a7961103b15913a1e65f4fff31f9))
+  ([`17a7855`](https://github.com/frederico-mello/repository-hygiene/commit/17a78555f1042d62cee961f40f6a1d163cd553e3))
 
 
 ## v0.9.4 (2026-09-24)
@@ -211,7 +276,7 @@ A ref flutuante em @main expunha o secret encaminhado a qualquer push upstream. 
 ### Bug Fixes
 
 - **mira**: Revert quote on $range — it holds two SHAs, not one path
-  ([`a02dd60`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/a02dd6038674c919e6c55795fc9415d89d689df0))
+  ([`13cea50`](https://github.com/frederico-mello/repository-hygiene/commit/13cea5078997af8d34b8c25e0e659829fced3391))
 
 
 ## v0.9.3 (2026-09-24)
@@ -219,7 +284,7 @@ A ref flutuante em @main expunha o secret encaminhado a qualquer push upstream. 
 ### Bug Fixes
 
 - **mira**: Quote $range in git diff (shellcheck SC2086)
-  ([`5512be2`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/5512be2d1de4790b1d9947d04eccec1b7bb9e3d4))
+  ([`ee5f255`](https://github.com/frederico-mello/repository-hygiene/commit/ee5f25526fe7ebce29a119efc3ed4bbc98e4e2a2))
 
 
 ## v0.9.2 (2026-09-24)
@@ -227,7 +292,7 @@ A ref flutuante em @main expunha o secret encaminhado a qualquer push upstream. 
 ### Bug Fixes
 
 - **mira**: Recover prose-emitted payloads — chunk dropped with valid payload counts as covered
-  ([`e5ab5b9`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/e5ab5b9a02d867774982bff3731b84a0448be6c7))
+  ([`7c906e0`](https://github.com/frederico-mello/repository-hygiene/commit/7c906e0ef12b7b957af0a54a9d7a8b15cd618d04))
 
 minimax-m3 degrades tool-call to prose intermittently on large outputs. Mira then prints the valid
   review JSON to stdout but marks the chunk as 'failed to parse, skipping', and the parser treated
@@ -245,21 +310,21 @@ Both parsers now merge every recoverable payload (dedupe on file+line+title) and
 ### Bug Fixes
 
 - Skip git revert commits in conventional-commits audit
-  ([#82](https://github.com/[REDACTED NAME]/repository-hygiene/pull/82),
-  [`6596d07`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/6596d078bc6795f01944c44ad3738783f97f970a))
+  ([#82](https://github.com/frederico-mello/repository-hygiene/pull/82),
+  [`3c20a9b`](https://github.com/frederico-mello/repository-hygiene/commit/3c20a9b07398166fe3ad8e51a2af1b69179c8784))
 
 Add subject-line prefix check before Conventional Commits regex validation in
   _mensagem_conventional. Revert commits auto-generated by git revert use this format and don't
   match the Conventional Commits pattern, producing false positives.
 
-Merge commits were already excluded via commit 8b92d2caefef555a5acad5cd80f37930887ee111 Author:
+Merge commits were already excluded via commit c7c5af5e681112964c0f6ed8cd6ad3184a2c1f04 Author:
   semantic-release <semantic-release>
 
 Date: Sat Jul 25 14:59:41 2026 +0000
 
 chore(release): 0.5.0
 
-commit c67cf2d776a2ec9a4d90eea4be7898a764684e73 Author: [REDACTED NAME] <[REDACTED EMAIL]>
+commit f69f6d4fa522cd503e0460afbe51e922ee46920c Author: Frederico <fredericommello@gmail.com>
 
 Date: Sat Jul 25 11:55:16 2026 -0300
 
@@ -270,19 +335,19 @@ fix: reduce cognitive complexity and validate file paths
   path validation in semantic.py before glob and file open to prevent path traversal
   (pythonsecurity:S8707)
 
-commit 1120bf6464fb4385937a3fd594d5c9a9d25ec94e Author: [REDACTED NAME] <[REDACTED EMAIL]>
+commit ea00f886b274de56d332ef08ac7b7c669ae9f786 Author: Frederico <fredericommello@gmail.com>
 
 Date: Sat Jul 25 07:46:55 2026 -0300
 
 chore(openspec): arquivar change install-skill e sincronizar spec
 
-commit 8e859238938d143685e288026e65cf06ef51b1c1 Author: [REDACTED NAME] <[REDACTED EMAIL]>
+commit 1257b1cb290c6280aaf4893f8d610a6fc6c7a989 Author: Frederico <fredericommello@gmail.com>
 
 Date: Sat Jul 25 07:25:46 2026 -0300
 
 chore: archive reconcile-hygiene-semantic-audit
 
-commit b00896bf5f9151dc28cf97b5360726cdaeb9b2ac Author: [REDACTED NAME] <[REDACTED EMAIL]>
+commit 4852b7ba078d5d804f5e990c630c133b934b534f Author: Frederico <fredericommello@gmail.com>
 
 Date: Sat Jul 25 07:25:16 2026 -0300
 
@@ -296,7 +361,7 @@ Add nested repo detection, workflow intent evaluation, semantic evidence cross-r
   constants, nested repo rule, workflow permission justification - Tests: 32+ new tests across
   test_auditoria_package.py and test_semantic.py
 
-commit f0dd747c689a73221b79c12aae87afea368b7310 Author: [REDACTED NAME] <[REDACTED EMAIL]>
+commit 34213ccd441251a94c91dd6ff84fa7948f0f8765 Author: Frederico <fredericommello@gmail.com>
 
 Date: Fri Jul 24 22:04:23 2026 -0300
 
@@ -306,13 +371,13 @@ Remove duplicacao PT/EN (Instalacao + Installation & Execution). Remove instruco
   redundantes. Adiciona aviso: apos pip install, executar repository-hygiene install . Reorganiza em
   fluxo linear: instalar → usar (init/audit/hook) → configurar. 336 → 160 linhas.
 
-commit 32714aa343c8edfa7841e35037e1d8f88dd5ccf4 Author: semantic-release <semantic-release>
+commit 5e2175273f9c09c13c718ef58da5af6b4ef156fe Author: semantic-release <semantic-release>
 
 Date: Sat Jul 25 00:58:13 2026 +0000
 
 chore(release): 0.4.0
 
-commit c554d6da34317bd6fa688357818c271ab6484032 Author: [REDACTED NAME] <[REDACTED EMAIL]>
+commit edd2e7a8d78c15fcb31ed817b664a499cfe758e2 Author: Frederico <fredericommello@gmail.com>
 
 Date: Fri Jul 24 21:56:48 2026 -0300
 
@@ -323,67 +388,67 @@ Adiciona a skill OpenCode agent-hygiene-flow como package data e provisiona em
   de skip/force/dry-run ja existente. A versao empacotada com o pacote fixa a versao da skill
   entregue.
 
-commit e4b6cb01a401b86405aed169db2674fd07e61cc7 Author: semantic-release <semantic-release>
+commit 00ad30e4eaa076289701321af270db524ee658aa Author: semantic-release <semantic-release>
 
 Date: Sat Jul 25 00:37:30 2026 +0000
 
 chore(release): 0.3.0
 
-commit d0c847a6552ba6fd3db51a7f3720401dbc8239a0 Author: [REDACTED NAME] <[REDACTED EMAIL]>
+commit d0fab712aa1bbc0b8f384626d491f8201cd22588 Author: Frederico <fredericommello@gmail.com>
 
 Date: Fri Jul 24 21:35:57 2026 -0300
 
 refactor: parametrize hook validation tests to reduce duplication
 
-commit b1dff7bf183a85f365b348b55068006fea1b23fd Author: [REDACTED NAME] <[REDACTED EMAIL]>
+commit c9ec30695136a14996bab3873e942b37df719b6e Author: Frederico <fredericommello@gmail.com>
 
 Date: Fri Jul 24 21:33:31 2026 -0300
 
 refactor: parametrize commit_check tests to reduce duplication
 
-commit eb074b22fd0ec07ca6ed56124fe06ffeedfb027e Author: [REDACTED NAME] <[REDACTED EMAIL]>
+commit cc610e5f61fe599578115a22112256637dacab4e Author: Frederico <fredericommello@gmail.com>
 
 Date: Fri Jul 24 21:26:50 2026 -0300
 
 fix: pin repository-hygiene to exact version 0.2.0 for SonarQube
 
-commit 228fcff4286a94a7b3b4706726a4e5c7a9743b62 Author: [REDACTED NAME] <[REDACTED EMAIL]>
+commit ae378a97c94659f6e51fc7275e0d2655202e3a18 Author: Frederico <fredericommello@gmail.com>
 
 Date: Fri Jul 24 21:25:00 2026 -0300
 
 fix: use minimum version constraint for repository-hygiene
 
-commit 49cef220d6fae5f0990949dcb799acaad378f3e8 Author: [REDACTED NAME] <[REDACTED EMAIL]>
+commit dcf82b46f3668eb9c4222242ea3fed3cbe3799f8 Author: Frederico <fredericommello@gmail.com>
 
 Date: Fri Jul 24 21:22:50 2026 -0300
 
 fix: pin repository-hygiene to minimum version 0.3.0
 
-commit dc2c4b5ed99a5a0dcc4e42431704d60d21742a8c Author: [REDACTED NAME] <[REDACTED EMAIL]>
+commit 9c3a01037cf6bd5658c780751645eed689b46174 Author: Frederico <fredericommello@gmail.com>
 
 Date: Fri Jul 24 21:17:38 2026 -0300
 
 fix: suppress S8544 - dynamic version by design
 
-commit 066489b6534ce10e10b275b1aaad7c9ebc4e3778 Author: [REDACTED NAME] <[REDACTED EMAIL]>
+commit 473138f8e04fa9b4d4986362cc928e068fa70d1c Author: Frederico <fredericommello@gmail.com>
 
 Date: Fri Jul 24 21:16:52 2026 -0300
 
 fix: use exact versions for pip install
 
-commit dd8aa4885cabb284b46e5eada3faa6d2aa7b62d7 Author: [REDACTED NAME] <[REDACTED EMAIL]>
+commit 0b38882da704ef0d194e583991d46ec2671bf41e Author: Frederico <fredericommello@gmail.com>
 
 Date: Fri Jul 24 21:15:36 2026 -0300
 
 fix: pin CI dependency versions for SonarQube
 
-commit c87adbd4d3f756d11526c7d8391e020fe06454ac Author: [REDACTED NAME] <[REDACTED EMAIL]>
+commit 449f47d50c48a3dc0612ad850146c55f439771b8 Author: Frederico <fredericommello@gmail.com>
 
 Date: Fri Jul 24 21:15:01 2026 -0300
 
 fix: add --only-binary to workflow pip installs
 
-commit ca3c777f01592336cc74c10b7258eaf791f1c8f6 Author: [REDACTED NAME] <[REDACTED EMAIL]>
+commit f4102d51bfc59c7d3be691dcabf33167d050b6d7 Author: Frederico <fredericommello@gmail.com>
 
 Date: Fri Jul 24 21:11:06 2026 -0300
 
@@ -394,7 +459,7 @@ feat: version control and release automation
   release pipeline (.github/workflows/release.yml) - actionlint validation, CHANGELOG.md, AGENTS.md
   - 13/13 tasks complete, 140 tests passing
 
-commit 905063c6c5510f6807692520ba14ee8c1526ca27 Author: [REDACTED NAME] <[REDACTED EMAIL]>
+commit b4f95ab0f5429fad39283ff74813503bfa2ac9a3 Author: Frederico <fredericommello@gmail.com>
 
 Date: Fri Jul 24 19:55:57 2026 -0300
 
@@ -404,7 +469,7 @@ fix: resolve all remaining SonarCloud vulnerabilities
   dependency versions - uvx/uv tool run with explicit ==0.2.0 version pin - All actions pinned to
   full commit SHA
 
-commit 56120ef5447c963643d16218b1bab231a7b601aa Author: [REDACTED NAME] <[REDACTED EMAIL]>
+commit 4dbb3dacccc395a53685da6f031b616e85a3b5ec Author: Frederico <fredericommello@gmail.com>
 
 Date: Fri Jul 24 19:50:11 2026 -0300
 
@@ -413,19 +478,19 @@ fix: resolve SonarCloud security hotspots in CI workflow
 - Pin actions/checkout and astral-sh/setup-uv to full SHA (HIGH) - Pin pytest version to 8.3.4
   (MEDIUM) - Pin uv tool install/run via --from <wheel> (MEDIUM)
 
-commit 7b5e3606f05f4920e2b19e559b815754af4b2f91 Author: [REDACTED NAME] <[REDACTED EMAIL]>
+commit f74e3425dab1f7b58f689881b34a5f43acbf3b34 Author: Frederico <fredericommello@gmail.com>
 
 Date: Fri Jul 24 19:45:52 2026 -0300
 
 chore: ignore build artifacts
 
-commit a115d75104c70ea53570648614cb3a97b839b9d7 Author: [REDACTED NAME] <[REDACTED EMAIL]>
+commit 2bbbeb30b1adff0585d48627bf59915140a20d5f Author: Frederico <fredericommello@gmail.com>
 
 Date: Fri Jul 24 19:45:47 2026 -0300
 
 fix: remove build artifacts from version control
 
-commit 0e754566a659f2622741e122edf14dfc07ba6d8b Author: [REDACTED NAME] <[REDACTED EMAIL]>
+commit b24fb572200f2c4bb0195735124b46335dc5953e Author: Frederico <fredericommello@gmail.com>
 
 Date: Fri Jul 24 19:45:42 2026 -0300
 
@@ -437,7 +502,7 @@ fix: resolve Quality Gate and CI failures for PR #58
   help expectations, format flag - Fix pyproject.toml: deprecated license format - Keep backward
   compat: --init, --pre-commit, --install-hook still work
 
-commit 5463324fb6bd05580a877165aead7fe4822fbaba Author: [REDACTED NAME] <[REDACTED EMAIL]>
+commit 1669e8987d42a44cccca38e0f437ab3123662310 Author: Frederico <fredericommello@gmail.com>
 
 Date: Fri Jul 24 19:15:55 2026 -0300
 
@@ -446,7 +511,7 @@ fix: deduplicate git_repo fixture — extract to conftest.py
 SonarCloud Quality Gate: 19.3% duplicated lines (threshold 3%). git_repo fixture was duplicated
   across test_auditoria_package.py and test_commit_check.py. Moved to shared conftest.py.
 
-commit ef7037704e8daa75f3ffe897177b5fce3eab95aa Author: [REDACTED NAME] <[REDACTED EMAIL]>
+commit 52e01312a7d76ea33b33ef2c566522212a3c276d Author: frederico-mello <fredericommello@gmail.com>
 
 Date: Fri Jul 24 19:14:47 2026 -0300
 
@@ -458,7 +523,7 @@ feat: robust-installation-path — suporte uvx, uv tool install, modulo Python
   extensivos para todos os fluxos: entry point, modulo, uvx, uv tool - Testes de mascara de
   segredos, codigos de saida, config invalida, docs - Arquiva change instalacao-cli-com-uv
 
-commit b47ba8e8f382c47a6242a605c7851523224046a8 Author: [REDACTED NAME] <[REDACTED EMAIL]>
+commit 52d5105952dc4c18ba3caa5941a36062ee9c5c12 Author: frederico-mello <fredericommello@gmail.com>
 
 Date: Fri Jul 24 19:09:35 2026 -0300
 
@@ -468,25 +533,25 @@ feat: version-control-and-release — OpenSpec Plus 1.4.0 + commit check module
   openspec-plus-* - Novo modulo commit_check.py: verifica se commits no branch principal seguem
   convencao (feat/fix/etc.) e referenciam issue - Testes para commit_check
 
-commit c183182ec1f70b3e30900038139cbd7d5b43949d Author: [REDACTED NAME] <[REDACTED EMAIL]>
+commit b594142eecbfc72c9ce148ba5683f7f125337f47 Author: frederico-mello <fredericommello@gmail.com>
 
 Date: Fri Jul 24 14:32:38 2026 -0300
 
 fix: clarify git-wt as Worktrunk with AGENTS.md reference
 
-commit 3788b17a8891037c0fd5fe138da4ce1687f62825 Author: [REDACTED NAME] <[REDACTED EMAIL]>
+commit f0acdbfd9029dec4600a034822b29c683d818b67 Author: frederico-mello <fredericommello@gmail.com>
 
 Date: Fri Jul 24 14:29:33 2026 -0300
 
 feat(openspec): sync agent-hygiene-flow delta spec to main specs
 
-commit a09e61469132764f00e5f43245b1042afabd5796 Author: [REDACTED NAME] <[REDACTED EMAIL]>
+commit e8c36739997617828ef9c6f5486f96174809f83b Author: frederico-mello <fredericommello@gmail.com>
 
 Date: Fri Jul 24 14:10:12 2026 -0300
 
 feat(openspec): agent-hygiene-skill — 22/22 tasks complete
 
-commit 4613db48a528a43d776944fa5d5d528e5f16bd13 Author: [REDACTED NAME] <[REDACTED EMAIL]>
+commit e2cc581610edef5b61352001f08a5cba14dda1ee Author: frederico-mello <fredericommello@gmail.com>
 
 Date: Fri Jul 24 09:24:51 2026 -0300
 
@@ -496,207 +561,207 @@ chore(openspec-plus): bump to v1.4.0
   sudokar/openspec-plus v1.4.0 - See CHANGELOG:
   https://github.com/sudokar/openspec-plus/releases/tag/v1.4.0
 
-commit 7f0c09c30cd973c2d86ad2c33946b1473db2b045 Author: [REDACTED NAME] <[REDACTED EMAIL]>
+commit afd2a43f0c2c8b2fb82b5d17da1eba449ac5d4f0 Author: frederico-mello <fredericommello@gmail.com>
 
 Date: Thu Jul 23 07:56:22 2026 -0300
 
 docs: document remote installation
 
-commit 1b620d0df85847ddc6de00457e0d0bd41a083998 Author: [REDACTED NAME] <[REDACTED EMAIL]>
+commit 3254d24da970d76b434824fe1ebf9bae6259e63c Author: Frederico <fredericommello@gmail.com>
 
 Date: Wed Jul 22 19:52:22 2026 -0300
 
 docs: reorganize README, align workflow template, add tests
 
-commit 47665abe157e377a4c72c33cbe2004664ea81d05 Author: [REDACTED NAME] <[REDACTED EMAIL]>
+commit c7d6b3108596d3ff2804e999731ef57705d2d018 Author: Frederico <fredericommello@gmail.com>
 
 Date: Wed Jul 22 18:46:18 2026 -0300
 
 fix(specs): add missing H1 title to publish-pypi-v020 spec
 
-commit e84a9374cd8fc82aceafdacf780103b49ba2d899 Author: [REDACTED NAME] <[REDACTED EMAIL]>
+commit b30a4139d62fe7e83ded172b8f58c431a22abd5d Author: Frederico <fredericommello@gmail.com>
 
 Date: Wed Jul 22 18:43:35 2026 -0300
 
 fix: ignore auditoria-report.txt generated by CI
 
-commit 004d0ced702bb85dfb1624e4affd35a4181116db Author: [REDACTED NAME] <[REDACTED EMAIL]>
+commit afd4420f156b6fd44bc7d8524f8f969c764d23bb Author: Frederico <fredericommello@gmail.com>
 
 Date: Wed Jul 22 18:38:30 2026 -0300
 
 feat: sync delta specs to main specs and archive completed changes
 
-commit bb735aff84e3589b21b0544856d67bedb4467f15 Author: [REDACTED NAME] <[REDACTED EMAIL]>
+commit acfd4632af06842edcd0ee2327cfb5e854eae368 Author: frederico-mello <fredericommello@gmail.com>
 
 Date: Wed Jul 22 16:54:43 2026 -0300
 
 fix: harden audit workflow
 
-commit 2323e5f182d2d403aa06aed19aec54fbc9f8c197 Author: [REDACTED NAME] <[REDACTED EMAIL]>
+commit 79e48eff35401f3bc7d3245566597aea4ee76f97 Author: frederico-mello <fredericommello@gmail.com>
 
 Date: Wed Jul 22 16:49:31 2026 -0300
 
 fix: resolve repository audit findings
 
-commit 2d316f2cb566033d1e3a13bae599ee8542a05a06 Author: [REDACTED NAME] <[REDACTED EMAIL]>
+commit b4025a5edf37aa7fa80731892bdd8cca488fe0e8 Author: frederico-mello <fredericommello@gmail.com>
 
 Date: Wed Jul 22 16:25:45 2026 -0300
 
 fix: detect quoted documentation paths
 
-commit fdfe640fbb14422d638f176f4c56292de6a4a3f0 Author: [REDACTED NAME] <[REDACTED EMAIL]>
+commit 50edcb0218b51e8d0ae2475ad8431c951030d387 Author: frederico-mello <fredericommello@gmail.com>
 
 Date: Wed Jul 22 16:23:35 2026 -0300
 
 fix: validate report output directory
 
-commit 51ccd5cc4c96bf90cf624419aeb02065821e5926 Author: [REDACTED NAME] <[REDACTED EMAIL]>
+commit 38c20b17eeca7b0de5f66824776868e88a12df69 Author: frederico-mello <fredericommello@gmail.com>
 
 Date: Wed Jul 22 16:20:40 2026 -0300
 
 fix: address quality gate findings
 
-commit 6d3bc71607ddb02c22878ac62511006f2486a169 Author: [REDACTED NAME] <[REDACTED EMAIL]>
+commit 1ed8cf8e26522193408651c2b31c1afd2baed9e4 Author: frederico-mello <fredericommello@gmail.com>
 
 Date: Wed Jul 22 16:12:45 2026 -0300
 
 feat: reduce audit false positives
 
-commit adb46cbe4c58e03dc01abd73d531f4d1e0122702 Author: [REDACTED NAME] <[REDACTED EMAIL]>
+commit c16844999919aaa7a3ec62d087a33c6b085fdac5 Author: frederico-mello <fredericommello@gmail.com>
 
 Date: Wed Jul 22 15:44:20 2026 -0300
 
 docs: propose audit false-positive reduction
 
-commit cbc06b112fac378ced6a5806d7d798678c6876d4 Author: [REDACTED NAME] <[REDACTED EMAIL]>
+commit 2d87299d32aa40630ffa7cbc0ade66990671a3c4 Author: frederico-mello <fredericommello@gmail.com>
 
 Date: Wed Jul 22 15:30:08 2026 -0300
 
 fix: mark validated report path sinks
 
-commit 1a3a89cc04b1dc4c330732fc9c072b3253a0f3da Author: [REDACTED NAME] <[REDACTED EMAIL]>
+commit de771ab0b70b3006a4922cba6a7c0ce71d83cb17 Author: frederico-mello <fredericommello@gmail.com>
 
 Date: Wed Jul 22 15:28:10 2026 -0300
 
 fix: validate report output paths
 
-commit d215edce657f89fa0f88a1339ae225c414c275f9 Author: [REDACTED NAME] <[REDACTED EMAIL]>
+commit 484a5c28c4387f7076c951b65d5e6adda265c64f Author: frederico-mello <fredericommello@gmail.com>
 
 Date: Wed Jul 22 15:21:07 2026 -0300
 
 fix: align agent report metadata
 
-commit e2e13e12f8f9788346c0b2b38b6c364104da34a8 Author: [REDACTED NAME] <[REDACTED EMAIL]>
+commit 26d2080ecaf1f98be900ea9634eed61ef7c6ab17 Author: frederico-mello <fredericommello@gmail.com>
 
 Date: Wed Jul 22 15:16:25 2026 -0300
 
 feat: add agent audit reports
 
-commit 08a2f52d59f07243bbc772035f12cffce2573e34 Author: [REDACTED NAME] <[REDACTED EMAIL]>
+commit ffe3c295ba02556ac9882dc4f30d1736c53792c4 Author: frederico-mello <fredericommello@gmail.com>
 
 Date: Wed Jul 22 14:53:15 2026 -0300
 
 docs: propose agent-friendly audit report
 
-commit d50bc2a81363d8ff260d2d947adf92c3e9430ca3 Author: [REDACTED NAME] <[REDACTED EMAIL]>
+commit e1ac5e771d5550ca0465834062e11a33e2e64fa6 Author: frederico-mello <fredericommello@gmail.com>
 
 Date: Wed Jul 22 14:01:37 2026 -0300
 
 fix: avoid scanning ignored directories
 
-commit bdb6dc996c2c52e1ca27a1cdc621dcb767fa0857 Author: [REDACTED NAME] <[REDACTED EMAIL]>
+commit 08152edcebc7bb861703d942bb4b1b9e849fd113 Author: frederico-mello <fredericommello@gmail.com>
 
 Date: Wed Jul 22 13:56:06 2026 -0300
 
 perf: scale artifact audit inventory
 
-commit e675f7d9b2fc5f6b6f330e394fd0b8a0eaa386f8 Author: [REDACTED NAME] <[REDACTED EMAIL]>
+commit 7abcc2a9a99f85b215119861a2904cdb0f974325 Author: frederico-mello <fredericommello@gmail.com>
 
 Date: Wed Jul 22 13:28:09 2026 -0300
 
 docs: propose scalable audit change
 
-commit 083d6b4eca409d87bf47ce17696ae6f26bf8b6c1 Author: [REDACTED NAME] <[REDACTED EMAIL]>
+commit 0773b602c8f019e3deda0e5fe5eb44c7e8d2684c Author: frederico-mello <fredericommello@gmail.com>
 
-commit f5c1a9e74d2c38430cfb6f40ed977b1a8ac39b89 Author: [REDACTED NAME] <[REDACTED EMAIL]>
+commit 6294f4af3d92e27c47313dc83c74405995cbb0bb Author: frederico-mello <fredericommello@gmail.com>
 
 Date: Wed Jul 22 13:05:20 2026 -0300
 
 fix: close README test file
 
-commit 1cb0e477bdad09a1c4a335bc1404a1d9479c13c7 Author: [REDACTED NAME] <[REDACTED EMAIL]>
+commit f078e2d33e28c8a053c6b95bb7f9a99a0a3f4230 Author: frederico-mello <fredericommello@gmail.com>
 
 Date: Wed Jul 22 12:56:19 2026 -0300
 
 feat: bump to 0.2.0, update README, workflow, add tests
 
-commit 3dbeb744607a551284cfe55453bf2fe56640c311 Author: [REDACTED NAME] <[REDACTED EMAIL]>
+commit 1090dc5c15a1adfd6615cbaf80107ef683bcd2a0 Author: frederico-mello <fredericommello@gmail.com>
 
 Date: Wed Jul 22 12:48:16 2026 -0300
 
 docs: propose PyPI 0.2.0 release
 
-commit 78dee7a2b46e8070866ca019e9a511481d912586 Author: [REDACTED NAME] <[REDACTED EMAIL]>
+commit d4f55643c47869b779f24f1aa6626b56d5c82067 Author: frederico-mello <fredericommello@gmail.com>
 
 Date: Wed Jul 22 12:40:05 2026 -0300
 
 fix: use repository-hygiene package name
 
-commit 0fa3877e6c0f4eea5e64dba3eba046ccd954eadb Author: [REDACTED NAME] <[REDACTED EMAIL]>
+commit 4fc6e84fb80b6735fc642d008316f6f88c536875 Author: frederico-mello <fredericommello@gmail.com>
 
 Date: Wed Jul 22 12:34:09 2026 -0300
 
 fix: install package from git source
 
-commit 0f76efe7fc28643ed0c917893cc1cd81ff676bf1 Author: [REDACTED NAME] <[REDACTED EMAIL]>
+commit c2dbf5775e5f94e006df84971f1fd9be6174be9a Author: frederico-mello <fredericommello@gmail.com>
 
 Date: Wed Jul 22 12:30:43 2026 -0300
 
 docs: use uv commands in README
 
-commit 365ea22f01172ed4f3b74f87ae6760b972647b0c Author: [REDACTED NAME] <[REDACTED EMAIL]>
+commit 23533b5ca4c933cd13359af0f9f0d232935ea9e6 Author: frederico-mello <fredericommello@gmail.com>
 
 Date: Wed Jul 22 11:22:36 2026 -0300
 
 docs: sync README with current behavior
 
-commit 8cb9e6e2d859ab4e460028dfe9b823b5fdd990a6 Author: [REDACTED NAME] <[REDACTED EMAIL]>
+commit ac0b8e7f9e98aa518cb504b5eb1b2b422af37256 Author: frederico-mello <fredericommello@gmail.com>
 
 Date: Wed Jul 22 11:03:13 2026 -0300
 
 fix: cache tracked files during audit
 
-commit 789e312c9c91f866d626bb60c17142b5fb496039 Author: [REDACTED NAME] <[REDACTED EMAIL]>
+commit b1b9e80068a4fb735bbbc8a593776ff89d52a7c3 Author: frederico-mello <fredericommello@gmail.com>
 
 Date: Wed Jul 22 09:07:10 2026 -0300
 
 fix: close remaining SonarCloud findings
 
-commit bd10a973dbc87833d416baf790827c569c8e5e77 Author: [REDACTED NAME] <[REDACTED EMAIL]>
+commit 32b79a3c39ad2d33a0aa004dcc3825e6e92ec2f5 Author: frederico-mello <fredericommello@gmail.com>
 
 Date: Wed Jul 22 09:03:16 2026 -0300
 
 fix: address SonarCloud security hotspots
 
-commit 3b2f899de8583c5ba6206d76766bbfc62dd69e24 Author: [REDACTED NAME] <[REDACTED EMAIL]>
+commit 527dbb633330b247badbb63f756c4e0c5611af40 Author: frederico-mello <fredericommello@gmail.com>
 
 Date: Wed Jul 22 08:57:28 2026 -0300
 
 fix(snapshot): prevent path traversal via staged file paths
 
-commit 4c6388e6ff61f2bf5004c1474f6bba4209b9f0ce Author: [REDACTED NAME] <[REDACTED EMAIL]>
+commit 21aabd25ce5257a16fde78c8fe89a204e11cc7fe Author: frederico-mello <fredericommello@gmail.com>
 
 Date: Wed Jul 22 08:46:33 2026 -0300
 
 fix: address Mira review feedback on pre-commit hook
 
-commit c4cdf4ab3f5a49cec2aa6b31115aa1c83ac43920 Author: [REDACTED NAME] <[REDACTED EMAIL]>
+commit b22a5268b15a2391a7731b8e2b3d8afce9959e10 Author: Frederico <fredericommello@gmail.com>
 
 Date: Wed Jul 22 07:08:05 2026 -0300
 
 feat: add native pre-commit hook with staged-only validation
 
-commit 3fbd5008db6c0faa4a4fea47901de12b6ac7f7c9 Author: [REDACTED NAME] <[REDACTED EMAIL]>
+commit 9703bdc20dd7245333186e849f0bdeabc5feb86a Author: frederico-mello <fredericommello@gmail.com>
 
 Date: Tue Jul 21 16:39:02 2026 -0300
 
@@ -708,8 +773,8 @@ feat: initial release v0.1.0.
 ### Features
 
 - **openspec**: Version control release
-  ([#103](https://github.com/[REDACTED NAME]/repository-hygiene/pull/103),
-  [`4adb77b`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/4adb77b05acfb1f94a6f120ab814d031ac0ae93d))
+  ([#103](https://github.com/frederico-mello/repository-hygiene/pull/103),
+  [`5e29e39`](https://github.com/frederico-mello/repository-hygiene/commit/5e29e39a6dcc04867d337d72ba688df91dce6474))
 
 * feat(openspec): version control release complete
 
@@ -747,7 +812,7 @@ feat: initial release v0.1.0.
 ### Bug Fixes
 
 - **mira-ci**: Retry discarded chunks on push, and stop filing issues for partial
-  ([`130dc59`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/130dc59d9b79905a7b6d63373014fc08e53a1db3))
+  ([`40fa8b2`](https://github.com/frederico-mello/repository-hygiene/commit/40fa8b240cae392bf8796bdac04268b5690cf617))
 
 Two problems found while installing this across the fleet.
 
@@ -767,21 +832,21 @@ Parser re-validated on five scenarios (ok, clean, partial, quota, no payload): t
 ### Continuous Integration
 
 - **mira**: Revisar pushes diretos na branch default
-  ([`c5af80a`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/c5af80a4e8706cd631e04ce6dcde4d03237e44bf))
+  ([`7555883`](https://github.com/frederico-mello/repository-hygiene/commit/7555883737f5f0dc28d2d1902322ae3388f37e5c))
 
 A revisao de PR nao ve commits empurrados direto para main. Este workflow revisa o diff do push e
   publica o resultado numa issue (abre/atualiza com achados, fecha quando o push esta limpo). Nao
   bloqueia o push.
 
 - **mira**: Revisar pushes diretos na branch default
-  ([`b3ad133`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/b3ad133c28e974f9f1ac51efda2b3df6a1c0335d))
+  ([`af8aa8e`](https://github.com/frederico-mello/repository-hygiene/commit/af8aa8e81bdf1987ede92f70048921e70b0df376))
 
 A revisao de PR nao ve commits empurrados direto para main. Este workflow revisa o diff do push e
   publica o resultado numa issue (abre/atualiza com achados, fecha quando o push esta limpo). Nao
   bloqueia o push.
 
 - **mira**: Revisar pushes diretos na branch default
-  ([`a15c436`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/a15c436ff8f8d1028b38a44c9f3dc4d4b6e6f691))
+  ([`bd9bf99`](https://github.com/frederico-mello/repository-hygiene/commit/bd9bf9943f7647149dd417cdf33f0bf032e4992c))
 
 A revisao de PR nao ve commits empurrados direto para main. Este workflow revisa o diff do push e
   publica o resultado numa issue (abre/atualiza com achados, fecha quando o push esta limpo). Nao
@@ -793,10 +858,10 @@ A revisao de PR nao ve commits empurrados direto para main. Este workflow revisa
 ### Continuous Integration
 
 - **mira**: Add the AI code-review caller
-  ([`2672d14`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/2672d143204cd1c47fdfc9fc47cd6baf011307e6))
+  ([`d5d8b26`](https://github.com/frederico-mello/repository-hygiene/commit/d5d8b26a508d3b5639e53f11c7b237751b9e6c92))
 
 Calls the shared reusable workflow instead of carrying a copy:
-  [REDACTED NAME]/repository-hygiene/.github/workflows/mira-review-reusable.yml@main
+  frederico-mello/repository-hygiene/.github/workflows/mira-review-reusable.yml@main
 
 The reusable workflow owns the endpoint, credential, model, and fallback policy; .mira.yaml carries
   only this repo's review tuning and is merged over those defaults.
@@ -806,7 +871,7 @@ Needs the repo secret OPENCODE_GO_API_KEY (configured).
 ### Features
 
 - **mira-ci**: Review direct pushes to the default branch
-  ([`c18c933`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/c18c933ab34411c38567ced484d3de96f893c043))
+  ([`58f258e`](https://github.com/frederico-mello/repository-hygiene/commit/58f258ec28a18e91b494301347544875edb1f366))
 
 Closes the gap the PR review cannot cover. On this account most commits go straight to main (6 of
   the last 8 in principal-tarefas-aleatorias, 4 of 8 in mundo-wumpus), and the PR-triggered workflow
@@ -827,7 +892,7 @@ Design choices specific to this path: - uses `mira review --stdin` on the pushed
 ### Bug Fixes
 
 - **mira-ci**: The retry never fired (verdict captured log output)
-  ([`1e18141`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/1e181416c4eca7b83a045eaef169b475a696afb0))
+  ([`6c51fb9`](https://github.com/frederico-mello/repository-hygiene/commit/6c51fb997e780e799b2df2eb0a8dd5228a70de2a))
 
 Caught in production on the first run of the retry code: the loop broke with 'attempt 1 verdict:
   partial' and still did not retry. Assigning $(python ...) captured the parser's whole stdout,
@@ -843,7 +908,7 @@ The parser now writes the verdict to its own one-line file and the loop reads th
 ### Features
 
 - **mira-ci**: Retry once when a chunk is discarded
-  ([`c6dee90`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/c6dee902e799013255da961488b6409d26a00c9a))
+  ([`8e9007f`](https://github.com/frederico-mello/repository-hygiene/commit/8e9007fcc0913cf06cd73e30007669b5134d8fe0))
 
 Measured on a real PR diff: the same model dropped a chunk on 2 of 5 runs, and the payload for a
   dropped chunk says 'No issues found.' — so the failure mode looks exactly like a clean review both
@@ -866,7 +931,7 @@ Parser re-validated on seven scenarios; every step's bash syntax checked with ba
 ### Bug Fixes
 
 - **mira-ci**: A discarded chunk is not a clean review
-  ([`d7d9c40`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/d7d9c401b84296718cbb9215ad629d65d3a204c0))
+  ([`7ca7537`](https://github.com/frederico-mello/repository-hygiene/commit/7ca7537fb04f3dc7247fad6b9942381b96b64faf))
 
 Caught this on a live fleet run (repository-hygiene PR #103). The job went green reporting status=ok
   with 0 comments, while the log said:
@@ -893,7 +958,7 @@ Parser re-validated on seven scenarios: ok, failed, clean, warnings-only, quota,
 ### Bug Fixes
 
 - **mira-ci**: Point this repo's caller at @main
-  ([`e86b31f`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/e86b31fa4ac6c7e82e85012607f117a329acb3f3))
+  ([`2bdafbf`](https://github.com/frederico-mello/repository-hygiene/commit/2bdafbffc8ee34a5215a609c1c0f23368b627214))
 
 The caller was pinned to @ci/mira-reusable-workflow while the reusable workflow was under review.
   That branch was deleted in the squash merge of #521, so the caller resolved to a nonexistent ref
@@ -906,7 +971,7 @@ Repos that received the caller after the merge already point at @main; this repo
 ### Chores
 
 - **openspec**: Archive english-source-localization + sync specs
-  ([`755a4a8`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/755a4a811e1527109089fa7e89b8adcc8c831a54))
+  ([`090dec2`](https://github.com/frederico-mello/repository-hygiene/commit/090dec213d766a1ebb277d85139ecead0f22d439))
 
 Move change english-source-localization to openspec/changes/archive/. Sync delta specs: create new
   english-source-locale capability spec, apply MODIFIED+ADDED requirements to
@@ -915,7 +980,7 @@ Move change english-source-localization to openspec/changes/archive/. Sync delta
 ### Continuous Integration
 
 - **mira**: Reusable AI code-review workflow for all repos
-  ([`0acb161`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/0acb161f77adeb9dc1c926d792509810d9171850))
+  ([`991e64c`](https://github.com/frederico-mello/repository-hygiene/commit/991e64c25209110a561f2c39e81e796a9642b5b4))
 
 * ci(mira): reusable AI code-review workflow for all repos
 
@@ -1046,7 +1111,7 @@ The version is now a literal commit SHA on the install line and the mira-ref inp
 
 ---------
 
-Co-authored-by: [REDACTED NAME] <[REDACTED EMAIL]>
+Co-authored-by: Frederico Maciel de Mello <frederico.mello@unifesp.br>
 
 
 ## v0.6.0 (2026-07-26)
@@ -1054,7 +1119,7 @@ Co-authored-by: [REDACTED NAME] <[REDACTED EMAIL]>
 ### Features
 
 - English only localization
-  ([`812e7e2`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/812e7e2db4c5581b9ada4cd4ba43d413f93616bc))
+  ([`bbf45e5`](https://github.com/frederico-mello/repository-hygiene/commit/bbf45e52b083b31c519df6a1b67ffb9b47a4376e))
 
 - Implements change `` - Archived to openspec/changes/archive/
 
@@ -1064,7 +1129,7 @@ Co-authored-by: [REDACTED NAME] <[REDACTED EMAIL]>
 ### Bug Fixes
 
 - Reduce cognitive complexity and validate file paths
-  ([`c67cf2d`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/c67cf2d776a2ec9a4d90eea4be7898a764684e73))
+  ([`f69f6d4`](https://github.com/frederico-mello/repository-hygiene/commit/f69f6d4fa522cd503e0460afbe51e922ee46920c))
 
 - Extract `_processar_ref_doc` from `_verificar_refs_doc_em_arquivo` (16→15) - Extract
   `_subdir_contem_nome` and `_arquivo_contem_texto` from `_dir_mencionada_em_openspec` (20→15) - Add
@@ -1074,18 +1139,18 @@ Co-authored-by: [REDACTED NAME] <[REDACTED EMAIL]>
 ### Chores
 
 - Archive reconcile-hygiene-semantic-audit
-  ([`8e85923`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/8e859238938d143685e288026e65cf06ef51b1c1))
+  ([`1257b1c`](https://github.com/frederico-mello/repository-hygiene/commit/1257b1cb290c6280aaf4893f8d610a6fc6c7a989))
 
 - Resolve merge conflict in openspec/config.yaml
-  ([`125b639`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/125b639f42f4b0d75297c9ba6213c445080d352b))
+  ([`8d9d0c0`](https://github.com/frederico-mello/repository-hygiene/commit/8d9d0c027c5c929af05e91b2659ee08b94031d9a))
 
 - **openspec**: Arquivar change install-skill e sincronizar spec
-  ([`1120bf6`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/1120bf6464fb4385937a3fd594d5c9a9d25ec94e))
+  ([`ea00f88`](https://github.com/frederico-mello/repository-hygiene/commit/ea00f886b274de56d332ef08ac7b7c669ae9f786))
 
 ### Documentation
 
 - Reescrever README conciso — PT só, fluxo linear, aviso pip install
-  ([`f0dd747`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/f0dd747c689a73221b79c12aae87afea368b7310))
+  ([`34213cc`](https://github.com/frederico-mello/repository-hygiene/commit/34213ccd441251a94c91dd6ff84fa7948f0f8765))
 
 Remove duplicacao PT/EN (Instalacao + Installation & Execution). Remove instrucoes de venv
   redundantes. Adiciona aviso: apos pip install, executar repository-hygiene install . Reorganiza em
@@ -1094,7 +1159,7 @@ Remove duplicacao PT/EN (Instalacao + Installation & Execution). Remove instruco
 ### Features
 
 - Semantic repository reconciliation audit
-  ([`b00896b`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/b00896bf5f9151dc28cf97b5360726cdaeb9b2ac))
+  ([`4852b7b`](https://github.com/frederico-mello/repository-hygiene/commit/4852b7ba078d5d804f5e990c630c133b934b534f))
 
 Add nested repo detection, workflow intent evaluation, semantic evidence cross-referencing with
   OpenSpec/Graphify, typed recommendation taxonomy, and updated agent-hygiene-flow skill.
@@ -1110,7 +1175,7 @@ Add nested repo detection, workflow intent evaluation, semantic evidence cross-r
 ### Features
 
 - **install**: Provisionar skill agent-hygiene-flow no alvo
-  ([`c554d6d`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/c554d6da34317bd6fa688357818c271ab6484032))
+  ([`edd2e7a`](https://github.com/frederico-mello/repository-hygiene/commit/edd2e7a8d78c15fcb31ed817b664a499cfe758e2))
 
 Adiciona a skill OpenCode agent-hygiene-flow como package data e provisiona em
   .opencode/skills/agent-hygiene-flow/ durante o 'repository-hygiene install'. Reutiliza a semantica
@@ -1123,59 +1188,59 @@ Adiciona a skill OpenCode agent-hygiene-flow como package data e provisiona em
 ### Bug Fixes
 
 - Add --only-binary to workflow pip installs
-  ([`c87adbd`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/c87adbd4d3f756d11526c7d8391e020fe06454ac))
+  ([`449f47d`](https://github.com/frederico-mello/repository-hygiene/commit/449f47d50c48a3dc0612ad850146c55f439771b8))
 
 - Address quality gate findings
-  ([`51ccd5c`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/51ccd5cc4c96bf90cf624419aeb02065821e5926))
+  ([`38c20b1`](https://github.com/frederico-mello/repository-hygiene/commit/38c20b17eeca7b0de5f66824776868e88a12df69))
 
 - Align agent report metadata
-  ([`d215edc`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/d215edce657f89fa0f88a1339ae225c414c275f9))
+  ([`484a5c2`](https://github.com/frederico-mello/repository-hygiene/commit/484a5c28c4387f7076c951b65d5e6adda265c64f))
 
 - Avoid scanning ignored directories
-  ([`d50bc2a`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/d50bc2a81363d8ff260d2d947adf92c3e9430ca3))
+  ([`e1ac5e7`](https://github.com/frederico-mello/repository-hygiene/commit/e1ac5e771d5550ca0465834062e11a33e2e64fa6))
 
 - Clarify git-wt as Worktrunk with AGENTS.md reference
-  ([`c183182`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/c183182ec1f70b3e30900038139cbd7d5b43949d))
+  ([`b594142`](https://github.com/frederico-mello/repository-hygiene/commit/b594142eecbfc72c9ce148ba5683f7f125337f47))
 
 - Deduplicate git_repo fixture — extract to conftest.py
-  ([`5463324`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/5463324fb6bd05580a877165aead7fe4822fbaba))
+  ([`1669e89`](https://github.com/frederico-mello/repository-hygiene/commit/1669e8987d42a44cccca38e0f437ab3123662310))
 
 SonarCloud Quality Gate: 19.3% duplicated lines (threshold 3%). git_repo fixture was duplicated
   across test_auditoria_package.py and test_commit_check.py. Moved to shared conftest.py.
 
 - Detect quoted documentation paths
-  ([`2d316f2`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/2d316f2cb566033d1e3a13bae599ee8542a05a06))
+  ([`b4025a5`](https://github.com/frederico-mello/repository-hygiene/commit/b4025a5edf37aa7fa80731892bdd8cca488fe0e8))
 
 - Harden audit workflow
-  ([`bb735af`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/bb735aff84e3589b21b0544856d67bedb4467f15))
+  ([`acfd463`](https://github.com/frederico-mello/repository-hygiene/commit/acfd4632af06842edcd0ee2327cfb5e854eae368))
 
 - Ignore auditoria-report.txt generated by CI
-  ([`e84a937`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/e84a9374cd8fc82aceafdacf780103b49ba2d899))
+  ([`b30a413`](https://github.com/frederico-mello/repository-hygiene/commit/b30a4139d62fe7e83ded172b8f58c431a22abd5d))
 
 - Mark validated report path sinks
-  ([`cbc06b1`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/cbc06b112fac378ced6a5806d7d798678c6876d4))
+  ([`2d87299`](https://github.com/frederico-mello/repository-hygiene/commit/2d87299d32aa40630ffa7cbc0ade66990671a3c4))
 
 - Pin CI dependency versions for SonarQube
-  ([`dd8aa48`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/dd8aa4885cabb284b46e5eada3faa6d2aa7b62d7))
+  ([`0b38882`](https://github.com/frederico-mello/repository-hygiene/commit/0b38882da704ef0d194e583991d46ec2671bf41e))
 
 - Pin repository-hygiene to exact version 0.2.0 for SonarQube
-  ([`eb074b2`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/eb074b22fd0ec07ca6ed56124fe06ffeedfb027e))
+  ([`cc610e5`](https://github.com/frederico-mello/repository-hygiene/commit/cc610e5f61fe599578115a22112256637dacab4e))
 
 - Pin repository-hygiene to minimum version 0.3.0
-  ([`49cef22`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/49cef220d6fae5f0990949dcb799acaad378f3e8))
+  ([`dcf82b4`](https://github.com/frederico-mello/repository-hygiene/commit/dcf82b46f3668eb9c4222242ea3fed3cbe3799f8))
 
 - Remove build artifacts from version control
-  ([`a115d75`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/a115d75104c70ea53570648614cb3a97b839b9d7))
+  ([`2bbbeb3`](https://github.com/frederico-mello/repository-hygiene/commit/2bbbeb30b1adff0585d48627bf59915140a20d5f))
 
 - Resolve all remaining SonarCloud vulnerabilities
-  ([`905063c`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/905063c6c5510f6807692520ba14ee8c1526ca27))
+  ([`b4f95ab`](https://github.com/frederico-mello/repository-hygiene/commit/b4f95ab0f5429fad39283ff74813503bfa2ac9a3))
 
 - Split uv pip install: --only-binary :all: + pinned pytest version - uv run --frozen locks all
   dependency versions - uvx/uv tool run with explicit ==0.2.0 version pin - All actions pinned to
   full commit SHA
 
 - Resolve Quality Gate and CI failures for PR #58
-  ([`0e75456`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/0e754566a659f2622741e122edf14dfc07ba6d8b))
+  ([`b24fb57`](https://github.com/frederico-mello/repository-hygiene/commit/b24fb572200f2c4bb0195735124b46335dc5953e))
 
 - Rewrite CLI to support subcommands (install/audit/update) with backward compat - Add cmd_install
   (dry-run support) and cmd_update to init.py - Fix CI workflow: use uv venv instead of --system,
@@ -1184,39 +1249,39 @@ SonarCloud Quality Gate: 19.3% duplicated lines (threshold 3%). git_repo fixture
   compat: --init, --pre-commit, --install-hook still work
 
 - Resolve repository audit findings
-  ([`2323e5f`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/2323e5f182d2d403aa06aed19aec54fbc9f8c197))
+  ([`79e48ef`](https://github.com/frederico-mello/repository-hygiene/commit/79e48eff35401f3bc7d3245566597aea4ee76f97))
 
 - Resolve SonarCloud security hotspots in CI workflow
-  ([`56120ef`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/56120ef5447c963643d16218b1bab231a7b601aa))
+  ([`4dbb3da`](https://github.com/frederico-mello/repository-hygiene/commit/4dbb3dacccc395a53685da6f031b616e85a3b5ec))
 
 - Pin actions/checkout and astral-sh/setup-uv to full SHA (HIGH) - Pin pytest version to 8.3.4
   (MEDIUM) - Pin uv tool install/run via --from <wheel> (MEDIUM)
 
 - Suppress S8544 - dynamic version by design
-  ([`dc2c4b5`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/dc2c4b5ed99a5a0dcc4e42431704d60d21742a8c))
+  ([`9c3a010`](https://github.com/frederico-mello/repository-hygiene/commit/9c3a01037cf6bd5658c780751645eed689b46174))
 
 - Use exact versions for pip install
-  ([`066489b`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/066489b6534ce10e10b275b1aaad7c9ebc4e3778))
+  ([`473138f`](https://github.com/frederico-mello/repository-hygiene/commit/473138f8e04fa9b4d4986362cc928e068fa70d1c))
 
 - Use minimum version constraint for repository-hygiene
-  ([`228fcff`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/228fcff4286a94a7b3b4706726a4e5c7a9743b62))
+  ([`ae378a9`](https://github.com/frederico-mello/repository-hygiene/commit/ae378a97c94659f6e51fc7275e0d2655202e3a18))
 
 - Validate report output directory
-  ([`fdfe640`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/fdfe640fbb14422d638f176f4c56292de6a4a3f0))
+  ([`50edcb0`](https://github.com/frederico-mello/repository-hygiene/commit/50edcb0218b51e8d0ae2475ad8431c951030d387))
 
 - Validate report output paths
-  ([`1a3a89c`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/1a3a89cc04b1dc4c330732fc9c072b3253a0f3da))
+  ([`de771ab`](https://github.com/frederico-mello/repository-hygiene/commit/de771ab0b70b3006a4922cba6a7c0ce71d83cb17))
 
 - **specs**: Add missing H1 title to publish-pypi-v020 spec
-  ([`47665ab`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/47665abe157e377a4c72c33cbe2004664ea81d05))
+  ([`c7d6b31`](https://github.com/frederico-mello/repository-hygiene/commit/c7d6b3108596d3ff2804e999731ef57705d2d018))
 
 ### Chores
 
 - Ignore build artifacts
-  ([`7b5e360`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/7b5e3606f05f4920e2b19e559b815754af4b2f91))
+  ([`f74e342`](https://github.com/frederico-mello/repository-hygiene/commit/f74e3425dab1f7b58f689881b34a5f43acbf3b34))
 
 - **openspec-plus**: Bump to v1.4.0
-  ([`4613db4`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/4613db48a528a43d776944fa5d5d528e5f16bd13))
+  ([`e2cc581`](https://github.com/frederico-mello/repository-hygiene/commit/e2cc581610edef5b61352001f08a5cba14dda1ee))
 
 - Update openspec/config.yaml with openspec-plus context and rules - Aligns with upstream
   sudokar/openspec-plus v1.4.0 - See CHANGELOG:
@@ -1225,33 +1290,33 @@ SonarCloud Quality Gate: 19.3% duplicated lines (threshold 3%). git_repo fixture
 ### Documentation
 
 - Document remote installation
-  ([`7f0c09c`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/7f0c09c30cd973c2d86ad2c33946b1473db2b045))
+  ([`afd2a43`](https://github.com/frederico-mello/repository-hygiene/commit/afd2a43f0c2c8b2fb82b5d17da1eba449ac5d4f0))
 
 - Propose agent-friendly audit report
-  ([`08a2f52`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/08a2f52d59f07243bbc772035f12cffce2573e34))
+  ([`ffe3c29`](https://github.com/frederico-mello/repository-hygiene/commit/ffe3c295ba02556ac9882dc4f30d1736c53792c4))
 
 - Propose audit false-positive reduction
-  ([`adb46cb`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/adb46cbe4c58e03dc01abd73d531f4d1e0122702))
+  ([`c168449`](https://github.com/frederico-mello/repository-hygiene/commit/c16844999919aaa7a3ec62d087a33c6b085fdac5))
 
 - Propose scalable audit change
-  ([`083d6b4`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/083d6b4eca409d87bf47ce17696ae6f26bf8b6c1))
+  ([`0773b60`](https://github.com/frederico-mello/repository-hygiene/commit/0773b602c8f019e3deda0e5fe5eb44c7e8d2684c))
 
 - Propose scalable audit change
-  ([`e675f7d`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/e675f7d9b2fc5f6b6f330e394fd0b8a0eaa386f8))
+  ([`7abcc2a`](https://github.com/frederico-mello/repository-hygiene/commit/7abcc2a9a99f85b215119861a2904cdb0f974325))
 
 - Reorganize README, align workflow template, add tests
-  ([`1b620d0`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/1b620d0df85847ddc6de00457e0d0bd41a083998))
+  ([`3254d24`](https://github.com/frederico-mello/repository-hygiene/commit/3254d24da970d76b434824fe1ebf9bae6259e63c))
 
 ### Features
 
 - Add agent audit reports
-  ([`e2e13e1`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/e2e13e12f8f9788346c0b2b38b6c364104da34a8))
+  ([`26d2080`](https://github.com/frederico-mello/repository-hygiene/commit/26d2080ecaf1f98be900ea9634eed61ef7c6ab17))
 
 - Reduce audit false positives
-  ([`6d3bc71`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/6d3bc71607ddb02c22878ac62511006f2486a169))
+  ([`1ed8cf8`](https://github.com/frederico-mello/repository-hygiene/commit/1ed8cf8e26522193408651c2b31c1afd2baed9e4))
 
 - Robust-installation-path — suporte uvx, uv tool install, modulo Python
-  ([`ef70377`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/ef7037704e8daa75f3ffe897177b5fce3eab95aa))
+  ([`52e0131`](https://github.com/frederico-mello/repository-hygiene/commit/52e01312a7d76ea33b33ef2c566522212a3c276d))
 
 - Adiciona __main__.py para execucao via python -m auditoria_higiene - Documenta fluxos uvx, uv tool
   install, pip e modulo Python no README - Nova spec instalacao-cli-uv com cenarios para cada fluxo
@@ -1260,10 +1325,10 @@ SonarCloud Quality Gate: 19.3% duplicated lines (threshold 3%). git_repo fixture
   segredos, codigos de saida, config invalida, docs - Arquiva change instalacao-cli-com-uv
 
 - Sync delta specs to main specs and archive completed changes
-  ([`004d0ce`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/004d0ced702bb85dfb1624e4affd35a4181116db))
+  ([`afd4420`](https://github.com/frederico-mello/repository-hygiene/commit/afd4420f156b6fd44bc7d8524f8f969c764d23bb))
 
 - Version control and release automation
-  ([`ca3c777`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/ca3c777f01592336cc74c10b7258eaf791f1c8f6))
+  ([`f4102d5`](https://github.com/frederico-mello/repository-hygiene/commit/f4102d51bfc59c7d3be691dcabf33167d050b6d7))
 
 - Conventional Commits audit rule (commit_check.py + core.py integration) - commit-msg hook
   installed by default on --init - Dynamic workflow template (no hardcoded version) - Semantic
@@ -1271,30 +1336,30 @@ SonarCloud Quality Gate: 19.3% duplicated lines (threshold 3%). git_repo fixture
   - 13/13 tasks complete, 140 tests passing
 
 - Version-control-and-release — OpenSpec Plus 1.4.0 + commit check module
-  ([`b47ba8e`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/b47ba8e8f382c47a6242a605c7851523224046a8))
+  ([`52d5105`](https://github.com/frederico-mello/repository-hygiene/commit/52d5105952dc4c18ba3caa5941a36062ee9c5c12))
 
 - Upgrade OpenSpec Plus de 1.3.0 para 1.4.0 - Adiciona regras mandatory no config.yaml para skills
   openspec-plus-* - Novo modulo commit_check.py: verifica se commits no branch principal seguem
   convencao (feat/fix/etc.) e referenciam issue - Testes para commit_check
 
 - **openspec**: Agent-hygiene-skill — 22/22 tasks complete
-  ([`a09e614`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/a09e61469132764f00e5f43245b1042afabd5796))
+  ([`e8c3673`](https://github.com/frederico-mello/repository-hygiene/commit/e8c36739997617828ef9c6f5486f96174809f83b))
 
 - **openspec**: Sync agent-hygiene-flow delta spec to main specs
-  ([`3788b17`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/3788b17a8891037c0fd5fe138da4ce1687f62825))
+  ([`f0acdbf`](https://github.com/frederico-mello/repository-hygiene/commit/f0acdbfd9029dec4600a034822b29c683d818b67))
 
 ### Performance Improvements
 
 - Scale artifact audit inventory
-  ([`bdb6dc9`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/bdb6dc996c2c52e1ca27a1cdc621dcb767fa0857))
+  ([`08152ed`](https://github.com/frederico-mello/repository-hygiene/commit/08152edcebc7bb861703d942bb4b1b9e849fd113))
 
 ### Refactoring
 
 - Parametrize commit_check tests to reduce duplication
-  ([`b1dff7b`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/b1dff7bf183a85f365b348b55068006fea1b23fd))
+  ([`c9ec306`](https://github.com/frederico-mello/repository-hygiene/commit/c9ec30695136a14996bab3873e942b37df719b6e))
 
 - Parametrize hook validation tests to reduce duplication
-  ([`d0c847a`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/d0c847a6552ba6fd3db51a7f3720401dbc8239a0))
+  ([`d0fab71`](https://github.com/frederico-mello/repository-hygiene/commit/d0fab712aa1bbc0b8f384626d491f8201cd22588))
 
 
 ## v0.2.0 (2026-07-22)
@@ -1302,47 +1367,47 @@ SonarCloud Quality Gate: 19.3% duplicated lines (threshold 3%). git_repo fixture
 ### Bug Fixes
 
 - Address Mira review feedback on pre-commit hook
-  ([`4c6388e`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/4c6388e6ff61f2bf5004c1474f6bba4209b9f0ce))
+  ([`21aabd2`](https://github.com/frederico-mello/repository-hygiene/commit/21aabd25ce5257a16fde78c8fe89a204e11cc7fe))
 
 - Address SonarCloud security hotspots
-  ([`bd10a97`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/bd10a973dbc87833d416baf790827c569c8e5e77))
+  ([`32b79a3`](https://github.com/frederico-mello/repository-hygiene/commit/32b79a3c39ad2d33a0aa004dcc3825e6e92ec2f5))
 
 - Cache tracked files during audit
-  ([`8cb9e6e`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/8cb9e6e2d859ab4e460028dfe9b823b5fdd990a6))
+  ([`ac0b8e7`](https://github.com/frederico-mello/repository-hygiene/commit/ac0b8e7f9e98aa518cb504b5eb1b2b422af37256))
 
 - Close README test file
-  ([`f5c1a9e`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/f5c1a9e74d2c38430cfb6f40ed977b1a8ac39b89))
+  ([`6294f4a`](https://github.com/frederico-mello/repository-hygiene/commit/6294f4af3d92e27c47313dc83c74405995cbb0bb))
 
 - Close remaining SonarCloud findings
-  ([`789e312`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/789e312c9c91f866d626bb60c17142b5fb496039))
+  ([`b1b9e80`](https://github.com/frederico-mello/repository-hygiene/commit/b1b9e80068a4fb735bbbc8a593776ff89d52a7c3))
 
 - Install package from git source
-  ([`0fa3877`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/0fa3877e6c0f4eea5e64dba3eba046ccd954eadb))
+  ([`4fc6e84`](https://github.com/frederico-mello/repository-hygiene/commit/4fc6e84fb80b6735fc642d008316f6f88c536875))
 
 - Use repository-hygiene package name
-  ([`78dee7a`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/78dee7a2b46e8070866ca019e9a511481d912586))
+  ([`d4f5564`](https://github.com/frederico-mello/repository-hygiene/commit/d4f55643c47869b779f24f1aa6626b56d5c82067))
 
 - **snapshot**: Prevent path traversal via staged file paths
-  ([`3b2f899`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/3b2f899de8583c5ba6206d76766bbfc62dd69e24))
+  ([`527dbb6`](https://github.com/frederico-mello/repository-hygiene/commit/527dbb633330b247badbb63f756c4e0c5611af40))
 
 ### Documentation
 
 - Propose PyPI 0.2.0 release
-  ([`3dbeb74`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/3dbeb744607a551284cfe55453bf2fe56640c311))
+  ([`1090dc5`](https://github.com/frederico-mello/repository-hygiene/commit/1090dc5c15a1adfd6615cbaf80107ef683bcd2a0))
 
 - Sync README with current behavior
-  ([`365ea22`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/365ea22f01172ed4f3b74f87ae6760b972647b0c))
+  ([`23533b5`](https://github.com/frederico-mello/repository-hygiene/commit/23533b5ca4c933cd13359af0f9f0d232935ea9e6))
 
 - Use uv commands in README
-  ([`0f76efe`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/0f76efe7fc28643ed0c917893cc1cd81ff676bf1))
+  ([`c2dbf57`](https://github.com/frederico-mello/repository-hygiene/commit/c2dbf5775e5f94e006df84971f1fd9be6174be9a))
 
 ### Features
 
 - Add native pre-commit hook with staged-only validation
-  ([`c4cdf4a`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/c4cdf4ab3f5a49cec2aa6b31115aa1c83ac43920))
+  ([`b22a526`](https://github.com/frederico-mello/repository-hygiene/commit/b22a5268b15a2391a7731b8e2b3d8afce9959e10))
 
 - Bump to 0.2.0, update README, workflow, add tests
-  ([`1cb0e47`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/1cb0e477bdad09a1c4a335bc1404a1d9479c13c7))
+  ([`f078e2d`](https://github.com/frederico-mello/repository-hygiene/commit/f078e2d33e28c8a053c6b95bb7f9a99a0a3f4230))
 
 - Initial release v0.1.0
-  ([`3fbd500`](https://github.com/[REDACTED NAME]/repository-hygiene/commit/3fbd5008db6c0faa4a4fea47901de12b6ac7f7c9))
+  ([`9703bdc`](https://github.com/frederico-mello/repository-hygiene/commit/9703bdc20dd7245333186e849f0bdeabc5feb86a))
